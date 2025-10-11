@@ -319,12 +319,17 @@ jobs:
       run: |
         cd installer/build
         ls -lh
-        if [ -f "FoundryMCPServer-${{ env.PACKAGE_VERSION }}.dmg" ]; then
+        # Strip 'v' prefix from version for filename check
+        VERSION="${{ env.PACKAGE_VERSION }}"
+        VERSION_NO_V="${VERSION#v}"
+        if [ -f "FoundryMCPServer-${VERSION_NO_V}.dmg" ]; then
           echo "✓ Mac DMG distribution found"
-          SIZE=$(du -h "FoundryMCPServer-${{ env.PACKAGE_VERSION }}.dmg" | cut -f1)
+          SIZE=$(du -h "FoundryMCPServer-${VERSION_NO_V}.dmg" | cut -f1)
           echo "📊 DMG size: $SIZE"
+          # Copy with v prefix for artifact upload consistency
+          cp "FoundryMCPServer-${VERSION_NO_V}.dmg" "FoundryMCPServer-${VERSION}.dmg"
         else
-          echo "❌ Mac DMG not found"
+          echo "❌ Mac DMG not found (expected: FoundryMCPServer-${VERSION_NO_V}.dmg)"
           exit 1
         fi
 
