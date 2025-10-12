@@ -1,6 +1,6 @@
 # Foundry VTT MCP Bridge
 
-Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP).
+Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition and Pathfinder Second Edition. The majority of MCP tools are system agnostic but character creation and compendium tools are only able to work with D&D5e and PF2E. 
 
 ## Overview
 
