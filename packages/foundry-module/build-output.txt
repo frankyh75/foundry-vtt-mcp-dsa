@@ -1,0 +1,250 @@
+
+> @foundry-mcp/module@0.5.6 build
+> tsc
+
+src/data-access.ts(2708,11): error TS1005: ':' expected.
+src/data-access.ts(2710,7): error TS1005: ',' expected.
+src/data-access.ts(2712,9): error TS1003: Identifier expected.
+src/data-access.ts(2712,25): error TS1005: ',' expected.
+src/data-access.ts(2712,33): error TS1005: ',' expected.
+src/data-access.ts(2712,35): error TS1005: ',' expected.
+src/data-access.ts(2713,13): error TS1005: ':' expected.
+src/data-access.ts(2713,17): error TS1005: ':' expected.
+src/data-access.ts(2713,22): error TS1005: ',' expected.
+src/data-access.ts(2716,5): error TS1068: Unexpected token. A constructor, method, accessor, or property was expected.
+src/data-access.ts(2750,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(2755,3): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(2755,42): error TS1005: ',' expected.
+src/data-access.ts(2755,65): error TS1005: ';' expected.
+src/data-access.ts(2756,9): error TS1005: ':' expected.
+src/data-access.ts(2756,32): error TS1005: ',' expected.
+src/data-access.ts(2759,11): error TS1005: ':' expected.
+src/data-access.ts(2761,7): error TS1005: ',' expected.
+src/data-access.ts(2763,9): error TS1003: Identifier expected.
+src/data-access.ts(2763,25): error TS1005: ',' expected.
+src/data-access.ts(2763,33): error TS1005: ',' expected.
+src/data-access.ts(2763,35): error TS1136: Property assignment expected.
+src/data-access.ts(2882,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(2887,3): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(2887,47): error TS1005: ',' expected.
+src/data-access.ts(2888,19): error TS1005: ',' expected.
+src/data-access.ts(2889,19): error TS1005: ',' expected.
+src/data-access.ts(2890,25): error TS1011: An element access expression should take an argument.
+src/data-access.ts(2890,26): error TS1005: ',' expected.
+src/data-access.ts(2891,22): error TS1005: ',' expected.
+src/data-access.ts(2892,25): error TS1005: ',' expected.
+src/data-access.ts(2894,57): error TS1005: ',' expected.
+src/data-access.ts(2895,32): error TS1005: ',' expected.
+src/data-access.ts(2895,46): error TS1011: An element access expression should take an argument.
+src/data-access.ts(2895,47): error TS1005: ',' expected.
+src/data-access.ts(2896,6): error TS1005: ',' expected.
+src/data-access.ts(2897,5): error TS1005: ';' expected.
+src/data-access.ts(2898,9): error TS1005: ':' expected.
+src/data-access.ts(2898,32): error TS1005: ',' expected.
+src/data-access.ts(2900,9): error TS1005: ':' expected.
+src/data-access.ts(2901,13): error TS1005: ':' expected.
+src/data-access.ts(2901,99): error TS1005: ',' expected.
+src/data-access.ts(2904,11): error TS1003: Identifier expected.
+src/data-access.ts(2904,19): error TS1005: ',' expected.
+src/data-access.ts(2904,29): error TS1005: ',' expected.
+src/data-access.ts(2904,31): error TS1136: Property assignment expected.
+src/data-access.ts(3012,5): error TS1128: Declaration or statement expected.
+src/data-access.ts(3012,7): error TS1005: 'try' expected.
+src/data-access.ts(3017,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3022,3): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3022,41): error TS1005: ',' expected.
+src/data-access.ts(3022,61): error TS1005: ',' expected.
+src/data-access.ts(3022,70): error TS1005: ';' expected.
+src/data-access.ts(3024,11): error TS1005: ':' expected.
+src/data-access.ts(3024,40): error TS1005: ',' expected.
+src/data-access.ts(3025,9): error TS1003: Identifier expected.
+src/data-access.ts(3029,5): error TS1005: ',' expected.
+src/data-access.ts(3029,11): error TS1005: ':' expected.
+src/data-access.ts(3029,56): error TS1005: ',' expected.
+src/data-access.ts(3030,9): error TS1003: Identifier expected.
+src/data-access.ts(3035,5): error TS1005: ',' expected.
+src/data-access.ts(3035,11): error TS1005: ':' expected.
+src/data-access.ts(3035,20): error TS1005: ',' expected.
+src/data-access.ts(3044,6): error TS1005: ',' expected.
+src/data-access.ts(3047,9): error TS1138: Parameter declaration expected.
+src/data-access.ts(3047,32): error TS1005: ';' expected.
+src/data-access.ts(3069,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3074,3): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3074,35): error TS1005: ',' expected.
+src/data-access.ts(3074,72): error TS1109: Expression expected.
+src/data-access.ts(3074,81): error TS1005: ';' expected.
+src/data-access.ts(3075,9): error TS1005: ':' expected.
+src/data-access.ts(3075,32): error TS1005: ',' expected.
+src/data-access.ts(3078,11): error TS1005: ':' expected.
+src/data-access.ts(3080,7): error TS1005: ',' expected.
+src/data-access.ts(3082,9): error TS1003: Identifier expected.
+src/data-access.ts(3082,25): error TS1005: ',' expected.
+src/data-access.ts(3082,33): error TS1005: ',' expected.
+src/data-access.ts(3082,35): error TS1136: Property assignment expected.
+src/data-access.ts(3155,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3171,4): error TS1109: Expression expected.
+src/data-access.ts(3171,11): error TS1005: ';' expected.
+src/data-access.ts(3171,16): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3171,25): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3171,36): error TS1435: Unknown keyword or identifier. Did you mean 'try'?
+src/data-access.ts(3171,46): error TS1005: '(' expected.
+src/data-access.ts(3171,55): error TS1005: ';' expected.
+src/data-access.ts(3172,5): error TS1161: Unterminated regular expression literal.
+src/data-access.ts(3173,3): error TS1005: ';' expected.
+src/data-access.ts(3173,11): error TS1005: ')' expected.
+src/data-access.ts(3173,53): error TS1005: ',' expected.
+src/data-access.ts(3173,78): error TS1109: Expression expected.
+src/data-access.ts(3173,87): error TS1005: ';' expected.
+src/data-access.ts(3175,11): error TS1005: ':' expected.
+src/data-access.ts(3175,76): error TS1005: ',' expected.
+src/data-access.ts(3178,11): error TS1005: ':' expected.
+src/data-access.ts(3180,6): error TS1005: ',' expected.
+src/data-access.ts(3181,21): error TS1005: '{' expected.
+src/data-access.ts(3181,28): error TS1005: ':' expected.
+src/data-access.ts(3181,38): error TS1005: ',' expected.
+src/data-access.ts(3192,5): error TS1005: ',' expected.
+src/data-access.ts(3192,12): error TS1005: ':' expected.
+src/data-access.ts(3192,60): error TS1005: ',' expected.
+src/data-access.ts(3198,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3198,11): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3198,48): error TS1005: ',' expected.
+src/data-access.ts(3198,81): error TS1005: ',' expected.
+src/data-access.ts(3198,90): error TS1005: ';' expected.
+src/data-access.ts(3200,9): error TS1005: ':' expected.
+src/data-access.ts(3202,13): error TS1005: ':' expected.
+src/data-access.ts(3202,75): error TS1005: ',' expected.
+src/data-access.ts(3205,16): error TS1005: ',' expected.
+src/data-access.ts(3205,34): error TS1005: ',' expected.
+src/data-access.ts(3208,20): error TS1005: ',' expected.
+src/data-access.ts(3208,69): error TS1005: ',' expected.
+src/data-access.ts(3208,71): error TS1136: Property assignment expected.
+src/data-access.ts(3236,5): error TS1128: Declaration or statement expected.
+src/data-access.ts(3236,7): error TS1005: 'try' expected.
+src/data-access.ts(3240,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3245,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3245,43): error TS1005: ',' expected.
+src/data-access.ts(3245,96): error TS1005: ',' expected.
+src/data-access.ts(3245,108): error TS1005: ',' expected.
+src/data-access.ts(3245,130): error TS1109: Expression expected.
+src/data-access.ts(3245,143): error TS1005: ',' expected.
+src/data-access.ts(3245,157): error TS1011: An element access expression should take an argument.
+src/data-access.ts(3245,159): error TS1005: ';' expected.
+src/data-access.ts(3289,3): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3289,43): error TS1005: ',' expected.
+src/data-access.ts(3289,75): error TS1005: ';' expected.
+src/data-access.ts(3289,103): error TS1005: ',' expected.
+src/data-access.ts(3289,120): error TS1005: ',' expected.
+src/data-access.ts(3289,152): error TS1005: ',' expected.
+src/data-access.ts(3289,172): error TS1011: An element access expression should take an argument.
+src/data-access.ts(3290,9): error TS1005: ':' expected.
+src/data-access.ts(3290,32): error TS1005: ',' expected.
+src/data-access.ts(3292,11): error TS1005: ':' expected.
+src/data-access.ts(3292,78): error TS1005: ',' expected.
+src/data-access.ts(3295,22): error TS1005: ',' expected.
+src/data-access.ts(3295,71): error TS1005: ',' expected.
+src/data-access.ts(3297,12): error TS1005: ':' expected.
+src/data-access.ts(3302,6): error TS1005: ',' expected.
+src/data-access.ts(3308,3): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3308,32): error TS1005: ',' expected.
+src/data-access.ts(3309,21): error TS1005: ',' expected.
+src/data-access.ts(3310,23): error TS1005: ',' expected.
+src/data-access.ts(3311,25): error TS1005: ',' expected.
+src/data-access.ts(3312,22): error TS1005: ',' expected.
+src/data-access.ts(3313,25): error TS1005: ',' expected.
+src/data-access.ts(3314,19): error TS1005: ',' expected.
+src/data-access.ts(3315,5): error TS1005: ';' expected.
+src/data-access.ts(3315,33): error TS1005: ',' expected.
+src/data-access.ts(3315,50): error TS1005: ',' expected.
+src/data-access.ts(3316,9): error TS1005: ':' expected.
+src/data-access.ts(3316,32): error TS1005: ',' expected.
+src/data-access.ts(3318,9): error TS1005: ':' expected.
+src/data-access.ts(3320,13): error TS1005: ':' expected.
+src/data-access.ts(3320,69): error TS1005: ',' expected.
+src/data-access.ts(3321,11): error TS1003: Identifier expected.
+src/data-access.ts(3321,22): error TS1005: ',' expected.
+src/data-access.ts(3321,28): error TS1005: ',' expected.
+src/data-access.ts(3321,30): error TS1136: Property assignment expected.
+src/data-access.ts(3424,5): error TS1128: Declaration or statement expected.
+src/data-access.ts(3424,7): error TS1005: 'try' expected.
+src/data-access.ts(3432,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3438,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3438,43): error TS1005: ',' expected.
+src/data-access.ts(3438,52): error TS1005: ';' expected.
+src/data-access.ts(3440,10): error TS1109: Expression expected.
+src/data-access.ts(3441,15): error TS1109: Expression expected.
+src/data-access.ts(3443,15): error TS1109: Expression expected.
+src/data-access.ts(3444,18): error TS1109: Expression expected.
+src/data-access.ts(3606,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3606,36): error TS1005: ',' expected.
+src/data-access.ts(3606,56): error TS1005: ',' expected.
+src/data-access.ts(3606,78): error TS1005: ',' expected.
+src/data-access.ts(3606,98): error TS1109: Expression expected.
+src/data-access.ts(3606,106): error TS1005: ';' expected.
+src/data-access.ts(3606,108): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3664,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3664,33): error TS1005: ',' expected.
+src/data-access.ts(3664,42): error TS1005: ';' expected.
+src/data-access.ts(3664,44): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3697,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3697,40): error TS1005: ',' expected.
+src/data-access.ts(3697,60): error TS1005: ',' expected.
+src/data-access.ts(3697,78): error TS1005: ',' expected.
+src/data-access.ts(3697,88): error TS1005: ';' expected.
+src/data-access.ts(3697,90): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3727,3): error TS1128: Declaration or statement expected.
+src/data-access.ts(3727,39): error TS1005: ',' expected.
+src/data-access.ts(3727,48): error TS1005: ';' expected.
+src/data-access.ts(3728,11): error TS1005: ':' expected.
+src/data-access.ts(3728,40): error TS1005: ',' expected.
+src/data-access.ts(3729,11): error TS1005: ':' expected.
+src/data-access.ts(3729,33): error TS1005: ',' expected.
+src/data-access.ts(3735,9): error TS1005: ',' expected.
+src/data-access.ts(3773,7): error TS1005: ',' expected.
+src/data-access.ts(3776,9): error TS1005: ',' expected.
+src/data-access.ts(3903,7): error TS1005: ',' expected.
+src/data-access.ts(3909,3): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3909,35): error TS1005: ';' expected.
+src/data-access.ts(3909,49): error TS1011: An element access expression should take an argument.
+src/data-access.ts(3910,9): error TS1005: ':' expected.
+src/data-access.ts(3910,32): error TS1005: ',' expected.
+src/data-access.ts(3913,11): error TS1005: ':' expected.
+src/data-access.ts(3913,76): error TS1005: ',' expected.
+src/data-access.ts(3915,12): error TS1005: ':' expected.
+src/data-access.ts(3915,35): error TS1005: ',' expected.
+src/data-access.ts(3921,3): error TS1434: Unexpected keyword or identifier.
+src/data-access.ts(3921,31): error TS1005: ',' expected.
+src/data-access.ts(3921,47): error TS1005: ',' expected.
+src/data-access.ts(3921,56): error TS1005: ';' expected.
+src/data-access.ts(3921,70): error TS1109: Expression expected.
+src/data-access.ts(3950,3): error TS1005: ',' expected.
+src/data-access.ts(3965,3): error TS1005: ',' expected.
+src/data-access.ts(3978,3): error TS1005: ',' expected.
+src/data-access.ts(3991,3): error TS1005: ',' expected.
+src/data-access.ts(4004,3): error TS1005: ',' expected.
+src/data-access.ts(4098,3): error TS1005: ',' expected.
+src/data-access.ts(4119,3): error TS1005: ',' expected.
+src/data-access.ts(4128,3): error TS1005: ',' expected.
+src/data-access.ts(4161,3): error TS1005: ',' expected.
+src/data-access.ts(4205,3): error TS1005: ',' expected.
+src/data-access.ts(4254,3): error TS1005: ',' expected.
+src/data-access.ts(4265,3): error TS1005: ',' expected.
+src/data-access.ts(4291,3): error TS1005: ',' expected.
+src/data-access.ts(4312,3): error TS1005: ',' expected.
+src/data-access.ts(4333,3): error TS1005: ',' expected.
+src/data-access.ts(4393,3): error TS1005: ',' expected.
+src/data-access.ts(4406,3): error TS1005: ',' expected.
+src/data-access.ts(4406,71): error TS1005: ',' expected.
+src/data-access.ts(4418,3): error TS1005: ',' expected.
+src/data-access.ts(4429,3): error TS1005: ',' expected.
+src/data-access.ts(4481,3): error TS1005: ',' expected.
+src/data-access.ts(4525,3): error TS1005: ',' expected.
+src/data-access.ts(4592,3): error TS1005: ',' expected.
+src/data-access.ts(4619,3): error TS1005: ',' expected.
+src/data-access.ts(4644,1): error TS1128: Declaration or statement expected.
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path C:\Users\Frank\Documents\foundry-vtt-mcp-dsa\packages\foundry-module
+npm error workspace @foundry-mcp/module@0.5.6
+npm error location C:\Users\Frank\Documents\foundry-vtt-mcp-dsa\packages\foundry-module
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c tsc

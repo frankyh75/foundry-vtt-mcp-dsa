@@ -1,3 +1,42 @@
+// ═════════════════════════════════════════════════════════════════════════════
+// 📁 data-access.ts - Foundry VTT MCP Bridge Data Access Layer
+// ═════════════════════════════════════════════════════════════════════════════
+// Version: 0.5.6 + DSA 5 Support (Phase 1)
+// Total Lines: ~4200
+// Complexity: ●●●●● Very High
+// 
+// 🧭 NAVIGATION GUIDE:
+// Use Ctrl+F (or Cmd+F) to jump to sections using [#TAGS]:
+//
+// Main Sections:
+//   [#TYPES]          Line 5      - Type definitions & interfaces
+//   [#PERSIST_INDEX]  Line 240    - PersistentCreatureIndex class
+//   [#DATA_ACCESS]    Line 1071   - FoundryDataAccess class (main)
+//   [#CHAR_MGMT]      Line 1102   - Character management methods
+//   [#COMP_SEARCH]    Line 1156   - Compendium search methods
+//   [#ACTOR_CREATE]   Line ~2400  - Actor creation & token placement
+//   [#QUEST_MGMT]     Line ~2800  - Quest & journal management
+//   [#PLAYER_MGMT]    Line ~3500  - Player roll requests
+//   [#UTILITIES]      Line ~4000  - Utility & helper methods
+//   [#END]            Line ~4178  - End of file
+//
+// 🟣 DSA 5 Support Status:
+//   ✅ Phase 1: Character data extraction (eigenschaften, status, talente)
+//   ⏳ Phase 2: Creature index & filtering
+//   ⏳ Phase 3: Roll requests & proben
+//
+// 📝 Modification Notes:
+//   - Minimal navigation comments added (does not affect compilation)
+//   - Original code structure preserved
+//   - DSA 5 additions clearly marked with 🟣 emoji
+// ═════════════════════════════════════════════════════════════════════════════
+
+// [#TYPES] ════════════════════════════════════════════════════════════════════
+// Type Definitions & Interfaces
+// Lines: 1-239 | Complexity: ●●○○○ Low
+// Purpose: All TypeScript interfaces for data structures
+// ═════════════════════════════════════════════════════════════════════════════
+
 import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
 import { permissionManager } from './permissions.js';
 import { transactionManager } from './transaction-manager.js';
@@ -10,6 +49,7 @@ interface CharacterInfo {
   system: Record<string, unknown>;
   items: CharacterItem[];
   effects: CharacterEffect[];
+  dsa5?: Dsa5CharacterData;  // 🟣 DSA 5 specific data
 }
 
 interface CharacterItem {
@@ -30,6 +70,38 @@ interface CharacterEffect {
     duration?: number;
     remaining?: number;
   };
+}
+
+// 🟣 DSA 5 Character Data Extension
+interface Dsa5CharacterData {
+  eigenschaften?: {
+    MU?: any;
+    KL?: any;
+    IN?: any;
+    CH?: any;
+    FF?: any;
+    GE?: any;
+    KO?: any;
+    KK?: any;
+  } | undefined;  // Fix für exactOptionalPropertyTypes
+  status?: {
+    wounds?: any;
+    astralenergy?: any;
+    karmaenergy?: any;
+    speed?: any;
+    initiative?: any;
+    armour?: any;
+  } | undefined;  // Fix für exactOptionalPropertyTypes
+  talente?: Array<{
+    name: string;
+    value: number;
+    eigenschaften: string[];
+  }>;
+  kampftechniken?: Array<{
+    name: string;
+    at: number;
+    pa: number;
+  }>;
 }
 
 interface CompendiumSearchResult {
@@ -231,6 +303,12 @@ interface TokenPlacementResult {
   tokenIds: string[];
   errors?: string[] | undefined;
 }
+
+// [#PERSIST_INDEX] ════════════════════════════════════════════════════════════
+// PersistentCreatureIndex Class
+// Lines: 279-1110 | Complexity: ●●●●○ High  
+// Purpose: Enhanced creature indexing for D&D 5e & PF2e (DSA 5 in Phase 2)
+// ═════════════════════════════════════════════════════════════════════════════
 
 /**
  * Persistent Enhanced Creature Index System
@@ -1068,6 +1146,12 @@ class PersistentCreatureIndex {
   }
 }
 
+// [#DATA_ACCESS] ══════════════════════════════════════════════════════════════
+// FoundryDataAccess Class - Main API
+// Lines: 1116-4200+ | Complexity: ●●●●● Very High
+// Purpose: Primary interface for all Foundry VTT data operations
+// ═════════════════════════════════════════════════════════════════════════════
+
 export class FoundryDataAccess {
   private moduleId: string = MODULE_ID;
   private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
@@ -1099,6 +1183,12 @@ export class FoundryDataAccess {
   /**
    * Get character/actor information by name or ID
    */
+  // [#CHAR_MGMT] ══════════════════════════════════════════════════════════════
+  // Character Management Methods
+  // Purpose: Query character stats, abilities, and information
+  // 🟣 DSA 5: Will return formatted stats, talents, and combat skills (Phase 1)
+  // ═══════════════════════════════════════════════════════════════════════════
+
   async getCharacterInfo(identifier: string): Promise<CharacterInfo> {
 
     let actor: Actor | undefined;
@@ -1147,12 +1237,47 @@ export class FoundryDataAccess {
       })),
     };
 
+    // 🟣 DSA 5 specific data extraction
+    if (game.system.id === 'dsa5') {
+      const system = (actor as any).system || {};
+      
+      characterData.dsa5 = {
+        eigenschaften: system.characteristics ? {
+          MU: system.characteristics.mu,
+          KL: system.characteristics.kl,
+          IN: system.characteristics.in,
+          CH: system.characteristics.ch,
+          FF: system.characteristics.ff,
+          GE: system.characteristics.ge,
+          KO: system.characteristics.ko,
+          KK: system.characteristics.kk,
+        } : undefined,
+        
+        status: system.status ? {
+          wounds: system.status.wounds,
+          astralenergy: system.status.astralenergy,
+          karmaenergy: system.status.karmaenergy,
+          speed: system.status.speed,
+          initiative: system.status.initiative,
+          armour: system.status.armour,
+        } : undefined,
+        
+        talente: this.extractDsa5Skills(actor),
+        kampftechniken: this.extractDsa5CombatSkills(actor),
+      };
+    }
+
     return characterData;
   }
 
   /**
    * Search compendium packs for items matching query with optional filters
    */
+  // [#COMP_SEARCH] ════════════════════════════════════════════════════════════
+  // Compendium Search Methods
+  // Purpose: Search and filter compendium packs
+  // ═══════════════════════════════════════════════════════════════════════════
+
   async searchCompendium(query: string, packType?: string, filters?: {
     challengeRating?: number | { min?: number; max?: number };
     creatureType?: string;
@@ -2930,6 +3055,11 @@ export class FoundryDataAccess {
   /**
    * Request player rolls - creates interactive roll buttons in chat
    */
+  // [#PLAYER_MGMT] ════════════════════════════════════════════════════════════
+  // Player Roll Request Management
+  // Purpose: Interactive dice system for player rolls
+  // ═══════════════════════════════════════════════════════════════════════════
+
   async requestPlayerRolls(data: {
     rollType: string;
     rollTarget: string;
@@ -4176,4 +4306,61 @@ export class FoundryDataAccess {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🟣 DSA 5 Helper Methods
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Extract DSA 5 talents (Talente) from actor items
+   * @private
+   */
+  private extractDsa5Skills(actor: Actor): Array<{name: string; value: number; eigenschaften: string[]}> {
+    const talents: Array<{name: string; value: number; eigenschaften: string[]}> = [];
+    
+    try {
+      actor.items.forEach(item => {
+        if (item.type === 'skill') {
+          const system = (item as any).system || {};
+          talents.push({
+            name: item.name,
+            value: system.talentValue?.value || system.value || 0,
+            eigenschaften: system.characteristic || [],
+          });
+        }
+      });
+    } catch (error) {
+      console.warn(`[${MODULE_ID}] Error extracting DSA 5 skills:`, error);
+    }
+    
+    return talents;
+  }
+
+  /**
+   * Extract DSA 5 combat skills (Kampftechniken) from actor items
+   * @private
+   */
+  private extractDsa5CombatSkills(actor: Actor): Array<{name: string; at: number; pa: number}> {
+    const combatSkills: Array<{name: string; at: number; pa: number}> = [];
+    
+    try {
+      actor.items.forEach(item => {
+        if (item.type === 'combatskill') {
+          const system = (item as any).system || {};
+          combatSkills.push({
+            name: item.name,
+            at: system.at?.value || system.attack?.value || 0,
+            pa: system.pa?.value || system.parry?.value || 0,
+          });
+        }
+      });
+    } catch (error) {
+      console.warn(`[${MODULE_ID}] Error extracting DSA 5 combat skills:`, error);
+    }
+    
+    return combatSkills;
+  }
+
 }
+// [#END] ═══════════════════════════════════════════════════════════════════
+// End of data-access.ts
+// ═══════════════════════════════════════════════════════════════════════════
