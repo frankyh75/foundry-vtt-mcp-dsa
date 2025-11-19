@@ -37,6 +37,10 @@
 // Purpose: All TypeScript interfaces for data structures
 // ═════════════════════════════════════════════════════════════════════════════
 
+const DSA_BUILD = "DSA-LOCAL-2025-11-19-01";
+console.log("[DSA DEBUG] MCP Module Build:", DSA_BUILD);
+
+
 import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
 import { permissionManager } from './permissions.js';
 import { transactionManager } from './transaction-manager.js';
@@ -83,7 +87,7 @@ interface Dsa5CharacterData {
     GE?: any;
     KO?: any;
     KK?: any;
-  } | undefined;  // Fix für exactOptionalPropertyTypes
+   }  | undefined; 
   status?: {
     wounds?: any;
     astralenergy?: any;
@@ -91,7 +95,7 @@ interface Dsa5CharacterData {
     speed?: any;
     initiative?: any;
     armour?: any;
-  } | undefined;  // Fix für exactOptionalPropertyTypes
+   }   | undefined; 
   talente?: Array<{
     name: string;
     value: number;
@@ -1237,38 +1241,56 @@ export class FoundryDataAccess {
       })),
     };
 
-    // 🟣 DSA 5 specific data extraction
+// 🟣 DSA 5 specific data extraction
+    console.log('[foundry-mcp-bridge] DEBUG: game.system.id =', game.system.id);
     if (game.system.id === 'dsa5') {
+      console.log('[foundry-mcp-bridge] DEBUG: DSA5 detected, extracting data...');
       const system = (actor as any).system || {};
       
-      characterData.dsa5 = {
-        eigenschaften: system.characteristics ? {
-          MU: system.characteristics.mu,
-          KL: system.characteristics.kl,
-          IN: system.characteristics.in,
-          CH: system.characteristics.ch,
-          FF: system.characteristics.ff,
-          GE: system.characteristics.ge,
-          KO: system.characteristics.ko,
-          KK: system.characteristics.kk,
-        } : undefined,
-        
-        status: system.status ? {
-          wounds: system.status.wounds,
-          astralenergy: system.status.astralenergy,
-          karmaenergy: system.status.karmaenergy,
-          speed: system.status.speed,
-          initiative: system.status.initiative,
-          armour: system.status.armour,
-        } : undefined,
-        
-        talente: this.extractDsa5Skills(actor),
-        kampftechniken: this.extractDsa5CombatSkills(actor),
-      };
-    }
+    const dsa5Data: any = {
+  talente: this.extractDsa5Skills(actor),
+  kampftechniken: this.extractDsa5CombatSkills(actor),
+};
 
-    return characterData;
-  }
+if (system.characteristics) {
+  dsa5Data.eigenschaften = {
+    MU: system.characteristics.mu,
+    KL: system.characteristics.kl,
+    IN: system.characteristics.in,
+    CH: system.characteristics.ch,
+    FF: system.characteristics.ff,
+    GE: system.characteristics.ge,
+    KO: system.characteristics.ko,
+    KK: system.characteristics.kk,
+  };
+}
+
+if (system.status) {
+  dsa5Data.status = {
+    wounds: system.status.wounds,
+    astralenergy: system.status.astralenergy,
+    karmaenergy: system.status.karmaenergy,
+    speed: system.status.speed,
+    initiative: system.status.initiative,
+    armour: system.status.armour,
+  };
+}
+
+console.log('[foundry-mcp-bridge] DEBUG: dsa5Data created:', dsa5Data);
+console.log('[foundry-mcp-bridge] DEBUG: Has eigenschaften:', !!dsa5Data.eigenschaften);
+
+characterData.dsa5 = dsa5Data;
+
+console.log('[foundry-mcp-bridge] DEBUG: characterData.dsa5 assigned:', characterData.dsa5);
+console.log('[foundry-mcp-bridge] DEBUG: dsa5 in characterData:', 'dsa5' in characterData);
+} else {
+  console.log('[foundry-mcp-bridge] DEBUG: Not DSA5, system is:', game.system.id);
+}
+
+console.log('[foundry-mcp-bridge] DEBUG: Returning characterData, keys:', Object.keys(characterData));
+return characterData;
+}
+
 
   /**
    * Search compendium packs for items matching query with optional filters

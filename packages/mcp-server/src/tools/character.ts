@@ -20,6 +20,8 @@ export class CharacterTools {
    * Tool: get-character
    * Retrieve detailed information about a specific character
    */
+
+  
   getToolDefinitions() {
     return [
       {
@@ -66,13 +68,32 @@ export class CharacterTools {
         characterName: identifier,
       });
 
+      // 🟣 DSA5 DEBUG: Prüfe ob dsa5 Objekt ankommt
+      console.log("[DSA DEBUG][MCP-SERVER] Received character from Foundry:", {
+        id: characterData.id,
+        name: characterData.name,
+        hasDsa5: !!characterData.dsa5,
+        dsa5Keys: characterData.dsa5 ? Object.keys(characterData.dsa5) : null,
+        dsa5Data: characterData.dsa5,
+      });
+
       this.logger.debug('Successfully retrieved character data', { 
         characterId: characterData.id,
         characterName: characterData.name 
       });
 
       // Format the response for Claude
-      return this.formatCharacterResponse(characterData);
+      const formattedResponse = this.formatCharacterResponse(characterData);
+      
+      // 🟣 DSA5 DEBUG: Prüfe formatierte Response
+      console.log("[DSA DEBUG][MCP-SERVER] Formatted response:", {
+        hasBasicInfo: !!formattedResponse.basicInfo,
+        basicInfoKeys: formattedResponse.basicInfo ? Object.keys(formattedResponse.basicInfo) : null,
+        hasStats: !!formattedResponse.stats,
+        statsKeys: formattedResponse.stats ? Object.keys(formattedResponse.stats) : null,
+      });
+
+      return formattedResponse;
 
     } catch (error) {
       this.logger.error('Failed to get character information', error);
