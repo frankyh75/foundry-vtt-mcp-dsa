@@ -1253,15 +1253,18 @@ export class FoundryDataAccess {
 };
 
 if (system.characteristics) {
+  // 🟣 DSA 5: Extract characteristics and normalize species values
+  // Note: During character generation, species modifiers are added to advances,
+  // so we set species to 0 to avoid double-counting
   dsa5Data.eigenschaften = {
-    MU: system.characteristics.mu,
-    KL: system.characteristics.kl,
-    IN: system.characteristics.in,
-    CH: system.characteristics.ch,
-    FF: system.characteristics.ff,
-    GE: system.characteristics.ge,
-    KO: system.characteristics.ko,
-    KK: system.characteristics.kk,
+    MU: { ...system.characteristics.mu, species: 0 },
+    KL: { ...system.characteristics.kl, species: 0 },
+    IN: { ...system.characteristics.in, species: 0 },
+    CH: { ...system.characteristics.ch, species: 0 },
+    FF: { ...system.characteristics.ff, species: 0 },
+    GE: { ...system.characteristics.ge, species: 0 },
+    KO: { ...system.characteristics.ko, species: 0 },
+    KK: { ...system.characteristics.kk, species: 0 },
   };
 }
 
