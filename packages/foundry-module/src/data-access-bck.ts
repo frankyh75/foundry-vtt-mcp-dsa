@@ -22,7 +22,7 @@
 //
 // 🟣 DSA 5 Support Status:
 //   ✅ Phase 1: Character data extraction (eigenschaften, status, talente)
-//   ✅ Phase 2: Creature index & filtering
+//   ⏳ Phase 2: Creature index & filtering
 //   ⏳ Phase 3: Roll requests & proben
 //
 // 📝 Modification Notes:
@@ -135,29 +135,9 @@ interface Dsa5CharacterData {
     speed: Dsa5StatusValue;
     initiative: Dsa5StatusValue;
     armour?: Dsa5StatusValue;
-    dodge?: Dsa5StatusValue;      // Ausweichen
-    soulpower?: Dsa5StatusValue;  // Seelenkraft
-    toughness?: Dsa5StatusValue;  // Zähigkeit
   };
   talente: Dsa5Talent[];
   kampftechniken: Dsa5Kampftechnik[];
-  details?: {
-    species?: string;     // Spezies
-    culture?: string;     // Kultur
-    profession?: string;  // Profession/Career
-    size?: string;        // Größenkategorie (Deutsch!)
-  };
-  experience?: {
-    total: number;
-    spent: number;
-  };
-  tradition?: {          // 🟣 NEW!
-    magical?: string;    // Magische Tradition
-    clerical?: string;   // Geweihten-Tradition
-  };
-  advantages?: string[];
-  disadvantages?: string[];
-  specialAbilities?: string[];
 }
 
 interface CompendiumSearchResult {
@@ -215,155 +195,23 @@ interface PF2eCreatureIndex {
 // Union type for both systems
 
 // 🟣 DSA 5 Enhanced Creature Index
-// ═══════════════════════════════════════════════════════════════
-// 🟣 DSA5 INDEX INTERFACES - Phase 3 Priority
-// ═══════════════════════════════════════════════════════════════
-
-// 🐉 1. CREATURE INDEX
 interface Dsa5CreatureIndex {
-  // Basis
   id: string;
   name: string;
-  type: string;                    // "character", "npc"
+  type: string;
   pack: string;
   packLabel: string;
-  
-  // Identität
-  creatureClass: string;           // "Elementar (Feuer), nicht humanoid"
-  size: string;                    // "small", "average", "large" → Deutsch!
-  
-  // Eigenschaften (8)
-  eigenschaften: {
-    mu: number; kl: number; in: number; ch: number;
-    ff: number; ge: number; ko: number; kk: number;
-  };
-  
-  // Kampfwerte
-  lifePoints: number;              // LeP
-  dodge: number;                   // Ausweichen
-  initiative: number;              // INI Basis
-  speed: number;                   // Geschwindigkeit
-  actionCount: number;             // Aktionen pro Runde
-  
-  // Beschwörung
-  conjuringDifficulty?: number;    // -1 = einfach
-  
-  // Optionale Info
-  behaviour?: string;              // Kampfverhalten
-  specialRules?: string;           // Spezialregeln
-  description?: string;
-  img?: string;
-}
-
-// 📚 2. TALENT INDEX (skill + combatskill)
-interface Dsa5TalentIndex {
-  id: string;
-  name: string;
-  type: string;                    // "skill" oder "combatskill"
-  pack: string;
-  packLabel: string;
-  
-  group?: string;                  // "trade", "combat", "social", ... (nur skill)
-  characteristics: string[];       // ["ff", "ge", "kk"]
-  steigerungsfaktor: string;       // "A", "B", "C", "D"
-  burden?: boolean;                // Belastung (nur skill)
-  
-  description?: string;
-  img?: string;
-}
-
-// ✨ 3. ZAUBER/LITURGIE INDEX
-interface Dsa5SpellIndex {
-  id: string;
-  name: string;
-  type: string;                    // "spell", "liturgy", "ceremony", "ritual"
-  pack: string;
-  packLabel: string;
-  
-  // Eigenschaften
-  characteristics: string[];       // ["kl", "in", "ff"]
-  
-  // Kosten & Dauer
-  cost: number;                    // AsP oder KaP
-  costType: string;                // "AsP" oder "KaP"
-  costDetail: string;              // "8 AsP" oder "8 KaP (nicht modifizierbar)"
-  castingTime: number;             // Aktionen
-  duration: string;                // "sofort", "10 KR", "1 Jahr"
-  
-  // Reichweite & Ziel
-  range: string;                   // "8 Schritt", "berühren"
-  targetCategory: string;          // "alle", "Kulturschaffende"
-  
-  // Klassifikation
-  merkmal?: string;                // "Antimagie" (nur Zauber)
-  distribution: string;            // Gildenmagier/Boron/Rahja/...
-  steigerungsfaktor: string;       // "A", "B", "C", "D"
-  
-  // Modifizierbarkeit
-  canChangeCost: boolean;
-  canChangeCastingTime: boolean;
-  canChangeRange: boolean;
-  
-  description?: string;
-  img?: string;
-}
-
-// ⚔️ 4. WAFFEN INDEX
-interface Dsa5WeaponIndex {
-  id: string;
-  name: string;
-  type: string;                    // "meleeweapon", "rangeweapon"
-  pack: string;
-  packLabel: string;
-  
-  combatSkill: string;             // "Hiebwaffen", "Bögen"
-  damage: string;                  // "1W6+4"
-  reach: string;                   // "short", "medium", "long"
-  
-  atMod: number;                   // AT-Modifikator
-  paMod: number;                   // PA-Modifikator
-  
-  damageThreshold: number;         // Leiteigenschaft-Schwelle
-  guidevalue: string;              // "kk", "ff"
-  
-  weight: number;
-  price: number;
-  
-  description?: string;
-  img?: string;
-}
-
-// 🛡️ 5. RÜSTUNG INDEX
-interface Dsa5ArmorIndex {
-  id: string;
-  name: string;
-  type: string;                    // "armor"
-  pack: string;
-  packLabel: string;
-  
-  protection: number;              // RS (Rüstungsschutz)
-  encumbrance: number;             // BE (Belastung)
-  weight: number;
-  price: number;
-  
-  armorType?: string;              // Typ (Leder, Kette, Platte, etc.)
-  
-  description?: string;
-  img?: string;
-}
-
-// ⭐ 6. SONDERFERTIGKEIT INDEX
-interface Dsa5SpecialAbilityIndex {
-  id: string;
-  name: string;
-  type: string;                    // "specialability"
-  pack: string;
-  packLabel: string;
-  
-  category: string;                // "combat", "magical", "clerical", "general", ...
-  apCost: string;                  // "10", "20;35" (gestuft)
-  
-  requirements?: string;           // Voraussetzungen
+  level: number;                    // DSA5: Stufe/Level der Kreatur
+  species: string;                  // DSA5: Spezies (z.B. 'Goblin', 'Mensch', 'Drache')
+  culture?: string;                 // DSA5: Kultur (optional)
+  experience: number;               // DSA5: Erfahrungspunkte
+  size: string;                     // DSA5: Größe
+  lifePoints: number;              // DSA5: Lebensenergie (LE)
+  meleeDefense: number;            // DSA5: Verteidigung (VTD)
+  rangedDefense: number;           // DSA5: Fernkampf-Verteidigung
+  hasSpells: boolean;              // DSA5: Hat Zauber/Liturgien
+  traits: string[];                // DSA5: Merkmale/Eigenschaften
+  rarity?: string;                 // DSA5: Seltenheit (optional)
   description?: string;
   img?: string;
 }
@@ -1696,108 +1544,49 @@ export class FoundryDataAccess {
       })),
     };
 
-// 🟣 DSA 5 Enhanced - Creature Index Support
-if (game.system.id === 'dsa5') {
-  const system = (actor as any).system || {};
-  
-  const dsa5Data: Partial<Dsa5CharacterData> = {
-    talente: this.extractDsa5Skills(actor),
-    kampftechniken: this.extractDsa5CombatSkills(actor),
-  };
-
-  // Extract characteristics with species normalization
-  if (system.characteristics) {
-    dsa5Data.eigenschaften = {
-      MU: { ...system.characteristics.mu, species: 0 },
-      KL: { ...system.characteristics.kl, species: 0 },
-      IN: { ...system.characteristics.in, species: 0 },
-      CH: { ...system.characteristics.ch, species: 0 },
-      FF: { ...system.characteristics.ff, species: 0 },
-      GE: { ...system.characteristics.ge, species: 0 },
-      KO: { ...system.characteristics.ko, species: 0 },
-      KK: { ...system.characteristics.kk, species: 0 },
-    };
-  }
-
-  // Extract status values
-  if (system.status) {
-    dsa5Data.status = {
-      wounds: system.status.wounds,
-      astralenergy: system.status.astralenergy,
-      karmaenergy: system.status.karmaenergy,
-      speed: system.status.speed,
-      initiative: system.status.initiative,
-      armour: system.status.armour,
-      // 🟣 Additional status values for index
-      dodge: system.status.dodge,           // Ausweichen
-      soulpower: system.status.soulpower,   // Seelenkraft
-      toughness: system.status.toughness,   // Zähigkeit
-    };
-  }
-
-  // 🟣 NEW: Extract identity information
-  if (system.details) {
-    // Size mapping for German values
-    const sizeMap: Record<string, string> = {
-      'tiny': 'Winzig',
-      'small': 'Klein', 
-      'average': 'Mittel',
-      'large': 'Groß',
-      'huge': 'Riesig',
-    };
-    
-    dsa5Data.details = {
-      species: system.details.species?.value,      // "Mensch", "Elf", etc.
-      culture: system.details.culture?.value,      // "Fjarninger", etc.
-      profession: system.details.career?.value,    // "Fjarningerschamane" (career!)
-      size: system.status?.size?.value ? 
-        sizeMap[system.status.size.value] || system.status.size.value : 
-        undefined,
-    };
-    
-    // Extract experience
-    if (system.details.experience) {
-      dsa5Data.experience = {
-        total: system.details.experience.total || 0,
-        spent: system.details.experience.spent || 0,
+    // 🟣 DSA 5 specific data extraction
+    if (game.system.id === 'dsa5') {
+      const system = (actor as any).system || {};
+      
+      const dsa5Data: Partial<Dsa5CharacterData> = {
+        talente: this.extractDsa5Skills(actor),
+        kampftechniken: this.extractDsa5CombatSkills(actor),
       };
-    }
-  }
 
-  // 🟣 NEW: Extract tradition (magical/clerical capabilities)
-  if (system.tradition) {
-    dsa5Data.tradition = {
-      magical: system.tradition.magical || undefined,
-      clerical: system.tradition.clerical || undefined,
-    };
-  }
-
-  // 🟣 NEW: Extract advantages/traits from items
-  const advantages: string[] = [];
-  const disadvantages: string[] = [];
-  const specialAbilities: string[] = [];
-  
-  if (actor.items) {
-    for (const item of actor.items) {
-      if (item.type === 'advantage') {
-        advantages.push(item.name || '');
-      } else if (item.type === 'disadvantage') {
-        disadvantages.push(item.name || '');
-      } else if (item.type === 'specialability') {
-        specialAbilities.push(item.name || '');
+      // Extract characteristics with species normalization
+      if (system.characteristics) {
+        // Note: During character generation, species modifiers are added to advances,
+        // so we set species to 0 to avoid double-counting
+        dsa5Data.eigenschaften = {
+          MU: { ...system.characteristics.mu, species: 0 },
+          KL: { ...system.characteristics.kl, species: 0 },
+          IN: { ...system.characteristics.in, species: 0 },
+          CH: { ...system.characteristics.ch, species: 0 },
+          FF: { ...system.characteristics.ff, species: 0 },
+          GE: { ...system.characteristics.ge, species: 0 },
+          KO: { ...system.characteristics.ko, species: 0 },
+          KK: { ...system.characteristics.kk, species: 0 },
+        };
       }
+
+      // Extract status values
+      if (system.status) {
+        dsa5Data.status = {
+          wounds: system.status.wounds,
+          astralenergy: system.status.astralenergy,
+          karmaenergy: system.status.karmaenergy,
+          speed: system.status.speed,
+          initiative: system.status.initiative,
+          armour: system.status.armour,
+        };
+      }
+
+      characterData.dsa5 = dsa5Data as Dsa5CharacterData;
     }
-  }
-  
-  dsa5Data.advantages = advantages;
-  dsa5Data.disadvantages = disadvantages;
-  dsa5Data.specialAbilities = specialAbilities;
 
-  characterData.dsa5 = dsa5Data as Dsa5CharacterData;
+    return characterData;
 }
 
-return characterData;
-}
 
   /**
    * Search compendium packs for items matching query with optional filters
@@ -2231,7 +2020,7 @@ const results = filteredCreatures.map(creature => {
   } else if (isPF2e) {
     summary = `Level ${creature.level} ${creature.creatureType} (${creature.rarity}) from ${creature.packLabel}`;
   } else if (isDsa5) {
-    summary = `${creature.creatureClass}, ${creature.lifePoints} LeP from ${creature.packLabel}`;
+    summary = `Stufe ${creature.level} ${creature.species} from ${creature.packLabel}`;
   }
 
   return {
@@ -2243,47 +2032,48 @@ const results = filteredCreatures.map(creature => {
     description: baseCreature.description || '',
     hasImage: !!baseCreature.img,
     summary: summary,
-    
-    // Include system-specific fields conditionally
-    ...(isDnd5e && {
-      challengeRating: creature.challengeRating,
-      creatureType: creature.creatureType,
-      hasLegendaryActions: creature.hasLegendaryActions,
-      size: creature.size,
-      hitPoints: creature.hitPoints,
-      armorClass: creature.armorClass,
-      hasSpells: creature.hasSpells,
-      alignment: creature.alignment
-    }),
-    
-    ...(isPF2e && {
-      level: creature.level,
-      traits: creature.traits,
-      creatureType: creature.creatureType,
-      rarity: creature.rarity,
-      size: creature.size,
-      hitPoints: creature.hitPoints,
-      armorClass: creature.armorClass,
-      hasSpells: creature.hasSpells,
-      alignment: creature.alignment
-    }),
-    
-    ...(isDsa5 && {
-      creatureClass: creature.creatureClass,
-      size: creature.size,
-      eigenschaften: creature.eigenschaften,
-      lifePoints: creature.lifePoints,
-      dodge: creature.dodge,
-      initiative: creature.initiative,
-      speed: creature.speed,
-      actionCount: creature.actionCount,
-      conjuringDifficulty: creature.conjuringDifficulty,
-      behaviour: creature.behaviour,
-      specialRules: creature.specialRules
-    })
-  };
-});
-      
+    // ... rest
+  
+          // Include system-specific fields conditionally
+          ...(isDnd5e && {
+            challengeRating: creature.challengeRating,
+            creatureType: creature.creatureType,
+            hasLegendaryActions: creature.hasLegendaryActions,
+            size: creature.size,
+            hitPoints: creature.hitPoints,
+            armorClass: creature.armorClass,
+            hasSpells: creature.hasSpells,
+            alignment: creature.alignment
+          }),
+          
+          ...(isPF2e && {
+            level: creature.level,
+            traits: creature.traits,
+            creatureType: creature.creatureType,
+            rarity: creature.rarity,
+            size: creature.size,
+            hitPoints: creature.hitPoints,
+            armorClass: creature.armorClass,
+            hasSpells: creature.hasSpells,
+            alignment: creature.alignment
+          }),
+          
+          ...(isDsa5 && {
+            level: creature.level,
+            species: creature.species,
+            culture: creature.culture,
+            experience: creature.experience,
+            size: creature.size,
+            lifePoints: creature.lifePoints,
+            meleeDefense: creature.meleeDefense,
+            rangedDefense: creature.rangedDefense,
+            hasSpells: creature.hasSpells,
+            traits: creature.traits,
+            rarity: creature.rarity
+          })
+        };
+      });
+
       // Calculate pack distribution for summary
       const packResults = new Map();
       results.forEach(creature => {
@@ -2463,45 +2253,73 @@ const results = filteredCreatures.map(creature => {
   }
 
   /**
- * Check if DSA5 creature passes all specified criteria
- */
-private passesDsa5Criteria(creature: Dsa5CreatureIndex, criteria: {
-  creatureClass?: string;      // ✅ NEU: "Elementar", "Dämon", etc.
-  size?: string;               // ✅ "Klein", "Mittel", "Groß"
-  minLifePoints?: number;      // ✅ NEU: Mindest-LeP
-  maxLifePoints?: number;      // ✅ NEU: Maximum-LeP
-  conjuringDifficulty?: number; // ✅ Beschwörungsschwierigkeit
-}): boolean {
+   * Check if DSA5 creature passes all specified criteria
+   */
+  private passesDsa5Criteria(creature: Dsa5CreatureIndex, criteria: {
+    level?: number | { min?: number; max?: number };
+    species?: string;
+    culture?: string;
+    traits?: string[];
+    rarity?: string;
+    size?: string;
+    hasSpells?: boolean;
+  }): boolean {
 
-  // Creature class filter (Species/Type)
-  if (criteria.creatureClass) {
-    if (!creature.creatureClass.toLowerCase().includes(criteria.creatureClass.toLowerCase())) {
+    // Level filter
+    if (criteria.level !== undefined) {
+      if (typeof criteria.level === 'number') {
+        if (creature.level !== criteria.level) {
+          return false;
+        }
+      } else if (typeof criteria.level === 'object') {
+        const { min = 0, max = 20 } = criteria.level;
+        if (creature.level < min || creature.level > max) {
+          return false;
+        }
+      }
+    }
+
+    // Species filter
+    if (criteria.species) {
+      if (!creature.species.toLowerCase().includes(criteria.species.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Culture filter
+    if (criteria.culture) {
+      if (!creature.culture || !creature.culture.toLowerCase().includes(criteria.culture.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Traits filter (creature must have ALL specified traits)
+    if (criteria.traits && criteria.traits.length > 0) {
+      const hasAllTraits = criteria.traits.every(requiredTrait =>
+        creature.traits.some(t => t.toLowerCase().includes(requiredTrait.toLowerCase()))
+      );
+      if (!hasAllTraits) {
+        return false;
+      }
+    }
+
+    // Rarity filter
+    if (criteria.rarity && creature.rarity !== criteria.rarity) {
       return false;
     }
-  }
 
-  // Size filter
-  if (criteria.size && creature.size.toLowerCase() !== criteria.size.toLowerCase()) {
-    return false;
-  }
-
-  // Life Points range filter
-  if (criteria.minLifePoints !== undefined && creature.lifePoints < criteria.minLifePoints) {
-    return false;
-  }
-  if (criteria.maxLifePoints !== undefined && creature.lifePoints > criteria.maxLifePoints) {
-    return false;
-  }
-
-  // Conjuring difficulty filter
-  if (criteria.conjuringDifficulty !== undefined) {
-    if (!creature.conjuringDifficulty || creature.conjuringDifficulty !== criteria.conjuringDifficulty) {
+    // Size filter
+    if (criteria.size && creature.size.toLowerCase() !== criteria.size.toLowerCase()) {
       return false;
     }
-  }
 
-  return true;
-}
+    // Spellcasting filter
+    if (criteria.hasSpells !== undefined && creature.hasSpells !== criteria.hasSpells) {
+      return false;
+    }
+
+    return true;
+  }
 
   /**
    * Fallback to basic creature search if enhanced index fails
