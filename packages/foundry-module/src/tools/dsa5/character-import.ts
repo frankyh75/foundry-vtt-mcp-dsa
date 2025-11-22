@@ -207,14 +207,14 @@ export function getDsa5CharacterSummary(actor: Actor): string {
   // Status (LeP, AsP, KaP)
   if (dsa5Data.status) {
     lines.push('');
-    const currentLeP = dsa5Data.status.wounds.max - dsa5Data.status.wounds.value;
-    lines.push(`LeP: ${currentLeP}/${dsa5Data.status.wounds.max}`);
+    const currentLeP = (dsa5Data.status.wounds.max ?? 0) - dsa5Data.status.wounds.value;
+    lines.push(`LeP: ${currentLeP}/${dsa5Data.status.wounds.max ?? 0}`);
 
-    if (dsa5Data.status.astralenergy && dsa5Data.status.astralenergy.max > 0) {
+    if (dsa5Data.status.astralenergy && (dsa5Data.status.astralenergy.max ?? 0) > 0) {
       lines.push(`AsP: ${dsa5Data.status.astralenergy.value}/${dsa5Data.status.astralenergy.max}`);
     }
 
-    if (dsa5Data.status.karmaenergy && dsa5Data.status.karmaenergy.max > 0) {
+    if (dsa5Data.status.karmaenergy && (dsa5Data.status.karmaenergy.max ?? 0) > 0) {
       lines.push(`KaP: ${dsa5Data.status.karmaenergy.value}/${dsa5Data.status.karmaenergy.max}`);
     }
   }

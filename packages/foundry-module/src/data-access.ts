@@ -1,6 +1,8 @@
 import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
 import { permissionManager } from './permissions.js';
 import { transactionManager } from './transaction-manager.js';
+import { extractDsa5CharacterData, isDsa5System } from './tools/dsa5/index.js';
+import type { Dsa5CharacterData } from './tools/dsa5/index.js';
 // Local type definitions to avoid shared package import issues
 interface CharacterInfo {
   id: string;
@@ -10,6 +12,7 @@ interface CharacterInfo {
   system: Record<string, unknown>;
   items: CharacterItem[];
   effects: CharacterEffect[];
+  dsa5?: Dsa5CharacterData;  // DSA5-specific data (optional)
 }
 
 interface CharacterItem {
@@ -1146,6 +1149,11 @@ export class FoundryDataAccess {
         } : {}),
       })),
     };
+
+    // DSA5 System Support: Extract DSA5-specific data
+    if (isDsa5System()) {
+      characterData.dsa5 = extractDsa5CharacterData(actor);
+    }
 
     return characterData;
   }

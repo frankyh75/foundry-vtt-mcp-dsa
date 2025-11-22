@@ -48,8 +48,8 @@ export interface MCPCharacterUpdate {
  * @throws Error indicating this is not yet implemented
  */
 export async function applyMcpUpdateToDsa5Actor(
-  actor: Actor,
-  update: MCPCharacterUpdate
+  _actor: Actor,
+  _update: MCPCharacterUpdate
 ): Promise<void> {
   throw new Error(
     '[DSA5 Adapter] Character export/update not yet implemented (Phase 4). ' +
@@ -78,7 +78,7 @@ export async function applyMcpUpdateToDsa5Actor(
  * @param update - MCP character update payload
  * @returns Validation result
  */
-export function validateDsa5Update(update: MCPCharacterUpdate): {
+export function validateDsa5Update(_update: MCPCharacterUpdate): {
   valid: boolean;
   errors: string[];
 } {
