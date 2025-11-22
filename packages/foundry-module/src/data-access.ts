@@ -1,8 +1,8 @@
 import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
 import { permissionManager } from './permissions.js';
 import { transactionManager } from './transaction-manager.js';
-import { extractDsa5CharacterData, isDsa5System } from './tools/dsa5/index.js';
-import type { Dsa5CharacterData } from './tools/dsa5/index.js';
+import { extractDsa5CharacterData, isDsa5System, buildDsa5CreatureIndex } from './tools/dsa5/index.js';
+import type { Dsa5CharacterData, Dsa5CreatureIndex } from './tools/dsa5/index.js';
 // Local type definitions to avoid shared package import issues
 interface CharacterInfo {
   id: string;
@@ -87,15 +87,15 @@ interface PF2eCreatureIndex {
   img?: string;
 }
 
-// Union type for both systems
-type EnhancedCreatureIndex = DnD5eCreatureIndex | PF2eCreatureIndex;
+// Union type for all supported systems
+type EnhancedCreatureIndex = DnD5eCreatureIndex | PF2eCreatureIndex | Dsa5CreatureIndex;
 
 interface PersistentIndexMetadata {
   version: string;
   timestamp: number;
   packFingerprints: Map<string, PackFingerprint>;
   totalCreatures: number;
-  gameSystem: string;  // 'dnd5e' or 'pf2e'
+  gameSystem: string;  // 'dnd5e', 'pf2e', or 'dsa5'
 }
 
 interface PackFingerprint {
@@ -527,8 +527,10 @@ class PersistentCreatureIndex {
       return await this.buildPF2eIndex(force);
     } else if (gameSystem === 'dnd5e') {
       return await this.buildDnD5eIndex(force);
+    } else if (gameSystem === 'dsa5') {
+      return await this.buildDsa5Index(force);
     } else {
-      throw new Error(`Enhanced creature index not supported for system: ${gameSystem}. Only D&D 5e and Pathfinder 2e are currently supported.`);
+      throw new Error(`Enhanced creature index not supported for system: ${gameSystem}. Only D&D 5e, Pathfinder 2e, and DSA5 are currently supported.`);
     }
   }
 
@@ -1069,6 +1071,46 @@ class PersistentCreatureIndex {
       };
     }
   }
+
+  /**
+   * Build DSA5 enhanced creature index
+   * Delegates to DSA5 adapter layer
+   */
+  private async buildDsa5Index(_force = false): Promise<Dsa5CreatureIndex[]> {
+    this.buildInProgress = true;
+
+    try {
+      const actorPacks = Array.from(game.packs.values()).filter(
+        (pack) => pack.metadata.type === 'Actor'
+      );
+
+      // Delegate to DSA5 adapter layer
+      const enhancedCreatures = await buildDsa5CreatureIndex(this.moduleId, actorPacks);
+
+      // Save to persistent storage
+      const packFingerprints = new Map<string, PackFingerprint>();
+      for (const pack of actorPacks) {
+        packFingerprints.set(pack.metadata.id, this.generatePackFingerprint(pack));
+      }
+
+      const persistentIndex: PersistentEnhancedIndex = {
+        metadata: {
+          version: this.INDEX_VERSION,
+          timestamp: Date.now(),
+          packFingerprints,
+          totalCreatures: enhancedCreatures.length,
+          gameSystem: 'dsa5',
+        },
+        creatures: enhancedCreatures,
+      };
+
+      await this.savePersistedIndex(persistentIndex);
+
+      return enhancedCreatures;
+    } finally {
+      this.buildInProgress = false;
+    }
+  }
 }
 
 export class FoundryDataAccess {
@@ -1076,6 +1118,13 @@ export class FoundryDataAccess {
   private persistentIndex: PersistentCreatureIndex = new PersistentCreatureIndex();
 
   constructor() {}
+
+  /**
+   * Type guard to check if creature is DSA5
+   */
+  private isDsa5CreatureIndex(creature: EnhancedCreatureIndex): creature is Dsa5CreatureIndex {
+    return 'species' in creature && 'lifePoints' in creature;
+  }
 
   /**
    * Force rebuild of enhanced creature index
@@ -1582,26 +1631,39 @@ export class FoundryDataAccess {
           hasImage: !!creature.img,
 
           // System-aware summary
-          summary: isPF2e
-            ? `Level ${(creature as PF2eCreatureIndex).level} ${creature.creatureType} (${(creature as PF2eCreatureIndex).rarity}) from ${creature.packLabel}`
-            : `CR ${(creature as DnD5eCreatureIndex).challengeRating} ${creature.creatureType} from ${creature.packLabel}`,
+          summary: this.isDsa5CreatureIndex(creature)
+            ? `Level ${creature.level} ${creature.species} (${creature.culture}) from ${creature.packLabel}`
+            : isPF2e
+            ? `Level ${(creature as PF2eCreatureIndex).level} ${(creature as PF2eCreatureIndex).creatureType} (${(creature as PF2eCreatureIndex).rarity}) from ${creature.packLabel}`
+            : `CR ${(creature as DnD5eCreatureIndex).challengeRating} ${(creature as DnD5eCreatureIndex).creatureType} from ${creature.packLabel}`,
 
           // Include all creature data (conditional based on system)
-          ...(isPF2e ? {
+          ...(this.isDsa5CreatureIndex(creature) ? {
+            level: creature.level,
+            species: creature.species,
+            culture: creature.culture,
+            lifePoints: creature.lifePoints,
+            meleeDefense: creature.meleeDefense,
+            rangedDefense: creature.rangedDefense
+          } : isPF2e ? {
             level: (creature as PF2eCreatureIndex).level,
             traits: (creature as PF2eCreatureIndex).traits,
-            rarity: (creature as PF2eCreatureIndex).rarity
+            rarity: (creature as PF2eCreatureIndex).rarity,
+            creatureType: (creature as PF2eCreatureIndex).creatureType,
+            hitPoints: (creature as PF2eCreatureIndex).hitPoints,
+            armorClass: (creature as PF2eCreatureIndex).armorClass,
+            alignment: (creature as PF2eCreatureIndex).alignment
           } : {
             challengeRating: (creature as DnD5eCreatureIndex).challengeRating,
-            hasLegendaryActions: (creature as DnD5eCreatureIndex).hasLegendaryActions
+            hasLegendaryActions: (creature as DnD5eCreatureIndex).hasLegendaryActions,
+            creatureType: (creature as DnD5eCreatureIndex).creatureType,
+            hitPoints: (creature as DnD5eCreatureIndex).hitPoints,
+            armorClass: (creature as DnD5eCreatureIndex).armorClass,
+            alignment: (creature as DnD5eCreatureIndex).alignment
           }),
 
-          creatureType: creature.creatureType,
           size: creature.size,
-          hitPoints: creature.hitPoints,
-          armorClass: creature.armorClass,
-          hasSpells: creature.hasSpells,
-          alignment: creature.alignment
+          hasSpells: creature.hasSpells
         };
       });
 

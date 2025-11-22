@@ -75,10 +75,15 @@ export {
 } from './character-export.js';
 
 // ============================================================================
+// Creature Index (Compendium Search) - PHASE 2 ✅
+// ============================================================================
+export { buildDsa5CreatureIndex } from './creature-index.js';
+
+// ============================================================================
 // Version & Metadata
 // ============================================================================
-export const DSA5_ADAPTER_VERSION = '0.1.0';
-export const DSA5_ADAPTER_PHASE = 'Phase 1 (Character Import)';
+export const DSA5_ADAPTER_VERSION = '0.2.0';
+export const DSA5_ADAPTER_PHASE = 'Phase 2 (Character Import + Creature Index)';
 
 /**
  * Check if current Foundry game system is DSA5
