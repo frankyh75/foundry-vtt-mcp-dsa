@@ -19,31 +19,70 @@ DSA5-Support wird als externe Adapter-Schicht gebaut, NICHT durch Änderungen am
 
 ## Aktuelle Phase
 
-**Phase 2: DSA5 Adapter Layer aufbauen**
+**Phase 2 Complete: DSA5 Adapter Layer fertig ✅**
 
 - [x] Phase 1: Git-Cleanup, data-access.ts auf Upstream-Stand
-- [ ] Phase 2: DSA5 Import/Export Module erstellen
-- [ ] Phase 3: Integration in characters.ts
-- [ ] Phase 4: Später - character.ts DSA5-fähig machen
+- [x] Phase 2A: DSA5 Character Import Module erstellt (types, field-mappings, character-import)
+- [x] Phase 2B: DSA5 Creature Index extrahiert und integriert
+- [x] Phase 2C: Integration in data-access.ts (minimal, ~100 Zeilen)
+- [ ] Phase 3: Testing & Upstream Sync Check
+- [ ] Phase 4: Character Export (Write Operations) - SPÄTER
 
-### Aktueller Schritt
+### Branch-Status
 
-Schritt 4: Dateien erstellen in `src/tools/dsa5/`
+**Aktueller Branch:** `feature/dsa5-adapter-layer` (3 Commits ahead of origin/master)
+
+**Commits:**
+1. `641c1c9` - feat(dsa5): Add DSA5 adapter layer (Phase 1 - Character Import)
+2. `d5e2b1d` - feat(dsa5): Integrate DSA5 adapter into data-access.ts (Phase 2)
+3. `9e5f031` - feat(dsa5): Add DSA5 creature index support (Phase 2B)
+
+**Änderungen:** +1477 Zeilen, -20 Zeilen
 
 ## Dateistruktur
 
 ```
-src/
-├── data-access.ts          # NICHT ÄNDERN - Upstream-kompatibel halten!
+packages/foundry-module/src/
+├── data-access.ts          # Minimale DSA5-Integration (~100 Zeilen)
 ├── tools/
-│   ├── characters.ts       # System-Router, minimale DSA5-Integration hier
-│   ├── character.ts        # SPÄTER - erst nach stabilem Import/Export
-│   └── dsa5/               # <<< DSA5 Adapter Layer
-│       ├── types.ts        # MCPCharacter, MCPCharacterUpdate, Dsa5Actor
-│       ├── character-import.ts   # fromDsa5Actor(), getDsa5CharacterSummary()
-│       ├── character-export.ts   # applyMcpUpdateToDsa5Actor()
-│       ├── field-mappings.ts     # Mapping-Konfiguration (optional)
-│       └── index.ts              # Public API exports
+│   └── dsa5/               # <<< DSA5 Adapter Layer (isoliert)
+│       ├── types.ts        # DSA5 Typdefinitionen (271 Zeilen)
+│       ├── field-mappings.ts     # DE↔EN Mappings, WOUNDS_HELPER (200 Zeilen)
+│       ├── character-import.ts   # extractDsa5CharacterData() (243 Zeilen)
+│       ├── character-export.ts   # Phase 4 Placeholder (123 Zeilen)
+│       ├── creature-index.ts     # buildDsa5CreatureIndex() (244 Zeilen)
+│       ├── index.ts              # Public API exports (101 Zeilen)
+│       └── README.md             # DSA5-Adapter Dokumentation (205 Zeilen)
+```
+
+### data-access.ts Navigation Guide
+
+Die `data-access.ts` ist eine sehr große Datei (~1100+ Zeilen). Hier ist der Navigations-Header zur Orientierung:
+
+```typescript
+// 🧭 NAVIGATION GUIDE (data-access.ts)
+// Use Ctrl+F (or Cmd+F) to jump to sections using [#TAGS]:
+//
+// Main Sections:
+//   [#TYPES]          Line ~7      - Type definitions & interfaces
+//   [#PERSIST_INDEX]  Line ~240    - PersistentCreatureIndex class
+//   [#DATA_ACCESS]    Line ~1116   - FoundryDataAccess class (main)
+//   [#CHAR_MGMT]      Line ~1165   - Character management methods
+//   [#COMP_SEARCH]    Line ~1220   - Compendium search methods
+//   [#ACTOR_CREATE]   Line ~2400   - Actor creation & token placement
+//   [#QUEST_MGMT]     Line ~2800   - Quest & journal management
+//   [#PLAYER_MGMT]    Line ~3500   - Player roll requests
+//   [#UTILITIES]      Line ~4000   - Utility & helper methods
+//
+// DSA5 Integration Points:
+//   Line 4-5:    import { extractDsa5CharacterData, ... }
+//   Line 15:     interface CharacterInfo { dsa5?: Dsa5CharacterData }
+//   Line 91:     type EnhancedCreatureIndex = ... | Dsa5CreatureIndex
+//   Line 530:    case 'dsa5': buildDsa5Index()
+//   Line 1079:   buildDsa5Index() method
+//   Line 1125:   isDsa5CreatureIndex() type guard
+//   Line 1154:   if (isDsa5System()) { characterData.dsa5 = ... }
+//   Line 1648:   DSA5 creature summary format
 ```
 
 ## DSA5 Feld-Mappings (KRITISCH)
@@ -194,15 +233,37 @@ Dieses Projekt ist Teil einer “Story Engine, not Rules Engine” Vision:
 DSA5 ist ein deutsches Pen&Paper-RPG mit komplexem Regelwerk.
 Die MCP-Integration soll Claude Zugriff auf Foundry-VTT-Daten geben.
 
-## Nächste Schritte
+## Nächste Schritte (Phase 3)
 
-1. [ ] **Git-Sicherung:** Branch `archive/dsa5-monolith-integration` erstellen vom aktuellen Stand
-1. [ ] **Upstream Remote** hinzufügen falls noch nicht vorhanden
-1. [ ] **Diff analysieren:** `data-access.ts` gegen Upstream vergleichen, DSA5-Teile dokumentieren
-1. [ ] `data-access.ts` auf Upstream-Stand zurücksetzen (in neuem Feature-Branch)
-1. [ ] `src/tools/dsa5/types.ts` erstellen
-1. [ ] `src/tools/dsa5/character-import.ts` implementieren
-1. [ ] `src/tools/dsa5/character-export.ts` implementieren
-1. [ ] `src/tools/dsa5/index.ts` als Public API
-1. [ ] Integration in `characters.ts` (minimal)
-1. [ ] End-to-End Test mit echtem DSA5-Actor
+### Vor dem Push
+
+1. [ ] **Testing:** Build erfolgreich? (✅ bereits getestet)
+2. [ ] **Upstream Sync Check:** Merge-konfliktfrei mit upstream/master?
+   ```bash
+   git fetch upstream
+   git merge upstream/master --no-commit --no-ff
+   # Konflikte prüfen, dann abbrechen:
+   git merge --abort
+   ```
+3. [ ] **Optional: Lokaler Test** mit Foundry VTT + DSA5 System
+   - Character Import testen
+   - Creature Index rebuild testen
+
+### Push & PR
+
+4. [ ] **Push Branch:**
+   ```bash
+   git push -u origin feature/dsa5-adapter-layer
+   ```
+
+5. [ ] **Pull Request erstellen** auf GitHub:
+   - Base: `master`
+   - Compare: `feature/dsa5-adapter-layer`
+   - Titel: `feat(dsa5): Add DSA5 adapter layer with character import & creature index`
+   - Beschreibung: Siehe unten
+
+### Optional: Phase 4 Vorbereitung
+
+6. [ ] MCP Server (`packages/mcp-server`) DSA5-Formatierung prüfen
+7. [ ] Character Export Implementierung planen (Write Operations)
+8. [ ] End-to-End Test mit echtem DSA5-Actor
