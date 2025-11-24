@@ -392,6 +392,11 @@ export class Dsa5IndexBuilder implements IndexBuilder {
 
 **⏱️ Zeitaufwand:** 2-3 Stunden (hauptsächlich Copy-Paste + Interface-Anpassungen)
 
+**💡 TIPP:** Siehe `DSA5_MIGRATION_ANALYSIS.md` Abschnitt 3 für:
+- Exakte Zeilen-Nummern zum Kopieren
+- Welche Funktionen → welche Methoden
+- Deutsche UI-Messages beibehalten (ja/nein)
+
 ---
 
 ## 🎯 Phase 6: System Adapter implementieren (4-5 Stunden)
@@ -738,6 +743,12 @@ export class Dsa5Adapter implements SystemAdapter {
 ```
 
 **⏱️ Zeitaufwand:** 4-5 Stunden (viel Copy-Paste, aber auch Umstrukturierung)
+
+**⚠️ KRITISCH:** Siehe `DSA5_MIGRATION_ANALYSIS.md` Abschnitt 4 für:
+- **Wound-Inversion-Logik** (LeP = wounds.max - wounds.value)
+- Flache vs. verschachtelte Struktur
+- Skills/Talents Vereinfachung
+- Vor-/Nachher Code-Vergleiche
 
 ---
 
