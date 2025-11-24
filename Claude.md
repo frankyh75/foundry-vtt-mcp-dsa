@@ -233,7 +233,47 @@ Dieses Projekt ist Teil einer “Story Engine, not Rules Engine” Vision:
 DSA5 ist ein deutsches Pen&Paper-RPG mit komplexem Regelwerk.
 Die MCP-Integration soll Claude Zugriff auf Foundry-VTT-Daten geben.
 
-## Nächste Schritte (Phase 3)
+## ⚡ WICHTIG: v0.6.0 Registry Pattern ist Live!
+
+**Update 2024:** Upstream hat v0.6.0-Branch mit neuem Registry Pattern erstellt.
+DSA5-Integration wird nun als **v0.6.1-Beitrag** zum Upstream entwickelt!
+
+### Neue Strategie
+
+- ❌ ~~Direkter Merge auf master~~ (veraltet)
+- ✅ **Migration zu v0.6.0 Registry Pattern**
+- ✅ **DSA5 als v0.6.1 zum Upstream beitragen**
+
+### Aktuelle Situation
+
+**Existierende Arbeit (Phase 2 abgeschlossen):**
+- Branch: `feature/dsa5-adapter-layer` (3 Commits, +1477/-20 Zeilen)
+- Status: Funktionsfähiger DSA5 Adapter Layer (isoliert in `src/tools/dsa5/`)
+- Code: 60-70% wiederverwendbar für v0.6.0
+
+**v0.6.0 Anforderungen:**
+- Neue Architektur: SystemAdapter + IndexBuilder Interfaces
+- Dateien in `packages/mcp-server/src/systems/dsa5/` (nicht foundry-module!)
+- 3 Dateien: adapter.ts, filters.ts, index-builder.ts
+- Geschätzter Migrationsaufwand: 15-20 Stunden
+
+### Roadmap
+
+**Siehe:** `DSA5_V0.6.1_ROADMAP.md` für detaillierte 11-Phasen-Roadmap
+
+**Kurz:**
+1. Kommentar auf GitHub Issue #11 (Koordination mit @adambdooley)
+2. v0.6.0 lokal auschecken und analysieren (2-3h)
+3. Code migrieren zu Registry Pattern (10-15h)
+4. Testing & Dokumentation (3-4h)
+5. Pull Request für v0.6.1 erstellen
+
+**Nächster Schritt:** Siehe `DSA5_V0.6.1_ROADMAP.md` Phase 1.1
+
+## Alte Nächste Schritte (Phase 3) - ARCHIVIERT
+
+<details>
+<summary>⚠️ Veraltet - Nur für Referenz (Click to expand)</summary>
 
 ### Vor dem Push
 
@@ -267,3 +307,5 @@ Die MCP-Integration soll Claude Zugriff auf Foundry-VTT-Daten geben.
 6. [ ] MCP Server (`packages/mcp-server`) DSA5-Formatierung prüfen
 7. [ ] Character Export Implementierung planen (Write Operations)
 8. [ ] End-to-End Test mit echtem DSA5-Actor
+
+</details>
