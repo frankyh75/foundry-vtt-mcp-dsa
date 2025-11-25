@@ -9,13 +9,15 @@
 
 | Erfahrungsgrad | AP-Bereich | Numerischer Level |
 |----------------|------------|-------------------|
-| **Unerfahren** | 0 - 900 AP | 0 |
+| **Unerfahren** | 0 - 900 AP | 0 (Starting Level!) |
 | **Durchschnittlich** | 901 - 1800 AP | 1 |
 | **Erfahren** | 1801 - 2700 AP | 2 |
 | **Kompetent** | 2701 - 3600 AP | 3 |
 | **Meisterlich** | 3601 - 4500 AP | 4 |
 | **Brillant** | 4501 - 5400 AP | 5 |
 | **Legendär** | 5401+ AP | 6 |
+
+**WICHTIG:** DSA5 startet bei Erfahrungsgrad 0 (Unerfahren), während D&D5e bei Level 1 startet!
 
 ---
 
@@ -407,8 +409,20 @@ console.log("Experience:", stats.experience);
 1. ✅ **Semantisch korrekt:** "Level" = Erfahrungsgrad (nicht AP)
 2. ✅ **Benutzerfreundlich:** Filter nach "Erfahren" statt "2400 AP"
 3. ✅ **Flexibel:** Filter nach Level ODER AP möglich
-4. ✅ **Vergleichbar mit D&D5e:** `experienceLevel: 2` ≈ `challengeRating: 2`
+4. ✅ **Vergleichbar mit D&D5e CR:** `experienceLevel: 2` ≈ `challengeRating: 2` (CR 0 existiert auch!)
 5. ✅ **Power Level:** Sortierung nach Erfahrungsgrad (0-6)
+6. ✅ **Internationalisierung:** Deutsche + Englische Namen
+
+### Vergleich mit anderen Systemen
+
+| System | Metrik | Bereich | Starting Value | Notes |
+|--------|--------|---------|----------------|-------|
+| **D&D 5e** | Character Level | 1-20 | **Level 1** | Level 0 existiert nicht für PCs |
+| **D&D 5e** | Challenge Rating | 0-30 | 0 (für Kreaturen) | CR 0 = sehr schwach |
+| **PF2e** | Level | -1 to 25+ | **Level 1** | Level -1 für sehr schwache Kreaturen |
+| **DSA5** | Erfahrungsgrad | 0-6 | **Level 0 (Unerfahren)** | Starting-Charaktere sind "Unerfahren" |
+
+**Wichtig:** DSA5 ist das einzige System, wo Starting-Charaktere bei "0" anfangen!
 
 ---
 

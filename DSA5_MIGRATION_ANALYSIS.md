@@ -133,7 +133,12 @@ export function describeDsa5Filters(filters): string {
 - String: "Erfahren", "Kompetent", etc.
 - Bereich: `{ min: 2, max: 4 }` = Erfahren bis Meisterlich
 
-**Siehe:** `DSA5_EXPERIENCE_LEVELS.md` für vollständige Mapping-Tabelle
+**DSA5 vs. D&D5e Starting Level:**
+- DSA5: Starting-Charaktere sind **Erfahrungsgrad 0** (Unerfahren)
+- D&D5e: Starting-Charaktere sind **Level 1** (Level 0 existiert nicht für PCs)
+- D&D5e CR: **CR 0 existiert** für sehr schwache Kreaturen
+
+**Siehe:** `DSA5_EXPERIENCE_LEVELS.md` für vollständige Mapping-Tabelle und System-Vergleich
 
 **Test für morgen:**
 ```javascript
