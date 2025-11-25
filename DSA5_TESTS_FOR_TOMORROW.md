@@ -110,43 +110,46 @@ console.log("Alle Eigenschaften:", Object.keys(EIGENSCHAFT_NAMES));
 ```javascript
 const { getExperienceLevel, EXPERIENCE_LEVELS } = /* import from constants.ts */;
 
-// Test 1: Unerfahren (0-900 AP)
+// Test 1: Unerfahren (0-900 AP) → Level 1
 console.log(getExperienceLevel(0));
-// ✅ ERWARTUNG: { name: 'Unerfahren', nameEn: 'Inexperienced', level: 0, min: 0, max: 900 }
+// ✅ ERWARTUNG: { name: 'Unerfahren', nameEn: 'Inexperienced', level: 1, min: 0, max: 900 }
 
 console.log(getExperienceLevel(500));
-// ✅ ERWARTUNG: { name: 'Unerfahren', level: 0, ... }
+// ✅ ERWARTUNG: { name: 'Unerfahren', level: 1, ... }
 
-// Test 2: Durchschnittlich (901-1800 AP)
+// Test 2: Durchschnittlich (901-1800 AP) → Level 2
 console.log(getExperienceLevel(1200));
-// ✅ ERWARTUNG: { name: 'Durchschnittlich', nameEn: 'Average', level: 1, ... }
+// ✅ ERWARTUNG: { name: 'Durchschnittlich', nameEn: 'Average', level: 2, ... }
 
-// Test 3: Erfahren (1801-2700 AP)
+// Test 3: Erfahren (1801-2700 AP) → Level 3
 console.log(getExperienceLevel(2400));
-// ✅ ERWARTUNG: { name: 'Erfahren', nameEn: 'Experienced', level: 2, ... }
+// ✅ ERWARTUNG: { name: 'Erfahren', nameEn: 'Experienced', level: 3, ... }
 
-// Test 4: Kompetent (2701-3600 AP)
+// Test 4: Kompetent (2701-3600 AP) → Level 4
 console.log(getExperienceLevel(3200));
-// ✅ ERWARTUNG: { name: 'Kompetent', nameEn: 'Competent', level: 3, ... }
+// ✅ ERWARTUNG: { name: 'Kompetent', nameEn: 'Competent', level: 4, ... }
 
-// Test 5: Meisterlich (3601-4500 AP)
+// Test 5: Meisterlich (3601-4500 AP) → Level 5
 console.log(getExperienceLevel(4000));
-// ✅ ERWARTUNG: { name: 'Meisterlich', nameEn: 'Masterful', level: 4, ... }
+// ✅ ERWARTUNG: { name: 'Meisterlich', nameEn: 'Masterful', level: 5, ... }
 
-// Test 6: Brillant (4501-5400 AP)
+// Test 6: Brillant (4501-5400 AP) → Level 6
 console.log(getExperienceLevel(5000));
-// ✅ ERWARTUNG: { name: 'Brillant', nameEn: 'Brilliant', level: 5, ... }
+// ✅ ERWARTUNG: { name: 'Brillant', nameEn: 'Brilliant', level: 6, ... }
 
-// Test 7: Legendär (5401+ AP)
+// Test 7: Legendär (5401+ AP) → Level 7
 console.log(getExperienceLevel(6000));
-// ✅ ERWARTUNG: { name: 'Legendär', nameEn: 'Legendary', level: 6, ... }
+// ✅ ERWARTUNG: { name: 'Legendär', nameEn: 'Legendary', level: 7, ... }
 
 console.log(getExperienceLevel(10000));
-// ✅ ERWARTUNG: { name: 'Legendär', level: 6, ... } (Maximum!)
+// ✅ ERWARTUNG: { name: 'Legendär', level: 7, ... } (Maximum!)
 
-// Test 8: Alle Erfahrungsgrade
+// Test 8: Alle Erfahrungsgrade (Level 1-7)
 console.log("Anzahl Erfahrungsgrade:", EXPERIENCE_LEVELS.length);
 // ✅ ERWARTUNG: 7 (Unerfahren bis Legendär)
+
+console.log("Level-Bereich:", EXPERIENCE_LEVELS[0].level, "-", EXPERIENCE_LEVELS[6].level);
+// ✅ ERWARTUNG: 1 - 7
 
 console.log("Namen (DE):", EXPERIENCE_LEVELS.map(l => l.name));
 // ✅ ERWARTUNG: ['Unerfahren', 'Durchschnittlich', 'Erfahren', 'Kompetent', 'Meisterlich', 'Brillant', 'Legendär']
@@ -380,7 +383,7 @@ Zeige mir magiekundige Kreaturen mit Erfahrungsgrad "Erfahren" bis "Meisterlich"
 {
   "tool": "list-creatures-by-criteria",
   "filters": {
-    "experienceLevel": { "min": 2, "max": 4 },
+    "experienceLevel": { "min": 3, "max": 5 },
     "hasSpells": true
   }
 }
@@ -388,7 +391,7 @@ Zeige mir magiekundige Kreaturen mit Erfahrungsgrad "Erfahren" bis "Meisterlich"
 
 **Erwartete Ausgabe:**
 - Nur Kreaturen mit `hasSpells: true`
-- Erfahrungsgrad zwischen 2 (Erfahren) und 4 (Meisterlich)
+- Erfahrungsgrad zwischen 3 (Erfahren) und 5 (Meisterlich)
 - Sortiert nach experienceLevel
 
 **Alternative (Filter nach Name):**
@@ -396,7 +399,7 @@ Zeige mir magiekundige Kreaturen mit Erfahrungsgrad "Erfahren" bis "Meisterlich"
 {
   "tool": "list-creatures-by-criteria",
   "filters": {
-    "experienceLevel": "Kompetent",
+    "experienceLevel": "Kompetent",  // Level 4
     "hasSpells": true
   }
 }
@@ -527,12 +530,21 @@ Level 4 | creatureType: dwarf | spellcaster
 
 **Alternative (numerisch):**
 ```
-Filtere Kreaturen: Erfahrungsgrad 2-4, Spezies Elf
+Filtere Kreaturen: Erfahrungsgrad 3-5, Spezies Elf
 ```
 **Erwartung:**
 ```
 Erfahrungsgrad: Erfahren bis Meisterlich | Spezies: Elf
 ```
+
+**Level-Mapping zur Erinnerung:**
+- Level 1 = Unerfahren
+- Level 2 = Durchschnittlich
+- Level 3 = Erfahren
+- Level 4 = Kompetent
+- Level 5 = Meisterlich
+- Level 6 = Brillant
+- Level 7 = Legendär
 
 ---
 

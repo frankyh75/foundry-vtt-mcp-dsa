@@ -120,7 +120,7 @@ export function describeDsa5Filters(filters): string {
 
 | Filter | Typ | Beschreibung | D&D5e-Äquivalent |
 |--------|-----|--------------|------------------|
-| `experienceLevel` | `number \| string \| {min, max}` | **Erfahrungsgrad** (0-6 oder "Erfahren") | challengeRating |
+| `experienceLevel` | `number \| string \| {min, max}` | **Erfahrungsgrad** (1-7 oder "Erfahren") | challengeRating |
 | `experiencePoints` | `number \| {min, max}` | Abenteuerpunkte (Detail-Filter) | - (NEU!) |
 | `species` | `string` | Spezies (Mensch, Elf, Zwerg) | creatureType |
 | `culture` | `string` | Kultur (Thorwal, Mittelreich) | - (NEU!) |
@@ -129,14 +129,15 @@ export function describeDsa5Filters(filters): string {
 | `traits` | `string[]` | Merkmale (Nachtsicht, etc.) | - (ähnlich tags) |
 
 **WICHTIG:** `experienceLevel` ist der **Erfahrungsgrad** (Unerfahren, Durchschnittlich, Erfahren, Kompetent, Meisterlich, Brillant, Legendär), NICHT die Abenteuerpunkte!
-- Numerisch: 0-6 (0=Unerfahren, 6=Legendär)
+- Numerisch: **1-7** (1=Unerfahren, 7=Legendär)
 - String: "Erfahren", "Kompetent", etc.
-- Bereich: `{ min: 2, max: 4 }` = Erfahren bis Meisterlich
+- Bereich: `{ min: 3, max: 5 }` = Erfahren bis Meisterlich
 
-**DSA5 vs. D&D5e Starting Level:**
-- DSA5: Starting-Charaktere sind **Erfahrungsgrad 0** (Unerfahren)
-- D&D5e: Starting-Charaktere sind **Level 1** (Level 0 existiert nicht für PCs)
-- D&D5e CR: **CR 0 existiert** für sehr schwache Kreaturen
+**DSA5 vs. D&D5e Level:**
+- **Beide Systeme** starten bei **Level 1**
+- DSA5: Level 1-7 (Unerfahren bis Legendär), berechnet aus AP
+- D&D5e: Level 1-20 (Standard Character Levels)
+- D&D5e: CR 0-30 (Challenge Rating für Kreaturen)
 
 **Siehe:** `DSA5_EXPERIENCE_LEVELS.md` für vollständige Mapping-Tabelle und System-Vergleich
 
@@ -151,13 +152,13 @@ export function describeDsa5Filters(filters): string {
 
 // 2. Filter nach Erfahrungsgrad (numerisch: Erfahren bis Meisterlich)
 {
-  "experienceLevel": { "min": 2, "max": 4 },
+  "experienceLevel": { "min": 3, "max": 5 },
   "size": "medium"
 }
 
 // 3. Filter nach Erfahrungsgrad (Name)
 {
-  "experienceLevel": "Kompetent"
+  "experienceLevel": "Kompetent"  // Level 4
 }
 
 // 4. Filter nach Abenteuerpunkten (präzise)

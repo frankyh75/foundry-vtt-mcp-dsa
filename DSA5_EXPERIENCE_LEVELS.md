@@ -9,15 +9,20 @@
 
 | Erfahrungsgrad | AP-Bereich | Numerischer Level |
 |----------------|------------|-------------------|
-| **Unerfahren** | 0 - 900 AP | 0 (Starting Level!) |
-| **Durchschnittlich** | 901 - 1800 AP | 1 |
-| **Erfahren** | 1801 - 2700 AP | 2 |
-| **Kompetent** | 2701 - 3600 AP | 3 |
-| **Meisterlich** | 3601 - 4500 AP | 4 |
-| **Brillant** | 4501 - 5400 AP | 5 |
-| **Legendär** | 5401+ AP | 6 |
+| **Unerfahren** | 0 - 900 AP | **1** (Starting Level!) |
+| **Durchschnittlich** | 901 - 1800 AP | **2** |
+| **Erfahren** | 1801 - 2700 AP | **3** |
+| **Kompetent** | 2701 - 3600 AP | **4** |
+| **Meisterlich** | 3601 - 4500 AP | **5** |
+| **Brillant** | 4501 - 5400 AP | **6** |
+| **Legendär** | 5401+ AP | **7** |
 
-**WICHTIG:** DSA5 startet bei Erfahrungsgrad 0 (Unerfahren), während D&D5e bei Level 1 startet!
+**WICHTIG:** DSA5 verwendet Level 1-7 (Unerfahren bis Legendär). Beide Systeme starten bei Level 1!
+
+**Quelle:** https://github.com/Plushtoast/dsa5-foundryVTT/blob/master/template.json
+- DSA5 hat kein "level" Feld im template.json
+- Nur `experience.total` und `experience.spent`
+- Erfahrungsgrad wird aus AP berechnet
 
 ---
 
@@ -27,15 +32,18 @@
 /**
  * Erfahrungsgrad-Definitionen (DSA5 "Levels")
  * Quelle: https://dsa.ulisses-regelwiki.de/Heldenerschaffung.html
+ *
+ * WICHTIG: Level 1-7, nicht 0-6!
+ * DSA5 startet bei Level 1 (Unerfahren), genau wie D&D5e
  */
 export const EXPERIENCE_LEVELS = [
-  { name: 'Unerfahren', nameEn: 'Inexperienced', min: 0, max: 900, level: 0 },
-  { name: 'Durchschnittlich', nameEn: 'Average', min: 901, max: 1800, level: 1 },
-  { name: 'Erfahren', nameEn: 'Experienced', min: 1801, max: 2700, level: 2 },
-  { name: 'Kompetent', nameEn: 'Competent', min: 2701, max: 3600, level: 3 },
-  { name: 'Meisterlich', nameEn: 'Masterful', min: 3601, max: 4500, level: 4 },
-  { name: 'Brillant', nameEn: 'Brilliant', min: 4501, max: 5400, level: 5 },
-  { name: 'Legendär', nameEn: 'Legendary', min: 5401, max: Infinity, level: 6 },
+  { name: 'Unerfahren', nameEn: 'Inexperienced', min: 0, max: 900, level: 1 },
+  { name: 'Durchschnittlich', nameEn: 'Average', min: 901, max: 1800, level: 2 },
+  { name: 'Erfahren', nameEn: 'Experienced', min: 1801, max: 2700, level: 3 },
+  { name: 'Kompetent', nameEn: 'Competent', min: 2701, max: 3600, level: 4 },
+  { name: 'Meisterlich', nameEn: 'Masterful', min: 3601, max: 4500, level: 5 },
+  { name: 'Brillant', nameEn: 'Brilliant', min: 4501, max: 5400, level: 6 },
+  { name: 'Legendär', nameEn: 'Legendary', min: 5401, max: Infinity, level: 7 },
 ] as const;
 
 /**
@@ -60,12 +68,12 @@ export function getExperienceLevel(totalAP: number): Dsa5ExperienceLevel {
 
 /**
  * Konvertiert numerischen Level zu Erfahrungsgrad
- * @param level - Level (0-6)
+ * @param level - Level (1-7)
  * @returns Erfahrungsgrad-Info
  */
 export function getExperienceLevelByNumber(level: number): Dsa5ExperienceLevel {
-  const clamped = Math.max(0, Math.min(6, Math.floor(level)));
-  return EXPERIENCE_LEVELS[clamped];
+  const clamped = Math.max(1, Math.min(7, Math.floor(level)));
+  return EXPERIENCE_LEVELS[clamped - 1]; // Array ist 0-indexed, aber Level 1-7
 }
 
 /**
@@ -117,13 +125,13 @@ export interface Dsa5CreatureIndex {
 
 ```typescript
 export const Dsa5FiltersSchema = z.object({
-  // Erfahrungsgrad-Filter (0-6 oder Name)
+  // Erfahrungsgrad-Filter (1-7 oder Name)
   experienceLevel: z.union([
-    z.number().min(0).max(6),           // Numerisch: 0 (Unerfahren) - 6 (Legendär)
+    z.number().min(1).max(7),           // Numerisch: 1 (Unerfahren) - 7 (Legendär)
     z.string(),                         // String: "Erfahren", "Kompetent"
     z.object({                          // Bereich
-      min: z.number().min(0).max(6).optional(),
-      max: z.number().min(0).max(6).optional()
+      min: z.number().min(1).max(7).optional(),
+      max: z.number().min(1).max(7).optional()
     })
   ]).optional(),
 
@@ -165,8 +173,8 @@ export function matchesDsa5Filters(
       }
     } else {
       // Bereich
-      const min = filters.experienceLevel.min ?? 0;
-      const max = filters.experienceLevel.max ?? 6;
+      const min = filters.experienceLevel.min ?? 1;
+      const max = filters.experienceLevel.max ?? 7;
       if (creatureLevel < min || creatureLevel > max) return false;
     }
   }
@@ -409,20 +417,24 @@ console.log("Experience:", stats.experience);
 1. ✅ **Semantisch korrekt:** "Level" = Erfahrungsgrad (nicht AP)
 2. ✅ **Benutzerfreundlich:** Filter nach "Erfahren" statt "2400 AP"
 3. ✅ **Flexibel:** Filter nach Level ODER AP möglich
-4. ✅ **Vergleichbar mit D&D5e CR:** `experienceLevel: 2` ≈ `challengeRating: 2` (CR 0 existiert auch!)
-5. ✅ **Power Level:** Sortierung nach Erfahrungsgrad (0-6)
+4. ✅ **Vergleichbar mit D&D5e CR:** `experienceLevel: 2` ≈ `challengeRating: 2`
+5. ✅ **Power Level:** Sortierung nach Erfahrungsgrad (1-7)
 6. ✅ **Internationalisierung:** Deutsche + Englische Namen
+7. ✅ **Konsistent:** Beide Systeme starten bei Level 1
 
 ### Vergleich mit anderen Systemen
 
 | System | Metrik | Bereich | Starting Value | Notes |
 |--------|--------|---------|----------------|-------|
-| **D&D 5e** | Character Level | 1-20 | **Level 1** | Level 0 existiert nicht für PCs |
-| **D&D 5e** | Challenge Rating | 0-30 | 0 (für Kreaturen) | CR 0 = sehr schwach |
+| **D&D 5e** | Character Level | 1-20 | **Level 1** | Standard Starting Level |
+| **D&D 5e** | Challenge Rating | 0-30 | CR 0 (für Kreaturen) | CR 0 = sehr schwach |
 | **PF2e** | Level | -1 to 25+ | **Level 1** | Level -1 für sehr schwache Kreaturen |
-| **DSA5** | Erfahrungsgrad | 0-6 | **Level 0 (Unerfahren)** | Starting-Charaktere sind "Unerfahren" |
+| **DSA5** | Erfahrungsgrad | **1-7** | **Level 1 (Unerfahren)** | Berechnet aus AP (0-900 AP = Level 1) |
 
-**Wichtig:** DSA5 ist das einzige System, wo Starting-Charaktere bei "0" anfangen!
+**Wichtig:**
+- Alle Systeme starten bei **Level 1** für Spieler-Charaktere
+- DSA5: Level wird aus Abenteuerpunkten berechnet (kein "level" Feld in template.json)
+- DSA5: Level 1-7, nicht 0-6!
 
 ---
 
