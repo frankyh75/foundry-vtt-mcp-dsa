@@ -745,6 +745,7 @@ const matches = matchesDsa5Filters(creature, filters);
 3. **Wound-Inversion Dokumentation:** Wo am besten dokumentieren? README vs. Code-Kommentare?
 4. **Testing:** Gibt es Unit-Test-Vorgaben für neue Systeme?
 5. **Eigenschaften-Anzeige:** Alle 8 Eigenschaften anzeigen oder nur relevante?
+6. **Erfahrungsgrad vs. AP:** Ist `experienceLevel` (0-6, "Erfahren") besser als numerische AP für Sortierung/Filtering?
 
 ---
 
