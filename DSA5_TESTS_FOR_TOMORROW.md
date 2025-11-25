@@ -103,6 +103,57 @@ console.log("Alle Eigenschaften:", Object.keys(EIGENSCHAFT_NAMES));
 
 ---
 
+### Test 4b: Erfahrungsgrad-Mapping (EXPERIENCE_LEVELS) ✅
+
+**Siehe:** `DSA5_EXPERIENCE_LEVELS.md` für vollständige Tabelle
+
+```javascript
+const { getExperienceLevel, EXPERIENCE_LEVELS } = /* import from constants.ts */;
+
+// Test 1: Unerfahren (0-900 AP)
+console.log(getExperienceLevel(0));
+// ✅ ERWARTUNG: { name: 'Unerfahren', nameEn: 'Inexperienced', level: 0, min: 0, max: 900 }
+
+console.log(getExperienceLevel(500));
+// ✅ ERWARTUNG: { name: 'Unerfahren', level: 0, ... }
+
+// Test 2: Durchschnittlich (901-1800 AP)
+console.log(getExperienceLevel(1200));
+// ✅ ERWARTUNG: { name: 'Durchschnittlich', nameEn: 'Average', level: 1, ... }
+
+// Test 3: Erfahren (1801-2700 AP)
+console.log(getExperienceLevel(2400));
+// ✅ ERWARTUNG: { name: 'Erfahren', nameEn: 'Experienced', level: 2, ... }
+
+// Test 4: Kompetent (2701-3600 AP)
+console.log(getExperienceLevel(3200));
+// ✅ ERWARTUNG: { name: 'Kompetent', nameEn: 'Competent', level: 3, ... }
+
+// Test 5: Meisterlich (3601-4500 AP)
+console.log(getExperienceLevel(4000));
+// ✅ ERWARTUNG: { name: 'Meisterlich', nameEn: 'Masterful', level: 4, ... }
+
+// Test 6: Brillant (4501-5400 AP)
+console.log(getExperienceLevel(5000));
+// ✅ ERWARTUNG: { name: 'Brillant', nameEn: 'Brilliant', level: 5, ... }
+
+// Test 7: Legendär (5401+ AP)
+console.log(getExperienceLevel(6000));
+// ✅ ERWARTUNG: { name: 'Legendär', nameEn: 'Legendary', level: 6, ... }
+
+console.log(getExperienceLevel(10000));
+// ✅ ERWARTUNG: { name: 'Legendär', level: 6, ... } (Maximum!)
+
+// Test 8: Alle Erfahrungsgrade
+console.log("Anzahl Erfahrungsgrade:", EXPERIENCE_LEVELS.length);
+// ✅ ERWARTUNG: 7 (Unerfahren bis Legendär)
+
+console.log("Namen (DE):", EXPERIENCE_LEVELS.map(l => l.name));
+// ✅ ERWARTUNG: ['Unerfahren', 'Durchschnittlich', 'Erfahren', 'Kompetent', 'Meisterlich', 'Brillant', 'Legendär']
+```
+
+---
+
 ### Test 5: Character Stats extrahieren (wenn adapter.ts fertig) ⚠️
 
 **Voraussetzung:** Du hast einen DSA5-Charakter namens "Thorwal" (oder passe Namen an)
@@ -312,16 +363,16 @@ Zeige mir alle Elfen-Kreaturen
 
 **Erwartete Ausgabe:**
 - Liste von Kreaturen mit `species: "Elf"`
-- Jede Kreatur zeigt: name, level, species, culture, lifePoints
+- Jede Kreatur zeigt: name, experienceLevel ("Erfahren"), species, culture, lifePoints
 - Keine D&D5e-Felder (challengeRating, hitPoints, armorClass)
 
 ---
 
-### Test 2: List Creatures (Filter nach Level + Magie) 🔍
+### Test 2: List Creatures (Filter nach Erfahrungsgrad + Magie) 🔍
 
 **In Claude Desktop:**
 ```
-Zeige mir magiekundige Kreaturen zwischen Stufe 3 und 7
+Zeige mir magiekundige Kreaturen mit Erfahrungsgrad "Erfahren" bis "Meisterlich"
 ```
 
 **Erwartete Tool-Nutzung:**
@@ -329,7 +380,7 @@ Zeige mir magiekundige Kreaturen zwischen Stufe 3 und 7
 {
   "tool": "list-creatures-by-criteria",
   "filters": {
-    "level": { "min": 3, "max": 7 },
+    "experienceLevel": { "min": 2, "max": 4 },
     "hasSpells": true
   }
 }
@@ -337,8 +388,42 @@ Zeige mir magiekundige Kreaturen zwischen Stufe 3 und 7
 
 **Erwartete Ausgabe:**
 - Nur Kreaturen mit `hasSpells: true`
-- Level zwischen 3-7
-- Sortiert nach Level
+- Erfahrungsgrad zwischen 2 (Erfahren) und 4 (Meisterlich)
+- Sortiert nach experienceLevel
+
+**Alternative (Filter nach Name):**
+```json
+{
+  "tool": "list-creatures-by-criteria",
+  "filters": {
+    "experienceLevel": "Kompetent",
+    "hasSpells": true
+  }
+}
+```
+
+---
+
+### Test 2b: List Creatures (Filter nach Abenteuerpunkten) 🔍
+
+**In Claude Desktop:**
+```
+Zeige mir Kreaturen mit 2000-3500 Abenteuerpunkten
+```
+
+**Erwartete Tool-Nutzung:**
+```json
+{
+  "tool": "list-creatures-by-criteria",
+  "filters": {
+    "experiencePoints": { "min": 2000, "max": 3500 }
+  }
+}
+```
+
+**Erwartete Ausgabe:**
+- Kreaturen mit total AP zwischen 2000-3500
+- Entspricht ungefähr Erfahrungsgrad 2-3 (Erfahren bis Kompetent)
 
 ---
 
@@ -427,17 +512,26 @@ Suche nach "Goblin" in den Kompendien
 
 **In Claude Desktop:**
 ```
-Filtere Kreaturen: Stufe 5, Spezies Zwerg, mit Magie
+Filtere Kreaturen: Erfahrungsgrad Meisterlich, Spezies Zwerg, mit Magie
 ```
 
 **Erwartete Filter-Beschreibung (via describeDsa5Filters):**
 ```
-Stufe 5 | Spezies: Zwerg | Mit Magie
+Erfahrungsgrad: Meisterlich | Spezies: Zwerg | Mit Magie
 ```
 
 **NICHT:**
 ```
-Level 5 | creatureType: dwarf | spellcaster
+Level 4 | creatureType: dwarf | spellcaster
+```
+
+**Alternative (numerisch):**
+```
+Filtere Kreaturen: Erfahrungsgrad 2-4, Spezies Elf
+```
+**Erwartung:**
+```
+Erfahrungsgrad: Erfahren bis Meisterlich | Spezies: Elf
 ```
 
 ---

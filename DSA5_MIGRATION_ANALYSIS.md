@@ -22,11 +22,11 @@
 
 ## 🔍 Datei-für-Datei Analyse
 
-### 1. `constants.ts` - ✅ EINFACH (95% Copy-Paste)
+### 1. `constants.ts` - ✅ EINFACH (95% Copy-Paste + NEU: Erfahrungsgrade)
 
-**Quelle:** `field-mappings.ts` (200 Zeilen)
-**Aufwand:** 30 Minuten
-**Schwierigkeit:** ⭐ Trivial
+**Quelle:** `field-mappings.ts` (200 Zeilen) + NEU: Erfahrungsgrad-Mapping
+**Aufwand:** 1 Stunde (30min Copy + 30min Erfahrungsgrade)
+**Schwierigkeit:** ⭐⭐ Einfach
 
 #### Was direkt kopiert wird:
 - ✅ `EIGENSCHAFT_NAMES` (Zeilen 11-20) - 1:1 kopieren
@@ -39,6 +39,13 @@
 - ✅ `EIGENSCHAFT_HELPER` (Zeilen 140-156) - 1:1 kopieren
 - ✅ `SKILL_GROUPS` (Zeilen 161-167) - 1:1 kopieren
 - ✅ `ADVANCEMENT_CATEGORIES` (Zeilen 172) - 1:1 kopieren
+
+#### Was NEU hinzukommt:
+- ✨ **EXPERIENCE_LEVELS** - Erfahrungsgrad-Definitionen (Unerfahren bis Legendär)
+- ✨ **getExperienceLevel(AP)** - Mapping: Abenteuerpunkte → Erfahrungsgrad
+- ✨ **getExperienceLevelByNumber(level)** - Level 0-6 → Erfahrungsgrad-Info
+
+**Siehe:** `DSA5_EXPERIENCE_LEVELS.md` für vollständige Struktur
 
 #### Was NICHT übernommen wird:
 - ❌ `FIELD_PATHS` (Zeilen 177-200) - wird zu `adapter.ts::getDataPaths()` Methode
@@ -113,12 +120,20 @@ export function describeDsa5Filters(filters): string {
 
 | Filter | Typ | Beschreibung | D&D5e-Äquivalent |
 |--------|-----|--------------|------------------|
-| `level` | `number \| {min, max}` | Erfahrungsstufe | challengeRating |
+| `experienceLevel` | `number \| string \| {min, max}` | **Erfahrungsgrad** (0-6 oder "Erfahren") | challengeRating |
+| `experiencePoints` | `number \| {min, max}` | Abenteuerpunkte (Detail-Filter) | - (NEU!) |
 | `species` | `string` | Spezies (Mensch, Elf, Zwerg) | creatureType |
 | `culture` | `string` | Kultur (Thorwal, Mittelreich) | - (NEU!) |
 | `size` | `enum` | Größe (klein, mittel, groß) | size |
 | `hasSpells` | `boolean` | Hat Zauber/Liturgien | spellcaster |
 | `traits` | `string[]` | Merkmale (Nachtsicht, etc.) | - (ähnlich tags) |
+
+**WICHTIG:** `experienceLevel` ist der **Erfahrungsgrad** (Unerfahren, Durchschnittlich, Erfahren, Kompetent, Meisterlich, Brillant, Legendär), NICHT die Abenteuerpunkte!
+- Numerisch: 0-6 (0=Unerfahren, 6=Legendär)
+- String: "Erfahren", "Kompetent", etc.
+- Bereich: `{ min: 2, max: 4 }` = Erfahren bis Meisterlich
+
+**Siehe:** `DSA5_EXPERIENCE_LEVELS.md` für vollständige Mapping-Tabelle
 
 **Test für morgen:**
 ```javascript
@@ -129,10 +144,20 @@ export function describeDsa5Filters(filters): string {
   "hasSpells": true
 }
 
-// 2. Filter nach Stufe 3-7, mittelgroß
+// 2. Filter nach Erfahrungsgrad (numerisch: Erfahren bis Meisterlich)
 {
-  "level": { "min": 3, "max": 7 },
+  "experienceLevel": { "min": 2, "max": 4 },
   "size": "medium"
+}
+
+// 3. Filter nach Erfahrungsgrad (Name)
+{
+  "experienceLevel": "Kompetent"
+}
+
+// 4. Filter nach Abenteuerpunkten (präzise)
+{
+  "experiencePoints": { "min": 2000, "max": 3500 }
 }
 
 // Erwartung: matchesDsa5Filters() gibt true/false zurück
