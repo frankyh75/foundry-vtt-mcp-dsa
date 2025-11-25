@@ -116,10 +116,17 @@ export function extractDsa5Skills(actor: Actor): Dsa5Talent[] {
     actor.items.forEach((item) => {
       if (item.type === 'skill') {
         const system = (item as any).system || {};
+
+        // DSA5 uses characteristic1/2/3 fields, NOT a characteristic array
+        const eigenschaften: string[] = [];
+        if (system.characteristic1?.value) eigenschaften.push(system.characteristic1.value);
+        if (system.characteristic2?.value) eigenschaften.push(system.characteristic2.value);
+        if (system.characteristic3?.value) eigenschaften.push(system.characteristic3.value);
+
         talents.push({
           name: item.name,
           value: system.talentValue?.value || system.value || 0,
-          eigenschaften: system.characteristic || [],
+          eigenschaften: eigenschaften,
         });
       }
     });
@@ -207,8 +214,10 @@ export function getDsa5CharacterSummary(actor: Actor): string {
   // Status (LeP, AsP, KaP)
   if (dsa5Data.status) {
     lines.push('');
-    const currentLeP = (dsa5Data.status.wounds.max ?? 0) - dsa5Data.status.wounds.value;
-    lines.push(`LeP: ${currentLeP}/${dsa5Data.status.wounds.max ?? 0}`);
+    // wounds.current contains actual current LeP (NOT inverted!)
+    const currentLeP = dsa5Data.status.wounds.current ?? 0;
+    const maxLeP = dsa5Data.status.wounds.max ?? 0;
+    lines.push(`LeP: ${currentLeP}/${maxLeP}`);
 
     if (dsa5Data.status.astralenergy && (dsa5Data.status.astralenergy.max ?? 0) > 0) {
       lines.push(`AsP: ${dsa5Data.status.astralenergy.value}/${dsa5Data.status.astralenergy.max}`);

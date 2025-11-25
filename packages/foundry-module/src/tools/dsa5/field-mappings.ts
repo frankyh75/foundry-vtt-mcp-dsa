@@ -50,7 +50,7 @@ export const SIZE_MAP_EN_TO_DE: Record<string, string> = {
  * Resource types (for status values)
  */
 export const RESOURCE_TYPES = {
-  WOUNDS: 'wounds',           // LeP (Lebensenergie) - INVERTED LOGIC!
+  WOUNDS: 'wounds',           // LeP (Lebensenergie) - wounds.current has actual LeP!
   ASTRAL_ENERGY: 'astralenergy',  // AsP
   KARMA_ENERGY: 'karmaenergy',    // KaP
   SPEED: 'speed',             // Geschwindigkeit
@@ -91,44 +91,57 @@ export const ACTOR_TYPES = {
 /**
  * LeP (Wounds) Logic Helper
  *
- * CRITICAL: DSA5 uses INVERTED logic for hit points!
- * - system.status.wounds.value = current WOUNDS taken (0 = healthy)
- * - system.status.wounds.max = maximum Lebensenergie
+ * IMPORTANT: DSA5 wounds structure (based on template.json reverse engineering):
+ * - system.status.wounds.current = ACTUAL current LeP (e.g., 8 LeP remaining)
+ * - system.status.wounds.max = maximum Lebensenergie (calculated)
+ * - system.status.wounds.value = AP-based increases to max LeP (NOT current wounds!)
+ * - system.status.wounds.initial = base LeP from character creation
+ * - system.status.wounds.advances = LeP increases from AP spent
+ * - system.status.wounds.modifier = temporary modifiers
  *
- * Conversion formulas:
- * - Current HP = wounds.max - wounds.value
- * - New wounds = wounds.max - new_HP
+ * Max LeP formula: (KO+KO+KK)/2 + initial + value + advances + modifier
+ *
+ * ⚠️ NO INVERSION LOGIC NEEDED! wounds.current is the actual current LeP.
  */
 export const WOUNDS_HELPER = {
   /**
-   * Convert DSA5 wounds to HP
+   * Get current and max LeP from DSA5 wounds structure
+   * @param wounds - DSA5 wounds object
+   * @returns Hit points { current, max }
    */
-  toHitPoints: (wounds: { value: number; max: number }) => {
+  toHitPoints: (wounds: { current?: number; max?: number }) => {
     return {
-      current: wounds.max - wounds.value,
-      max: wounds.max,
+      current: wounds.current ?? 0,
+      max: wounds.max ?? 0,
     };
   },
 
   /**
-   * Convert HP to DSA5 wounds
+   * Create wounds update for setting current LeP
+   * @param newCurrent - New current LeP value
+   * @returns Wounds update object
    */
-  toWounds: (hitPoints: { current: number; max: number }) => {
+  setCurrentLeP: (newCurrent: number) => {
     return {
-      value: hitPoints.max - hitPoints.current,
-      max: hitPoints.max,
+      current: newCurrent,
     };
   },
 
   /**
-   * Apply HP delta to wounds
+   * Apply HP delta (damage/healing) to current LeP
+   * @param currentWounds - Current wounds object
+   * @param hpDelta - HP change (positive = healing, negative = damage)
+   * @returns Updated wounds object
    */
-  applyHpDelta: (currentWounds: { value: number; max: number }, hpDelta: number) => {
-    const currentHp = currentWounds.max - currentWounds.value;
-    const newHp = Math.max(0, Math.min(currentWounds.max, currentHp + hpDelta));
+  applyHpDelta: (
+    currentWounds: { current?: number; max?: number },
+    hpDelta: number
+  ) => {
+    const currentHp = currentWounds.current ?? 0;
+    const maxHp = currentWounds.max ?? 0;
+    const newHp = Math.max(0, Math.min(maxHp, currentHp + hpDelta));
     return {
-      value: currentWounds.max - newHp,
-      max: currentWounds.max,
+      current: newHp,
     };
   },
 };
