@@ -11,7 +11,7 @@ import { z } from 'zod';
  * Supported game system identifiers
  * Extend this type when adding new systems
  */
-export type SystemId = 'dnd5e' | 'pf2e' | 'other';
+export type SystemId = 'dnd5e' | 'pf2e' | 'dsa5' | 'other';
 
 /**
  * System metadata returned by adapters
@@ -197,6 +197,31 @@ export interface PF2eCreatureIndex extends SystemCreatureIndex {
 }
 
 /**
+ * DSA5 (Das Schwarze Auge 5) specific creature index structure
+ */
+export interface DSA5CreatureIndex extends SystemCreatureIndex {
+  system: 'dsa5';
+  systemData: {
+    level?: number; // Experience level 1-7
+    species?: string; // Spezies (Human, Elf, Dwarf, etc.)
+    culture?: string; // Kultur
+    profession?: string; // Profession (career)
+    size?: string; // Size category
+    hasSpells: boolean; // Has spellcasting abilities
+    hasAstralEnergy?: boolean; // Has AsP (Astralenergie)
+    hasKarmaEnergy?: boolean; // Has KaP (Karmaenergie)
+    traits?: string[]; // Special abilities/traits
+    hitPoints?: number; // Deprecated, use lifePoints
+    lifePoints?: number; // LeP (Lebensenergie)
+    experiencePoints?: number; // Abenteuerpunkte (AP)
+    meleeDefense?: number; // Parry defense (PAW)
+    rangedDefense?: number; // Dodge defense (AW)
+    armor?: number; // Armor rating (RS)
+    rarity?: string; // Rarity classification
+  };
+}
+
+/**
  * Generic creature index for unsupported systems
  */
 export interface GenericCreatureIndex extends SystemCreatureIndex {
@@ -207,4 +232,4 @@ export interface GenericCreatureIndex extends SystemCreatureIndex {
 /**
  * Union type of all creature index types
  */
-export type AnyCreatureIndex = DnD5eCreatureIndex | PF2eCreatureIndex | GenericCreatureIndex;
+export type AnyCreatureIndex = DnD5eCreatureIndex | PF2eCreatureIndex | DSA5CreatureIndex | GenericCreatureIndex;
