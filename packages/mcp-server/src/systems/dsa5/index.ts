@@ -11,6 +11,9 @@ export type { DSA5CreatureIndex } from '../types.js';
 // Index builder (runs in Foundry browser context)
 export { DSA5IndexBuilder } from './index-builder.js';
 
+// System adapter (runs in MCP server Node.js context)
+export { DSA5Adapter } from './adapter.js';
+
 // Filter system
 export {
   DSA5Species,
