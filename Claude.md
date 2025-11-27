@@ -19,9 +19,9 @@ DSA5-Support wird als externe Adapter-Schicht gebaut, NICHT durch Änderungen am
 
 ## 🎯 Aktuelle Phase: v0.6.1 Migration
 
-**Status: Phase 8 ABGESCHLOSSEN ✅ (~70% fertig)**
+**Status: Phase 9 ABGESCHLOSSEN ✅ (~75% fertig)**
 
-**Branch:** `feature/dsa5-v0.6.1` (basiert auf upstream/feature/registry-pattern-v0.6.0)
+**Branch:** `feature/dsa5-v0.6.1` → Remote: `claude/dsa5-system-adapter-01QvdK2JiF6vRxwsjJQGT1F9`
 
 ### v0.6.1 Migration Progress (11 Phasen)
 
@@ -32,15 +32,19 @@ DSA5-Support wird als externe Adapter-Schicht gebaut, NICHT durch Änderungen am
 - [x] **Phase 5:** Index Builder (319 Zeilen) ✅
 - [x] **Phase 6:** System Adapter (378 Zeilen) ✅
 - [x] **Phase 7:** Constants & Helper (201 Zeilen) ✅ (in Phase 6 erledigt)
-- [x] **Phase 8:** Exports & Registry ✅ **← GERADE FERTIG!**
+- [x] **Phase 8:** Exports & Registry ✅
   - DSA5Adapter in backend.ts registriert
   - DSA5CreatureIndex in systems/index.ts exportiert
   - Basiert auf v0.6.0 Registry Pattern
-- [ ] **Phase 9:** Testing & QA (2-3h) ⏳ **← NÄCHSTER SCHRITT**
-- [ ] **Phase 10:** Dokumentation (1-2h)
+- [x] **Phase 9:** Testing & QA ✅ **← GERADE FERTIG!**
+  - npm install erfolgreich (851 packages)
+  - npm run build ✅ kompiliert ohne Fehler
+  - Type-Fixes: DSA5CreatureIndex + SystemId erweitert
+  - Commit 0b05a76: Type definitions vollständig
+- [ ] **Phase 10:** Dokumentation (1-2h) ⏳ **← NÄCHSTER SCHRITT**
 - [ ] **Phase 11:** Pull Request (1h)
 
-**Geschätzt verbleibend:** 3-5 Stunden
+**Geschätzt verbleibend:** 2-3 Stunden
 
 ### v0.6.1 Implementierung Status
 
@@ -64,7 +68,9 @@ systems/dsa5/
 - ✅ Korrekte Feld-Extraktion: wounds.current (nicht Inversion!), career (nicht profession)
 - ✅ Deutsche UI-Texte ("DSA5 Kreaturen-Index wird erstellt...")
 
-**Letzte Commits (15 total):**
+**Letzte Commits (17 total):**
+- `0b05a76` - fix(dsa5): Add DSA5CreatureIndex type definition (27.11.2025) ← Phase 9
+- `ca7499b` - feat(dsa5): Add DSA5 system support for v0.6.1 - Phase 8 complete (27.11.2025)
 - `d66b919` - feat(dsa5): Phase 6 - Implement DSA5 System Adapter (27.11.2025)
 - `c5cb9ed` - feat(dsa5): Phase 5 - Implement DSA5 Index Builder (25.11.2025)
 - `4ef854f` - feat(dsa5): Phase 4 - Implement DSA5 filter system (25.11.2025)
