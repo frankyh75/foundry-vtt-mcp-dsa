@@ -1043,10 +1043,12 @@ async function startBackend(): Promise<void> {
   const { getSystemRegistry } = await import('./systems/index.js');
   const { DnD5eAdapter } = await import('./systems/dnd5e/adapter.js');
   const { PF2eAdapter } = await import('./systems/pf2e/adapter.js');
+  const { DSA5Adapter } = await import('./systems/dsa5/adapter.js');
 
   const systemRegistry = getSystemRegistry(logger);
   systemRegistry.register(new DnD5eAdapter());
   systemRegistry.register(new PF2eAdapter());
+  systemRegistry.register(new DSA5Adapter());
 
   logger.info('System registry initialized', {
     supportedSystems: systemRegistry.getSupportedSystems()
