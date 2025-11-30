@@ -966,8 +966,19 @@ export class CompendiumTools {
     return sanitized;
   }
 
-  private stripHtml(text: string): string {
+  private stripHtml(text: string | any): string {
     if (!text) return '';
+
+    // Handle objects with value property (e.g., {value: "text"})
+    if (typeof text === 'object' && text.value) {
+      text = text.value;
+    }
+
+    // Ensure we have a string before calling replace()
+    if (typeof text !== 'string') {
+      return String(text || '');
+    }
+
     return text.replace(/<[^>]*>/g, '').trim();
   }
 
