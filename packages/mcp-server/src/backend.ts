@@ -32,6 +32,8 @@ import { OwnershipTools } from './tools/ownership.js';
 
 import { MapGenerationTools } from './tools/map-generation.js';
 
+import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
+
 const CONTROL_HOST = '127.0.0.1';
 
 const CONTROL_PORT = 31414;
@@ -1062,6 +1064,8 @@ async function startBackend(): Promise<void> {
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
 
+  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
+
   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
 
   const diceRollTools = new DiceRollTools({ foundryClient, logger });
@@ -1289,6 +1293,8 @@ async function startBackend(): Promise<void> {
 
     ...actorCreationTools.getToolDefinitions(),
 
+    ...dsa5CharacterCreator.getToolDefinitions(),
+
     ...questCreationTools.getToolDefinitions(),
 
     ...diceRollTools.getToolDefinitions(),
@@ -1450,6 +1456,20 @@ async function startBackend(): Promise<void> {
                 case 'get-compendium-entry-full':
 
                   result = await actorCreationTools.handleGetCompendiumEntryFull(args);
+
+                  break;
+
+                // DSA5 character creation tools
+
+                case 'create-dsa5-character-from-archetype':
+
+                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
+
+                  break;
+
+                case 'list-dsa5-archetypes':
+
+                  result = await dsa5CharacterCreator.handleListArchetypes(args);
 
                   break;
 
