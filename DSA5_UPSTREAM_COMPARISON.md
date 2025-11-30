@@ -130,21 +130,32 @@ export interface IndexBuilder {
 
 ### DSA5-Specific Features (Bonus)
 
-| Feature | DnD5e | PF2e | DSA5 | Type |
-|---------|-------|------|------|------|
-| **Character Creator** | ❌ | ❌ | ✅ | New tool |
-| **Archetype System** | ❌ | ❌ | ✅ | New tool |
-| **Constants Module** | Inline | Inline | ✅ | Separate file |
-| **Unit Tests** | ❌ | ❌ | ✅ | filters.test.ts |
-| **Comprehensive Docs** | Basic | Basic | ✅ | README.md |
-| **German/English** | EN only | EN only | ✅ | Dual language |
+| Feature | Upstream | DSA5 | Type |
+|---------|----------|------|------|
+| **Generic Actor Creation** | ✅ `create-actor-from-compendium` | ✅ Inherited | Generic tool |
+| **DSA5 Archetype Creator** | ❌ | ✅ `create-dsa5-character-from-archetype` | DSA5-specific |
+| **Archetype Listing** | ❌ | ✅ `list-dsa5-archetypes` | DSA5-specific |
+| **Customization Options** | Basic (name only) | ✅ Age, bio, appearance, stats | Enhanced |
+| **Constants Module** | Inline | ✅ Separate file | Better organization |
+| **Unit Tests** | ❌ | ✅ filters.test.ts | Quality assurance |
+| **Comprehensive Docs** | Basic | ✅ README.md | Enhanced |
+| **German/English** | EN only | ✅ Dual language | Bilingual |
+
+**Key Distinction:**
+- **Upstream:** Generic `create-actor-from-compendium` (works for any compendium entry)
+- **DSA5:** Specialized `create-dsa5-character-from-archetype` with:
+  - Archetype discovery and listing
+  - DSA5-specific customization (age, biography, gender, appearance)
+  - Experience level integration
+  - Species/culture/profession overrides
 
 **Innovations:**
-1. **Character Creator** - Not present in DnD5e/PF2e
-2. **Archetype-based creation** - New paradigm
-3. **Separate constants module** - Better organization
-4. **Test coverage** - Quality assurance
-5. **Bilingual support** - German + English
+1. **DSA5 Archetype Creator** - Extends generic actor creation with DSA5-specific features
+2. **Archetype listing tool** - Discovery of available character templates
+3. **Enhanced customization** - 10+ customization fields vs. just name
+4. **Separate constants module** - Better code organization
+5. **Test coverage** - Quality assurance
+6. **Bilingual support** - German + English
 
 ---
 
@@ -407,10 +418,11 @@ systemRegistry.register(new DSA5Adapter());
 
 ### DSA5-Specific Innovations
 
-1. **Character Creator Tool** (417 lines)
-   - Not present in DnD5e or PF2e
-   - Archetype-based character creation
-   - Full customization support
+1. **DSA5 Archetype Character Creator** (417 lines)
+   - **Extends** upstream's generic `create-actor-from-compendium`
+   - Adds DSA5-specific archetype-based creation
+   - 10+ customization fields (age, biography, gender, appearance, stats)
+   - Archetype discovery and listing tool
    - Integration with backend
 
 2. **Constants Module** (201 lines)
@@ -440,10 +452,12 @@ systemRegistry.register(new DSA5Adapter());
 
 These DSA5 innovations could benefit DnD5e/PF2e:
 
-1. **Constants Module Pattern** - Better code organization
-2. **Unit Test Framework** - Quality assurance
-3. **Character Creator Pattern** - Reusable for DnD5e/PF2e
-4. **Enhanced Documentation** - Improved developer experience
+1. **Constants Module Pattern** - Better code organization for system-specific data
+2. **Unit Test Framework** - Quality assurance for filter systems
+3. **System-Specific Character Creator Pattern** - Could add DnD5e/PF2e archetype creators
+4. **Enhanced Customization Fields** - Extend `create-actor-from-compendium` with more options
+5. **Archetype Listing Tool** - Discovery pattern for character templates
+6. **Enhanced Documentation** - Improved developer experience
 
 ---
 
