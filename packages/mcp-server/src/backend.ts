@@ -32,6 +32,8 @@ import { OwnershipTools } from './tools/ownership.js';
 
 import { MapGenerationTools } from './tools/map-generation.js';
 
+import { DSA5CharacterTools } from './tools/dsa5-character-tools.js';
+
 const CONTROL_HOST = '127.0.0.1';
 
 const CONTROL_PORT = 31414;
@@ -1055,6 +1057,8 @@ async function startBackend(): Promise<void> {
 
   const ownershipTools = new OwnershipTools({ foundryClient, logger });
 
+  const dsa5CharacterTools = new DSA5CharacterTools({ foundryClient, logger });
+
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
   let mapGenerationComfyUIClient: any = null;
@@ -1284,6 +1288,8 @@ async function startBackend(): Promise<void> {
 
     ...mapGenerationTools.getToolDefinitions(),
 
+    ...dsa5CharacterTools.getToolDefinitions(),
+
   ];
 
   // Start Foundry connector (owns app port 31415)
@@ -1381,6 +1387,20 @@ async function startBackend(): Promise<void> {
                 case 'list-characters':
 
                   result = await characterTools.handleListCharacters(args);
+
+                  break;
+
+                // DSA5 Character tools
+
+                case 'get-dsa5-character-summary':
+
+                  result = await dsa5CharacterTools.handleGetDSA5CharacterSummary(args);
+
+                  break;
+
+                case 'update-dsa5-character':
+
+                  result = await dsa5CharacterTools.handleUpdateDSA5Character(args);
 
                   break;
 
