@@ -84,15 +84,41 @@ interface PF2eCreatureIndex {
   img?: string;
 }
 
-// Union type for both systems
-type EnhancedCreatureIndex = DnD5eCreatureIndex | PF2eCreatureIndex;
+// DSA5 Enhanced Creature Index
+interface DSA5CreatureIndex {
+  id: string;
+  name: string;
+  type: string;
+  pack: string;
+  packLabel: string;
+  level: number;                    // Experience level 1-7 (Erfahrungsgrad)
+  species: string;                  // Spezies (Mensch, Elf, Zwerg, etc.)
+  culture: string;                  // Kultur (Mittelreich, Thorwal, etc.)
+  profession: string;               // Profession (Krieger, Magier, etc.)
+  creatureType: string;             // Same as species for consistency
+  size: string;                     // Size category
+  lifePoints: number;               // LeP (Lebensenergie)
+  hasSpells: boolean;               // Has spellcasting abilities
+  hasAstralEnergy: boolean;         // Has AsP
+  hasKarmaEnergy: boolean;          // Has KaP
+  traits: string[];                 // Special abilities/Sonderfertigkeiten
+  experiencePoints: number;         // Abenteuerpunkte (AP)
+  meleeDefense: number;             // Parade (PAW)
+  rangedDefense: number;            // Ausweichen (AW)
+  armor: number;                    // Rüstungsschutz (RS)
+  description?: string;
+  img?: string;
+}
+
+// Union type for all systems
+type EnhancedCreatureIndex = DnD5eCreatureIndex | PF2eCreatureIndex | DSA5CreatureIndex;
 
 interface PersistentIndexMetadata {
   version: string;
   timestamp: number;
   packFingerprints: Map<string, PackFingerprint>;
   totalCreatures: number;
-  gameSystem: string;  // 'dnd5e' or 'pf2e'
+  gameSystem: string;  // 'dnd5e', 'pf2e', or 'dsa5'
 }
 
 interface PackFingerprint {
@@ -524,8 +550,10 @@ class PersistentCreatureIndex {
       return await this.buildPF2eIndex(force);
     } else if (gameSystem === 'dnd5e') {
       return await this.buildDnD5eIndex(force);
+    } else if (gameSystem === 'dsa5') {
+      return await this.buildDSA5Index(force);
     } else {
-      throw new Error(`Enhanced creature index not supported for system: ${gameSystem}. Only D&D 5e and Pathfinder 2e are currently supported.`);
+      throw new Error(`Enhanced creature index not supported for system: ${gameSystem}. Only D&D 5e, Pathfinder 2e, and DSA5 are currently supported.`);
     }
   }
 
@@ -1066,6 +1094,247 @@ class PersistentCreatureIndex {
       };
     }
   }
+
+  /**
+   * Build DSA5 enhanced creature index
+   */
+  private async buildDSA5Index(_force = false): Promise<DSA5CreatureIndex[]> {
+    this.buildInProgress = true;
+
+    const startTime = Date.now();
+    let progressNotification: any = null;
+    let totalErrors = 0;
+
+    try {
+      const actorPacks = Array.from(game.packs.values()).filter(pack => pack.metadata.type === 'Actor');
+      const enhancedCreatures: DSA5CreatureIndex[] = [];
+
+      // Show initial progress notification (German for DSA5)
+      ui.notifications?.info(`Starte DSA5 Kreaturen-Index aus ${actorPacks.length} Paketen...`);
+
+      for (let i = 0; i < actorPacks.length; i++) {
+        const pack = actorPacks[i];
+        const currentPack = i + 1;
+
+        // Update progress notification every few packs
+        if (i % 3 === 0) {
+          if (progressNotification) {
+            progressNotification.remove();
+          }
+          progressNotification = ui.notifications?.info(
+            `Erstelle DSA5 Index: Paket ${currentPack}/${actorPacks.length} (${pack.metadata.label})...`
+          );
+        }
+
+        try {
+          // Ensure pack index is loaded
+          if (!pack.indexed) {
+            await pack.getIndex({});
+          }
+
+          const packResult = await this.extractDSA5DataFromPack(pack);
+          enhancedCreatures.push(...packResult.creatures);
+          totalErrors += packResult.errors;
+
+        } catch (error) {
+          console.warn(`[${this.moduleId}] Failed to process pack ${pack.metadata.label}:`, error);
+          ui.notifications?.warn(`Warnung: Fehler beim Indizieren von "${pack.metadata.label}" - fahre fort`);
+        }
+      }
+
+      // Clear progress notification
+      if (progressNotification) {
+        progressNotification.remove();
+      }
+
+      const buildTimeSeconds = Math.round((Date.now() - startTime) / 1000);
+      const errorText = totalErrors > 0 ? ` (${totalErrors} Extraktionsfehler)` : '';
+      const successMessage = `DSA5 Kreaturen-Index fertig! ${enhancedCreatures.length} Kreaturen indiziert aus ${actorPacks.length} Paketen in ${buildTimeSeconds}s${errorText}`;
+
+      console.log(`[${this.moduleId}] ${successMessage}`);
+      ui.notifications?.info(successMessage);
+
+      return enhancedCreatures;
+
+    } catch (error) {
+      if (progressNotification) {
+        progressNotification.remove();
+      }
+
+      const errorMessage = `Fehler beim Erstellen des DSA5 Kreaturen-Index: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`;
+      console.error(`[${this.moduleId}] ${errorMessage}`);
+      ui.notifications?.error(errorMessage);
+
+      throw error;
+
+    } finally {
+      this.buildInProgress = false;
+    }
+  }
+
+  /**
+   * Extract DSA5 creature data from a pack
+   */
+  private async extractDSA5DataFromPack(pack: any): Promise<{ creatures: DSA5CreatureIndex[], errors: number }> {
+    const creatures: DSA5CreatureIndex[] = [];
+    let errors = 0;
+
+    try {
+      const documents = await pack.getDocuments();
+
+      for (const doc of documents) {
+        try {
+          // Only process NPCs, characters, and creatures
+          if (doc.type !== 'npc' && doc.type !== 'character' && doc.type !== 'creature') {
+            continue;
+          }
+
+          const result = this.extractDSA5CreatureData(doc, pack);
+          if (result) {
+            creatures.push(result.creature);
+            errors += result.errors;
+          }
+
+        } catch (error) {
+          console.warn(`[${this.moduleId}] Failed to extract DSA5 data from ${doc.name} in ${pack.metadata.label}:`, error);
+          errors++;
+        }
+      }
+
+    } catch (error) {
+      console.error(`[${this.moduleId}] Failed to load documents from pack ${pack.metadata.label}:`, error);
+      errors++;
+    }
+
+    return { creatures, errors };
+  }
+
+  /**
+   * Extract DSA5 creature data from a single document
+   */
+  private extractDSA5CreatureData(doc: any, pack: any): { creature: DSA5CreatureIndex, errors: number } | null {
+    try {
+      const system = doc.system;
+      if (!system) {
+        return null;
+      }
+
+      // Experience Level (1-7) based on AP
+      const experiencePoints = system.details?.experience?.total || 0;
+      let level = 1; // Default: Inexperienced
+      if (experiencePoints >= 7000) level = 7;
+      else if (experiencePoints >= 5000) level = 6;
+      else if (experiencePoints >= 3000) level = 5;
+      else if (experiencePoints >= 2000) level = 4;
+      else if (experiencePoints >= 1000) level = 3;
+      else if (experiencePoints >= 900) level = 2;
+
+      // Species, Culture, Profession
+      const species = system.details?.species?.value || 'Unbekannt';
+      const culture = system.details?.culture?.value || 'Unbekannt';
+      const profession = system.details?.career?.value || 'Unbekannt'; // Note: "career" not "profession"!
+
+      // Size
+      const sizeValue = system.status?.size?.value;
+      let size = 'medium';
+      if (sizeValue) {
+        if (sizeValue < 100) size = 'tiny';
+        else if (sizeValue < 150) size = 'small';
+        else if (sizeValue < 200) size = 'medium';
+        else if (sizeValue < 250) size = 'large';
+        else size = 'huge';
+      }
+
+      // Life Points (LeP)
+      const lifePoints = system.status?.wounds?.max || 30;
+
+      // Resources
+      const hasAstralEnergy = (system.status?.astralenergy?.max || 0) > 0;
+      const hasKarmaEnergy = (system.status?.karmaenergy?.max || 0) > 0;
+
+      // Spellcasting detection
+      const items = doc.items || [];
+      const hasSpells = items.some((item: any) =>
+        item.type === 'spell' ||
+        item.type === 'liturgy' ||
+        item.type === 'ritual' ||
+        item.type === 'ceremony'
+      );
+
+      // Traits/Special Abilities
+      const traits: string[] = [];
+      for (const item of items) {
+        if (item.type === 'specialability' || item.type === 'advantage' || item.type === 'disadvantage') {
+          traits.push(item.name);
+        }
+      }
+
+      // Combat stats
+      const meleeDefense = system.status?.parry?.value || 0;
+      const rangedDefense = system.status?.dodge?.value || 0;
+      const armor = system.status?.armor?.value || 0;
+
+      return {
+        creature: {
+          id: doc._id,
+          name: doc.name,
+          type: doc.type,
+          pack: pack.metadata.id,
+          packLabel: pack.metadata.label,
+          level: level,
+          species: species,
+          culture: culture,
+          profession: profession,
+          creatureType: species, // Use species as creatureType for consistency
+          size: size,
+          lifePoints: lifePoints,
+          hasSpells: hasSpells,
+          hasAstralEnergy: hasAstralEnergy,
+          hasKarmaEnergy: hasKarmaEnergy,
+          traits: traits,
+          experiencePoints: experiencePoints,
+          meleeDefense: meleeDefense,
+          rangedDefense: rangedDefense,
+          armor: armor,
+          description: system.details?.biography?.value || '',
+          img: doc.img
+        },
+        errors: 0
+      };
+
+    } catch (error) {
+      console.warn(`[${this.moduleId}] Failed to extract DSA5 data from ${doc.name}:`, error);
+
+      // Fallback with error count
+      return {
+        creature: {
+          id: doc._id,
+          name: doc.name,
+          type: doc.type,
+          pack: pack.metadata.id,
+          packLabel: pack.metadata.label,
+          level: 1,
+          species: 'Unbekannt',
+          culture: 'Unbekannt',
+          profession: 'Unbekannt',
+          creatureType: 'Unbekannt',
+          size: 'medium',
+          lifePoints: 30,
+          hasSpells: false,
+          hasAstralEnergy: false,
+          hasKarmaEnergy: false,
+          traits: [],
+          experiencePoints: 0,
+          meleeDefense: 0,
+          rangedDefense: 0,
+          armor: 0,
+          description: '',
+          img: doc.img
+        },
+        errors: 1
+      };
+    }
+  }
 }
 
 export class FoundryDataAccess {
@@ -1561,8 +1830,9 @@ export class FoundryDataAccess {
 
       // Convert enhanced creatures to result format (system-aware)
       const results = filteredCreatures.map(creature => {
-        // Type guard for result formatting
-        const isPF2e = 'level' in creature;
+        // Type guards for result formatting
+        const isPF2e = 'traits' in creature && Array.isArray((creature as any).traits);
+        const isDSA5 = 'species' in creature && 'culture' in creature;
 
         return {
           id: creature.id,
@@ -1574,26 +1844,43 @@ export class FoundryDataAccess {
           hasImage: !!creature.img,
 
           // System-aware summary
-          summary: isPF2e
+          summary: isDSA5
+            ? `Stufe ${(creature as DSA5CreatureIndex).level} ${creature.creatureType} (${(creature as DSA5CreatureIndex).species}) from ${creature.packLabel}`
+            : isPF2e
             ? `Level ${(creature as PF2eCreatureIndex).level} ${creature.creatureType} (${(creature as PF2eCreatureIndex).rarity}) from ${creature.packLabel}`
             : `CR ${(creature as DnD5eCreatureIndex).challengeRating} ${creature.creatureType} from ${creature.packLabel}`,
 
           // Include all creature data (conditional based on system)
-          ...(isPF2e ? {
+          ...(isDSA5 ? {
+            level: (creature as DSA5CreatureIndex).level,
+            species: (creature as DSA5CreatureIndex).species,
+            culture: (creature as DSA5CreatureIndex).culture,
+            profession: (creature as DSA5CreatureIndex).profession,
+            traits: (creature as DSA5CreatureIndex).traits,
+            lifePoints: (creature as DSA5CreatureIndex).lifePoints,
+            hasAstralEnergy: (creature as DSA5CreatureIndex).hasAstralEnergy,
+            hasKarmaEnergy: (creature as DSA5CreatureIndex).hasKarmaEnergy,
+            meleeDefense: (creature as DSA5CreatureIndex).meleeDefense,
+            rangedDefense: (creature as DSA5CreatureIndex).rangedDefense,
+            armor: (creature as DSA5CreatureIndex).armor
+          } : isPF2e ? {
             level: (creature as PF2eCreatureIndex).level,
             traits: (creature as PF2eCreatureIndex).traits,
-            rarity: (creature as PF2eCreatureIndex).rarity
+            rarity: (creature as PF2eCreatureIndex).rarity,
+            hitPoints: (creature as PF2eCreatureIndex).hitPoints,
+            armorClass: (creature as PF2eCreatureIndex).armorClass,
+            alignment: (creature as PF2eCreatureIndex).alignment
           } : {
             challengeRating: (creature as DnD5eCreatureIndex).challengeRating,
-            hasLegendaryActions: (creature as DnD5eCreatureIndex).hasLegendaryActions
+            hasLegendaryActions: (creature as DnD5eCreatureIndex).hasLegendaryActions,
+            hitPoints: (creature as DnD5eCreatureIndex).hitPoints,
+            armorClass: (creature as DnD5eCreatureIndex).armorClass,
+            alignment: (creature as DnD5eCreatureIndex).alignment
           }),
 
           creatureType: creature.creatureType,
           size: creature.size,
-          hitPoints: creature.hitPoints,
-          armorClass: creature.armorClass,
-          hasSpells: creature.hasSpells,
-          alignment: creature.alignment
+          hasSpells: creature.hasSpells
         };
       });
 
