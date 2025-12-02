@@ -1041,6 +1041,17 @@ async function startBackend(): Promise<void> {
 
   const foundryClient = new FoundryClient(config.foundry, logger);
 
+  // Initialize system registry and register adapters
+  const { getSystemRegistry } = await import('./systems/index.js');
+  const { DSA5Adapter } = await import('./systems/dsa5/adapter.js');
+
+  const systemRegistry = getSystemRegistry(logger);
+  systemRegistry.register(new DSA5Adapter());
+
+  logger.info('System registry initialized', {
+    supportedSystems: systemRegistry.getSupportedSystems()
+  });
+
   const characterTools = new CharacterTools({ foundryClient, logger });
 
   const compendiumTools = new CompendiumTools({ foundryClient, logger });
@@ -1058,6 +1069,10 @@ async function startBackend(): Promise<void> {
   const ownershipTools = new OwnershipTools({ foundryClient, logger });
 
   const dsa5CharacterTools = new DSA5CharacterTools({ foundryClient, logger });
+
+  // Import and initialize DSA5 character creator
+  const { DSA5CharacterCreator } = await import('./systems/dsa5/character-creator.js');
+  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
 
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
@@ -1290,6 +1305,8 @@ async function startBackend(): Promise<void> {
 
     ...dsa5CharacterTools.getToolDefinitions(),
 
+    ...dsa5CharacterCreator.getToolDefinitions(),
+
   ];
 
   // Start Foundry connector (owns app port 31415)
@@ -1401,6 +1418,12 @@ async function startBackend(): Promise<void> {
                 case 'update-dsa5-character':
 
                   result = await dsa5CharacterTools.handleUpdateDSA5Character(args);
+
+                  break;
+
+                case 'create-dsa5-character-from-archetype':
+
+                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
 
                   break;
 
