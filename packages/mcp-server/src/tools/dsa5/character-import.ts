@@ -52,11 +52,14 @@ export function fromDsa5Actor(actor: Dsa5Actor): CharacterImportResult {
       KK: eigenschaften.kk,
     };
 
-    // CRITICAL: DSA5 uses WOUNDS, not HP directly!
-    // Actual HP = wounds.max - wounds.value
-    const wounds = system.status.wounds;
-    const currentHP = wounds.max - wounds.value;
-    const maxHP = wounds.max;
+    // CRITICAL: DSA5 Foundry system stores it differently than expected!
+    // wounds.value = CURRENT LeP (not wound count!)
+    // wounds.max = Maximum LeP
+    // Wound count = max - current
+    const woundsData = system.status.wounds;
+    const currentHP = woundsData.value;  // Current LeP
+    const maxHP = woundsData.max;        // Maximum LeP
+    const woundCount = maxHP - currentHP; // Calculate wound count
 
     // Build resources array
     const resources = [];
@@ -123,7 +126,7 @@ export function fromDsa5Actor(actor: Dsa5Actor): CharacterImportResult {
     } = {};
 
     dsa5Data.eigenschaften = eigenschaften;
-    dsa5Data.wounds = wounds.value;
+    dsa5Data.wounds = woundCount;  // Store the calculated wound count, not current LeP
 
     if (system.status.astralenergy) {
       dsa5Data.astralenergy = {

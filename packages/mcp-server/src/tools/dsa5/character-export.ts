@@ -59,16 +59,17 @@ export function applyMcpUpdateToDsa5Actor(
 
       if (update.health.delta !== undefined) {
         // Delta change: adjust current HP by delta
-        const currentHP = wounds.max - wounds.value;
+        // IMPORTANT: wounds.value IS the current LeP in Foundry DSA5
+        const currentHP = wounds.value;  // Current LeP
         const newHP = Math.max(0, Math.min(wounds.max, currentHP + update.health.delta));
-        wounds.value = wounds.max - newHP;
+        wounds.value = newHP;  // Set new LeP directly
         updatedFields.push(`health (delta: ${update.health.delta > 0 ? '+' : ''}${update.health.delta})`);
       } else {
         // Absolute change
         if (update.health.current !== undefined) {
-          // Convert HP to wounds: wounds = max - HP
+          // Set current LeP directly (no conversion needed)
           const newHP = Math.max(0, Math.min(wounds.max, update.health.current));
-          wounds.value = wounds.max - newHP;
+          wounds.value = newHP;  // wounds.value IS current LeP
           updatedFields.push(`health.current`);
         }
 
@@ -233,18 +234,17 @@ export function validateMcpUpdate(update: MCPCharacterUpdate): { valid: boolean;
 }
 
 /**
- * Calculate new wounds value from HP change
+ * Calculate new LeP value from HP change
  *
- * Helper function to convert HP to DSA5 wounds system.
- * Remember: wounds = max - HP
+ * Helper function for DSA5 LeP changes.
+ * In Foundry DSA5, wounds.value stores CURRENT LeP directly.
  *
- * @param currentWounds - Current wounds value
- * @param maxLeP - Maximum life points
+ * @param currentLeP - Current life points (wounds.value)
+ * @param maxLeP - Maximum life points (wounds.max)
  * @param hpChange - Change in HP (positive = healing, negative = damage)
- * @returns New wounds value
+ * @returns New LeP value
  */
-export function calculateNewWounds(currentWounds: number, maxLeP: number, hpChange: number): number {
-  const currentHP = maxLeP - currentWounds;
-  const newHP = Math.max(0, Math.min(maxLeP, currentHP + hpChange));
-  return maxLeP - newHP;
+export function calculateNewWounds(currentLeP: number, maxLeP: number, hpChange: number): number {
+  const newHP = Math.max(0, Math.min(maxLeP, currentLeP + hpChange));
+  return newHP;
 }
