@@ -1052,9 +1052,9 @@ async function startBackend(): Promise<void> {
     supportedSystems: systemRegistry.getSupportedSystems()
   });
 
-  const characterTools = new CharacterTools({ foundryClient, logger });
+  const characterTools = new CharacterTools({ foundryClient, logger, systemRegistry });
 
-  const compendiumTools = new CompendiumTools({ foundryClient, logger });
+  const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
 
   const sceneTools = new SceneTools({ foundryClient, logger });
 

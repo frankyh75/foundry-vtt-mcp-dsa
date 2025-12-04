@@ -1,22 +1,26 @@
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import { SystemRegistry } from '../systems/system-registry.js';
 import { detectGameSystem, getSystemPaths, getCreatureLevel, getCreatureType, hasSpellcasting, formatSystemError, type GameSystem } from '../utils/system-detection.js';
 import { GenericFiltersSchema, describeFilters, type GenericFilters } from '../utils/compendium-filters.js';
 
 export interface CompendiumToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
+  systemRegistry?: SystemRegistry;
 }
 
 export class CompendiumTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
+  private systemRegistry: SystemRegistry | null;
   private gameSystem: GameSystem | null = null;
 
-  constructor({ foundryClient, logger }: CompendiumToolsOptions) {
+  constructor({ foundryClient, logger, systemRegistry }: CompendiumToolsOptions) {
     this.foundryClient = foundryClient;
     this.logger = logger.child({ component: 'CompendiumTools' });
+    this.systemRegistry = systemRegistry || null;
   }
 
   /**
@@ -27,6 +31,117 @@ export class CompendiumTools {
       this.gameSystem = await detectGameSystem(this.foundryClient, this.logger);
     }
     return this.gameSystem;
+  }
+
+  /**
+   * Format creature stats for compendium search results
+   * Uses SystemAdapter if available for system-specific formatting
+   */
+  private async formatCreatureStats(item: any, gameSystem: GameSystem): Promise<any> {
+    // Try using system adapter if available
+    if (this.systemRegistry) {
+      try {
+        const adapter = this.systemRegistry.getAdapter(gameSystem);
+        if (adapter) {
+          this.logger.debug('Using system adapter for creature stats extraction');
+          // Use adapter's extractCharacterStats for consistent formatting
+          const stats = adapter.extractCharacterStats(item);
+          return stats;
+        }
+      } catch (error) {
+        this.logger.warn('Failed to use system adapter for creature stats, falling back', { error });
+      }
+    }
+
+    // Legacy extraction (backwards compatibility)
+    return this.extractLegacyCreatureStats(item, gameSystem);
+  }
+
+  /**
+   * Legacy creature stats extraction (D&D 5e / PF2e)
+   */
+  private extractLegacyCreatureStats(item: any, gameSystem?: GameSystem): any {
+    const stats: any = {};
+
+    // Use system detection utilities for accurate stat extraction
+    if (gameSystem) {
+      // Level/CR (system-specific)
+      const level = getCreatureLevel(item, gameSystem);
+      if (level !== undefined) {
+        if (gameSystem === 'dnd5e') {
+          stats.challengeRating = level;
+        } else if (gameSystem === 'pf2e') {
+          stats.level = level;
+        }
+      }
+
+      // Creature type/traits
+      const creatureType = getCreatureType(item, gameSystem);
+      if (creatureType) {
+        if (gameSystem === 'pf2e' && Array.isArray(creatureType)) {
+          stats.traits = creatureType;
+          // Also extract primary creature type from traits if available
+          const creatureTraits = ['aberration', 'animal', 'beast', 'celestial', 'construct', 'dragon', 'elemental', 'fey', 'fiend', 'fungus', 'humanoid', 'monitor', 'ooze', 'plant', 'undead'];
+          const primaryType = creatureType.find((t: string) => creatureTraits.includes(t.toLowerCase()));
+          if (primaryType) stats.creatureType = primaryType;
+        } else {
+          stats.creatureType = creatureType;
+        }
+      }
+
+      // System-agnostic stats (similar paths in both systems)
+      const system = item.system || {};
+
+      // Hit Points
+      const hp = system.attributes?.hp?.value;
+      const maxHp = system.attributes?.hp?.max;
+      if (hp !== undefined || maxHp !== undefined) {
+        stats.hitPoints = { current: hp, max: maxHp };
+      }
+
+      // Armor Class
+      const ac = system.attributes?.ac?.value;
+      if (ac !== undefined) stats.armorClass = ac;
+
+      // Size (similar in both systems)
+      const size = system.traits?.size?.value || system.traits?.size || system.size;
+      if (size) stats.size = size;
+
+      // Alignment (different paths but similar concept)
+      const alignment = system.details?.alignment?.value || system.details?.alignment || system.alignment;
+      if (alignment) stats.alignment = alignment;
+
+      // PF2e specific: Rarity
+      if (gameSystem === 'pf2e') {
+        const rarity = system.traits?.rarity;
+        if (rarity) stats.rarity = rarity;
+      }
+    } else {
+      // Fallback: Legacy D&D 5e extraction
+      const system = item.system || {};
+      const cr = system.details?.cr || system.cr;
+      if (cr !== undefined) stats.challengeRating = cr;
+
+      const hp = system.attributes?.hp?.value || system.hp?.value;
+      const maxHp = system.attributes?.hp?.max || system.hp?.max;
+      if (hp !== undefined || maxHp !== undefined) {
+        stats.hitPoints = { current: hp, max: maxHp };
+      }
+
+      const ac = system.attributes?.ac?.value || system.ac?.value;
+      if (ac !== undefined) stats.armorClass = ac;
+
+      const creatureType = system.details?.type?.value || system.type?.value;
+      if (creatureType) stats.creatureType = creatureType;
+
+      const size = system.traits?.size || system.size;
+      if (size) stats.size = size;
+
+      const alignment = system.details?.alignment || system.alignment;
+      if (alignment) stats.alignment = alignment;
+    }
+
+    return stats;
   }
 
   /**
@@ -304,11 +419,16 @@ export class CompendiumTools {
         returned: limitedResults.length,
       });
 
+      // Format results with async formatCompendiumItem
+      const formattedResults = await Promise.all(
+        limitedResults.map((item: any) => this.formatCompendiumItem(item, gameSystem))
+      );
+
       return {
         query,
         gameSystem, // Include detected system in response
         filterDescription: filters ? describeFilters(filters, gameSystem) : 'no filters',
-        results: limitedResults.map((item: any) => this.formatCompendiumItem(item, gameSystem)),
+        results: formattedResults,
         totalFound: results.length,
         showing: limitedResults.length,
         hasMore: results.length > limit,
@@ -570,7 +690,7 @@ export class CompendiumTools {
     }
   }
 
-  private formatCompendiumItem(item: any, gameSystem?: GameSystem): any {
+  private async formatCompendiumItem(item: any, gameSystem?: GameSystem): Promise<any> {
     const formatted: any = {
       id: item.id,
       name: item.name,
@@ -586,85 +706,8 @@ export class CompendiumTools {
 
     // Add key stats for actors/creatures to reduce need for detail calls
     if (item.type === 'npc' || item.type === 'character') {
-      const stats: any = {};
-
-      // Use system detection utilities for accurate stat extraction
-      if (gameSystem) {
-        // Level/CR (system-specific)
-        const level = getCreatureLevel(item, gameSystem);
-        if (level !== undefined) {
-          if (gameSystem === 'dnd5e') {
-            stats.challengeRating = level;
-          } else if (gameSystem === 'pf2e') {
-            stats.level = level;
-          }
-        }
-
-        // Creature type/traits
-        const creatureType = getCreatureType(item, gameSystem);
-        if (creatureType) {
-          if (gameSystem === 'pf2e' && Array.isArray(creatureType)) {
-            stats.traits = creatureType;
-            // Also extract primary creature type from traits if available
-            const creatureTraits = ['aberration', 'animal', 'beast', 'celestial', 'construct', 'dragon', 'elemental', 'fey', 'fiend', 'fungus', 'humanoid', 'monitor', 'ooze', 'plant', 'undead'];
-            const primaryType = creatureType.find((t: string) => creatureTraits.includes(t.toLowerCase()));
-            if (primaryType) stats.creatureType = primaryType;
-          } else {
-            stats.creatureType = creatureType;
-          }
-        }
-
-        // System-agnostic stats (similar paths in both systems)
-        const system = item.system || {};
-
-        // Hit Points
-        const hp = system.attributes?.hp?.value;
-        const maxHp = system.attributes?.hp?.max;
-        if (hp !== undefined || maxHp !== undefined) {
-          stats.hitPoints = { current: hp, max: maxHp };
-        }
-
-        // Armor Class
-        const ac = system.attributes?.ac?.value;
-        if (ac !== undefined) stats.armorClass = ac;
-
-        // Size (similar in both systems)
-        const size = system.traits?.size?.value || system.traits?.size || system.size;
-        if (size) stats.size = size;
-
-        // Alignment (different paths but similar concept)
-        const alignment = system.details?.alignment?.value || system.details?.alignment || system.alignment;
-        if (alignment) stats.alignment = alignment;
-
-        // PF2e specific: Rarity
-        if (gameSystem === 'pf2e') {
-          const rarity = system.traits?.rarity;
-          if (rarity) stats.rarity = rarity;
-        }
-      } else {
-        // Fallback: Legacy D&D 5e extraction
-        const system = item.system || {};
-        const cr = system.details?.cr || system.cr;
-        if (cr !== undefined) stats.challengeRating = cr;
-
-        const hp = system.attributes?.hp?.value || system.hp?.value;
-        const maxHp = system.attributes?.hp?.max || system.hp?.max;
-        if (hp !== undefined || maxHp !== undefined) {
-          stats.hitPoints = { current: hp, max: maxHp };
-        }
-
-        const ac = system.attributes?.ac?.value || system.ac?.value;
-        if (ac !== undefined) stats.armorClass = ac;
-
-        const creatureType = system.details?.type?.value || system.type?.value;
-        if (creatureType) stats.creatureType = creatureType;
-
-        const size = system.traits?.size || system.size;
-        if (size) stats.size = size;
-
-        const alignment = system.details?.alignment || system.alignment;
-        if (alignment) stats.alignment = alignment;
-      }
+      // Use the new formatCreatureStats method (supports SystemAdapter)
+      const stats = await this.formatCreatureStats(item, gameSystem || 'other');
 
       if (Object.keys(stats).length > 0) {
         formatted.stats = stats;
@@ -674,14 +717,14 @@ export class CompendiumTools {
     return formatted;
   }
 
-  private formatDetailedCompendiumItem(item: any): any {
-    const formatted = this.formatCompendiumItem(item);
-    
+  private async formatDetailedCompendiumItem(item: any): Promise<any> {
+    const formatted = await this.formatCompendiumItem(item);
+
     // Add more detailed information
     formatted.system = this.sanitizeSystemData(item.system || {});
     formatted.fullDescription = this.extractFullDescription(item);
     formatted.properties = this.extractItemProperties(item);
-    
+
     return formatted;
   }
 
