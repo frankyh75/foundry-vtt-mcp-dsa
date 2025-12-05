@@ -1,6 +1,6 @@
 # Foundry VTT MCP Bridge
 
-Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition and Pathfinder Second Edition. The majority of MCP tools are system agnostic but character creation and compendium tools are only able to work with D&D5e and PF2E. 
+Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports **Dungeons & Dragons 5th Edition**, **Pathfinder 2nd Edition**, and **Das Schwarze Auge 5** (DSA5). The majority of MCP tools are system agnostic, with full multi-system support for character management and compendium tools through the SystemAdapter architecture. 
 
 ## Overview
 
@@ -107,9 +107,11 @@ Once connected, ask Claude Desktop:
 
 ## Features
 
-- **25 MCP Tools** that allow Claude to interact with Foundry
-- **Character Management**: Access stats, abilities, and inventory
-- **Enhanced Compendium Search**: Instant filtering by CR, type, abilities, and more
+- **31+ MCP Tools** that allow Claude to interact with Foundry
+- **Multi-System Support**: Full support for D&D 5e, Pathfinder 2e, and DSA5 through SystemAdapter architecture
+- **Character Management**: Access stats, abilities, and inventory with system-specific formatting
+- **Enhanced Compendium Search**: Instant filtering by CR/Level, type, abilities, and system-specific traits
+- **Token Manipulation**: Move, update, and manage tokens with conditions and status effects
 - **Content Creation**: Generate actors, NPCs, and quest journals
 - **Campaign Management**: Multi-part quest tracking with progress dashboards
 - **Interactive Dice System**: Send different dice roll requests to players from Claude
@@ -117,7 +119,7 @@ Once connected, ask Claude Desktop:
 - **GM-Only**: MCP Bridge only connects to Game Master users
 - **Map Generation**: A portable ComfyUI backend that generates battlemaps from prompts
 - **Remote Connections**: WebRTC connections initiated through browser (Tested with Google Chrome) to MCP server and ComfyUI
-- **Windows and Mac Installers** Automated installation of Foundry MCP Server for Claude Dekstop, Foundry MCP Bridge Foundry VTT Module, and ComfyUI backend with dependencies
+- **Windows and Mac Installers**: Automated installation of Foundry MCP Server for Claude Desktop, Foundry MCP Bridge Foundry VTT Module, and ComfyUI backend with dependencies
 
 ## Settings
 
