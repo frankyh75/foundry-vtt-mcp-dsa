@@ -1,3 +1,19 @@
+## v0.6.2 (TBD)
+
+### Improvements
+
+- **CompendiumTools SystemAdapter Integration**
+  - Completes v0.6.0 Registry Pattern for CompendiumTools
+  - `search-compendium` now uses SystemAdapter for creature stats extraction
+  - Enables DSA5 creature stats in search results (LeP, Eigenschaften, etc.)
+  - Added `formatCreatureStats()` method with adapter support
+  - Added `extractLegacyCreatureStats()` for backward compatibility with D&D5e/PF2e
+  - Made `formatCompendiumItem()` async to support adapter pattern
+  - Maintains full backward compatibility with existing systems
+  - Reduces code duplication by ~80 lines
+
+---
+
 ## v0.6.1 (2025-12-03)
 
 ### New Features
