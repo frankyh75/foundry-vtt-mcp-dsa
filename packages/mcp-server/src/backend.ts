@@ -32,6 +32,8 @@ import { OwnershipTools } from './tools/ownership.js';
 
 import { MapGenerationTools } from './tools/map-generation.js';
 
+import { TokenManipulationTools } from './tools/token-manipulation.js';
+
 const CONTROL_HOST = '127.0.0.1';
 
 const CONTROL_PORT = 31414;
@@ -1055,6 +1057,8 @@ async function startBackend(): Promise<void> {
 
   const ownershipTools = new OwnershipTools({ foundryClient, logger });
 
+  const tokenManipulationTools = new TokenManipulationTools({ foundryClient, logger });
+
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
   let mapGenerationComfyUIClient: any = null;
@@ -1281,6 +1285,8 @@ async function startBackend(): Promise<void> {
     ...campaignManagementTools.getToolDefinitions(),
 
     ...ownershipTools.getToolDefinitions(),
+
+    ...tokenManipulationTools.getToolDefinitions(),
 
     ...mapGenerationTools.getToolDefinitions(),
 
@@ -1509,6 +1515,44 @@ async function startBackend(): Promise<void> {
                 case 'list-actor-ownership':
 
                   result = await ownershipTools.handleToolCall('list-actor-ownership', args);
+
+                  break;
+
+                // Token Manipulation tools
+
+                case 'move-token':
+
+                  result = await tokenManipulationTools.handleMoveToken(args);
+
+                  break;
+
+                case 'update-token':
+
+                  result = await tokenManipulationTools.handleUpdateToken(args);
+
+                  break;
+
+                case 'delete-tokens':
+
+                  result = await tokenManipulationTools.handleDeleteTokens(args);
+
+                  break;
+
+                case 'get-token-details':
+
+                  result = await tokenManipulationTools.handleGetTokenDetails(args);
+
+                  break;
+
+                case 'toggle-token-condition':
+
+                  result = await tokenManipulationTools.handleToggleTokenCondition(args);
+
+                  break;
+
+                case 'get-available-conditions':
+
+                  result = await tokenManipulationTools.handleGetAvailableConditions(args);
 
                   break;
 
