@@ -37,6 +37,24 @@ export class CharacterTools {
         },
       },
       {
+        name: 'get-character-entity',
+        description: 'Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after get-character when you need detailed information about a specific entity.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            characterIdentifier: {
+              type: 'string',
+              description: 'Character name or ID',
+            },
+            entityIdentifier: {
+              type: 'string',
+              description: 'Entity name or ID (can be item ID, action name, spell name, or effect name)',
+            },
+          },
+          required: ['characterIdentifier', 'entityIdentifier'],
+        },
+      },
+      {
         name: 'list-characters',
         description: 'List all available characters with basic information',
         inputSchema: {
@@ -77,6 +95,115 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to get character information', error);
       throw new Error(`Failed to retrieve character "${identifier}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async handleGetCharacterEntity(args: any): Promise<any> {
+    const schema = z.object({
+      characterIdentifier: z.string().min(1, 'Character identifier cannot be empty'),
+      entityIdentifier: z.string().min(1, 'Entity identifier cannot be empty'),
+    });
+
+    const { characterIdentifier, entityIdentifier } = schema.parse(args);
+
+    this.logger.info('Getting character entity', { characterIdentifier, entityIdentifier });
+
+    try {
+      // First get the character
+      const characterData = await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
+        characterName: characterIdentifier,
+      });
+
+      // Try to find the entity in different collections
+      let entity = null;
+      let entityType = null;
+
+      // 1. Try to find as an item (by ID or name)
+      entity = characterData.items?.find((i: any) =>
+        i.id === entityIdentifier || i.name.toLowerCase() === entityIdentifier.toLowerCase()
+      );
+      if (entity) {
+        entityType = 'item';
+      }
+
+      // 2. Try to find as an action (by name)
+      if (!entity && characterData.actions) {
+        entity = characterData.actions.find((a: any) =>
+          a.name.toLowerCase() === entityIdentifier.toLowerCase()
+        );
+        if (entity) {
+          entityType = 'action';
+        }
+      }
+
+      // 3. Try to find as an effect (by name)
+      if (!entity && characterData.effects) {
+        entity = characterData.effects.find((e: any) =>
+          e.name.toLowerCase() === entityIdentifier.toLowerCase()
+        );
+        if (entity) {
+          entityType = 'effect';
+        }
+      }
+
+      if (!entity) {
+        throw new Error(`Entity "${entityIdentifier}" not found on character "${characterIdentifier}". Tried items, actions, and effects.`);
+      }
+
+      this.logger.debug('Successfully retrieved entity', {
+        entityType,
+        entityName: entity.name
+      });
+
+      // Return full entity details based on type
+      if (entityType === 'item') {
+        return {
+          entityType: 'item',
+          id: entity.id,
+          name: entity.name,
+          type: entity.type,
+          description: entity.system?.description?.value || entity.system?.description || '',
+          traits: entity.system?.traits?.value || [],
+          rarity: entity.system?.traits?.rarity || 'common',
+          level: entity.system?.level?.value ?? entity.system?.level,
+          actionType: entity.system?.actionType?.value,
+          actions: entity.system?.actions?.value,
+          quantity: entity.system?.quantity || 1,
+          equipped: entity.system?.equipped,
+          attunement: entity.system?.attunement,
+          hasImage: !!entity.img,
+          // Include full system data for advanced use cases
+          system: entity.system,
+        };
+      } else if (entityType === 'action') {
+        return {
+          entityType: 'action',
+          name: entity.name,
+          type: entity.type,
+          itemId: entity.itemId,
+          traits: entity.traits || [],
+          variants: entity.variants || [],
+          ready: entity.ready,
+          description: entity.description || 'Action from character strikes/abilities',
+        };
+      } else if (entityType === 'effect') {
+        return {
+          entityType: 'effect',
+          id: entity.id,
+          name: entity.name,
+          description: entity.description || entity.name,
+          traits: entity.traits || [],
+          duration: entity.duration,
+          // Include full effect data
+          ...entity,
+        };
+      }
+
+      return entity;
+
+    } catch (error) {
+      this.logger.error('Failed to get character entity', error);
+      throw new Error(`Failed to retrieve entity "${entityIdentifier}" from character "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

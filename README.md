@@ -107,8 +107,9 @@ Once connected, ask Claude Desktop:
 
 ## Features
 
-- **25 MCP Tools** that allow Claude to interact with Foundry
-- **Character Management**: Access stats, abilities, and inventory
+- **33 MCP Tools** that allow Claude to interact with Foundry
+- **Character Management**: Access stats, abilities, inventory, and detailed entity information
+- **Token Manipulation**: Move, update, delete tokens and manage status conditions
 - **Enhanced Compendium Search**: Instant filtering by CR, type, abilities, and more
 - **Content Creation**: Generate actors, NPCs, and quest journals
 - **Campaign Management**: Multi-part quest tracking with progress dashboards
