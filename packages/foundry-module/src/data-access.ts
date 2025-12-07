@@ -4176,4 +4176,349 @@ export class FoundryDataAccess {
     }
   }
 
+  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
+
+  /**
+   * Get detailed information about a specific entity within a character (item, action, or effect)
+   */
+  async getCharacterEntity(data: { characterIdentifier: string; entityIdentifier: string }): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      // Find the character first
+      const actors = game.actors?.contents || [];
+      const character = actors.find((actor: any) =>
+        actor.id === data.characterIdentifier ||
+        actor.name.toLowerCase() === data.characterIdentifier.toLowerCase()
+      );
+
+      if (!character) {
+        throw new Error(`Character not found: "${data.characterIdentifier}"`);
+      }
+
+      // Search in items first (by ID or name)
+      const items = character.items?.contents || [];
+      let entity = items.find((item: any) =>
+        item.id === data.entityIdentifier ||
+        item.name.toLowerCase() === data.entityIdentifier.toLowerCase()
+      );
+
+      if (entity) {
+        return {
+          success: true,
+          entityType: 'item',
+          entity: {
+            id: entity.id,
+            name: entity.name,
+            type: entity.type,
+            img: entity.img,
+            description: entity.system?.description?.value || entity.system?.description || '',
+            system: entity.system
+          }
+        };
+      }
+
+      // Search in actions (for systems that have actions as separate entities)
+      if ((character as any).system?.actions) {
+        const actions = Array.isArray((character as any).system.actions)
+          ? (character as any).system.actions
+          : Object.values((character as any).system.actions || {});
+
+        entity = actions.find((action: any) =>
+          action.id === data.entityIdentifier ||
+          action.name?.toLowerCase() === data.entityIdentifier.toLowerCase()
+        );
+
+        if (entity) {
+          return {
+            success: true,
+            entityType: 'action',
+            entity
+          };
+        }
+      }
+
+      // Search in effects
+      const effects = character.effects?.contents || [];
+      entity = effects.find((effect: any) =>
+        effect.id === data.entityIdentifier ||
+        effect.name?.toLowerCase() === data.entityIdentifier.toLowerCase()
+      );
+
+      if (entity) {
+        return {
+          success: true,
+          entityType: 'effect',
+          entity: {
+            id: entity.id,
+            name: entity.name || entity.label,
+            icon: entity.icon,
+            disabled: entity.disabled,
+            duration: entity.duration,
+            changes: entity.changes
+          }
+        };
+      }
+
+      throw new Error(`Entity not found: "${data.entityIdentifier}" in character "${character.name}"`);
+    } catch (error) {
+      throw new Error(`Failed to get character entity: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Move a token to a new position on the scene
+   */
+  async moveToken(data: { tokenId: string; x: number; y: number; animate?: boolean }): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const scene = (game.scenes as any)?.active;
+      if (!scene) {
+        throw new Error('No active scene');
+      }
+
+      const token = scene.tokens?.get(data.tokenId);
+      if (!token) {
+        throw new Error(`Token not found: ${data.tokenId}`);
+      }
+
+      // Update token position
+      await token.update({
+        x: data.x,
+        y: data.y
+      }, { animate: data.animate !== false });
+
+      return {
+        success: true,
+        tokenId: token.id,
+        tokenName: token.name,
+        newPosition: { x: data.x, y: data.y },
+        animated: data.animate !== false
+      };
+    } catch (error) {
+      throw new Error(`Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Update token properties
+   */
+  async updateToken(data: { tokenId: string; updates: Record<string, any> }): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const scene = (game.scenes as any)?.active;
+      if (!scene) {
+        throw new Error('No active scene');
+      }
+
+      const token = scene.tokens?.get(data.tokenId);
+      if (!token) {
+        throw new Error(`Token not found: ${data.tokenId}`);
+      }
+
+      // Apply updates
+      await token.update(data.updates);
+
+      return {
+        success: true,
+        tokenId: token.id,
+        tokenName: token.name,
+        updatedProperties: Object.keys(data.updates)
+      };
+    } catch (error) {
+      throw new Error(`Failed to update token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Delete one or more tokens from the scene
+   */
+  async deleteTokens(data: { tokenIds: string[] }): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const scene = (game.scenes as any)?.active;
+      if (!scene) {
+        throw new Error('No active scene');
+      }
+
+      const deletedTokens: string[] = [];
+      const failedTokens: string[] = [];
+
+      for (const tokenId of data.tokenIds) {
+        try {
+          const token = scene.tokens?.get(tokenId);
+          if (token) {
+            await token.delete();
+            deletedTokens.push(tokenId);
+          } else {
+            failedTokens.push(tokenId);
+          }
+        } catch (error) {
+          failedTokens.push(tokenId);
+        }
+      }
+
+      return {
+        success: true,
+        deletedCount: deletedTokens.length,
+        deletedTokens,
+        failedTokens: failedTokens.length > 0 ? failedTokens : undefined
+      };
+    } catch (error) {
+      throw new Error(`Failed to delete tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get detailed information about a token
+   */
+  async getTokenDetails(data: { tokenId: string }): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const scene = (game.scenes as any)?.active;
+      if (!scene) {
+        throw new Error('No active scene');
+      }
+
+      const token = scene.tokens?.get(data.tokenId);
+      if (!token) {
+        throw new Error(`Token not found: ${data.tokenId}`);
+      }
+
+      // Get disposition name
+      const dispositionMap: Record<number, string> = {
+        [-1]: 'hostile',
+        [0]: 'neutral',
+        [1]: 'friendly'
+      };
+
+      return {
+        success: true,
+        token: {
+          id: token.id,
+          name: token.name,
+          actorId: token.actor?.id,
+          actorName: token.actor?.name,
+          position: {
+            x: token.x,
+            y: token.y
+          },
+          dimensions: {
+            width: token.width,
+            height: token.height
+          },
+          scale: token.texture?.scaleX || 1,
+          rotation: token.rotation,
+          hidden: token.hidden,
+          disposition: dispositionMap[token.disposition] || 'neutral',
+          elevation: token.elevation,
+          img: token.texture?.src,
+          effects: token.actor?.effects?.contents.map((effect: any) => ({
+            id: effect.id,
+            name: effect.name || effect.label,
+            icon: effect.icon
+          })) || []
+        }
+      };
+    } catch (error) {
+      throw new Error(`Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Toggle a status condition on a token
+   */
+  async toggleTokenCondition(data: { tokenId: string; conditionId: string; active: boolean }): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const scene = (game.scenes as any)?.active;
+      if (!scene) {
+        throw new Error('No active scene');
+      }
+
+      const token = scene.tokens?.get(data.tokenId);
+      if (!token) {
+        throw new Error(`Token not found: ${data.tokenId}`);
+      }
+
+      const actor = token.actor;
+      if (!actor) {
+        throw new Error(`Token has no associated actor: ${data.tokenId}`);
+      }
+
+      // Get the condition configuration for the game system
+      const conditions = (CONFIG as any).statusEffects || [];
+      const condition = conditions.find((c: any) =>
+        c.id === data.conditionId ||
+        c.name?.toLowerCase() === data.conditionId.toLowerCase()
+      );
+
+      if (!condition) {
+        throw new Error(`Condition not found: ${data.conditionId}`);
+      }
+
+      if (data.active) {
+        // Add the condition
+        await actor.createEmbeddedDocuments('ActiveEffect', [{
+          name: condition.name || condition.id,
+          icon: condition.icon || condition.img,
+          statuses: [condition.id]
+        }]);
+      } else {
+        // Remove the condition
+        const effects = actor.effects?.contents || [];
+        const effectsToRemove = effects.filter((effect: any) =>
+          effect.statuses?.has(data.conditionId) ||
+          effect.name?.toLowerCase() === data.conditionId.toLowerCase()
+        );
+
+        if (effectsToRemove.length > 0) {
+          await actor.deleteEmbeddedDocuments('ActiveEffect', effectsToRemove.map((e: any) => e.id));
+        }
+      }
+
+      return {
+        success: true,
+        tokenId: token.id,
+        tokenName: token.name,
+        conditionId: data.conditionId,
+        active: data.active,
+        message: data.active
+          ? `Applied ${data.conditionId} to ${token.name}`
+          : `Removed ${data.conditionId} from ${token.name}`
+      };
+    } catch (error) {
+      throw new Error(`Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get all available conditions for the current game system
+   */
+  async getAvailableConditions(): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const conditions = (CONFIG as any).statusEffects || [];
+
+      return {
+        success: true,
+        gameSystem: game.system?.id,
+        conditions: conditions.map((condition: any) => ({
+          id: condition.id,
+          name: condition.name || condition.label || condition.id,
+          icon: condition.icon || condition.img,
+          description: condition.description || ''
+        }))
+      };
+    } catch (error) {
+      throw new Error(`Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
 }

@@ -83,6 +83,15 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.cancel-map-job`] = this.handleCancelMapJob.bind(this);
     CONFIG.queries[`${modulePrefix}.upload-generated-map`] = this.handleUploadGeneratedMap.bind(this);
 
+    // Phase 7: Character entity and token manipulation queries
+    CONFIG.queries[`${modulePrefix}.get-character-entity`] = this.handleGetCharacterEntity.bind(this);
+    CONFIG.queries[`${modulePrefix}.move-token`] = this.handleMoveToken.bind(this);
+    CONFIG.queries[`${modulePrefix}.update-token`] = this.handleUpdateToken.bind(this);
+    CONFIG.queries[`${modulePrefix}.delete-tokens`] = this.handleDeleteTokens.bind(this);
+    CONFIG.queries[`${modulePrefix}.get-token-details`] = this.handleGetTokenDetails.bind(this);
+    CONFIG.queries[`${modulePrefix}.toggle-token-condition`] = this.handleToggleTokenCondition.bind(this);
+    CONFIG.queries[`${modulePrefix}.get-available-conditions`] = this.handleGetAvailableConditions.bind(this);
+
   }
 
   /**
@@ -1067,6 +1076,195 @@ export class QueryHandlers {
         error: error.message || 'Failed to upload generated map',
         success: false
       };
+    }
+  }
+
+  // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION HANDLERS =====
+
+  /**
+   * Handle get character entity request
+   */
+  private async handleGetCharacterEntity(data: {
+    characterIdentifier: string;
+    entityIdentifier: string
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.characterIdentifier) {
+        throw new Error('characterIdentifier is required');
+      }
+      if (!data.entityIdentifier) {
+        throw new Error('entityIdentifier is required');
+      }
+
+      return await this.dataAccess.getCharacterEntity(data);
+    } catch (error) {
+      throw new Error(`Failed to get character entity: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle move token request
+   */
+  private async handleMoveToken(data: {
+    tokenId: string;
+    x: number;
+    y: number;
+    animate?: boolean
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.tokenId) {
+        throw new Error('tokenId is required');
+      }
+      if (typeof data.x !== 'number' || typeof data.y !== 'number') {
+        throw new Error('x and y coordinates are required and must be numbers');
+      }
+
+      return await this.dataAccess.moveToken(data);
+    } catch (error) {
+      throw new Error(`Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle update token request
+   */
+  private async handleUpdateToken(data: {
+    tokenId: string;
+    updates: Record<string, any>
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.tokenId) {
+        throw new Error('tokenId is required');
+      }
+      if (!data.updates || typeof data.updates !== 'object') {
+        throw new Error('updates object is required');
+      }
+
+      return await this.dataAccess.updateToken(data);
+    } catch (error) {
+      throw new Error(`Failed to update token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle delete tokens request
+   */
+  private async handleDeleteTokens(data: { tokenIds: string[] }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.tokenIds || !Array.isArray(data.tokenIds) || data.tokenIds.length === 0) {
+        throw new Error('tokenIds array is required and must not be empty');
+      }
+
+      return await this.dataAccess.deleteTokens(data);
+    } catch (error) {
+      throw new Error(`Failed to delete tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle get token details request
+   */
+  private async handleGetTokenDetails(data: { tokenId: string }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.tokenId) {
+        throw new Error('tokenId is required');
+      }
+
+      return await this.dataAccess.getTokenDetails(data);
+    } catch (error) {
+      throw new Error(`Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle toggle token condition request
+   */
+  private async handleToggleTokenCondition(data: {
+    tokenId: string;
+    conditionId: string;
+    active: boolean
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.tokenId) {
+        throw new Error('tokenId is required');
+      }
+      if (!data.conditionId) {
+        throw new Error('conditionId is required');
+      }
+      if (typeof data.active !== 'boolean') {
+        throw new Error('active must be a boolean');
+      }
+
+      return await this.dataAccess.toggleTokenCondition(data);
+    } catch (error) {
+      throw new Error(`Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle get available conditions request
+   */
+  private async handleGetAvailableConditions(): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      return await this.dataAccess.getAvailableConditions();
+    } catch (error) {
+      throw new Error(`Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
