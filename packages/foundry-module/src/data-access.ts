@@ -4272,15 +4272,24 @@ export class FoundryDataAccess {
   async moveToken(data: { tokenId: string; x: number; y: number; animate?: boolean }): Promise<any> {
     this.validateFoundryState();
 
+    // Use permission system
+    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
+      targetIds: [data.tokenId],
+    });
+
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+
     try {
-      const scene = (game.scenes as any)?.active;
+      const scene = (game.scenes as any).current;
       if (!scene) {
-        throw new Error('No active scene');
+        throw new Error('No active scene found');
       }
 
-      const token = scene.tokens?.get(data.tokenId);
+      const token = scene.tokens.get(data.tokenId);
       if (!token) {
-        throw new Error(`Token not found: ${data.tokenId}`);
+        throw new Error(`Token ${data.tokenId} not found in current scene`);
       }
 
       // Update token position
@@ -4288,6 +4297,8 @@ export class FoundryDataAccess {
         x: data.x,
         y: data.y
       }, { animate: data.animate !== false });
+
+      this.auditLog('moveToken', data, 'success');
 
       return {
         success: true,
@@ -4297,6 +4308,7 @@ export class FoundryDataAccess {
         animated: data.animate !== false
       };
     } catch (error) {
+      this.auditLog('moveToken', data, 'failure', error instanceof Error ? error.message : 'Unknown error');
       throw new Error(`Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -4307,27 +4319,44 @@ export class FoundryDataAccess {
   async updateToken(data: { tokenId: string; updates: Record<string, any> }): Promise<any> {
     this.validateFoundryState();
 
+    // Use permission system
+    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
+      targetIds: [data.tokenId],
+    });
+
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+
     try {
-      const scene = (game.scenes as any)?.active;
+      const scene = (game.scenes as any).current;
       if (!scene) {
-        throw new Error('No active scene');
+        throw new Error('No active scene found');
       }
 
-      const token = scene.tokens?.get(data.tokenId);
+      const token = scene.tokens.get(data.tokenId);
       if (!token) {
-        throw new Error(`Token not found: ${data.tokenId}`);
+        throw new Error(`Token ${data.tokenId} not found in current scene`);
       }
+
+      // Filter out undefined values
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(data.updates).filter(([_, v]) => v !== undefined)
+      );
 
       // Apply updates
-      await token.update(data.updates);
+      await token.update(cleanUpdates);
+
+      this.auditLog('updateToken', { tokenId: data.tokenId, updates: cleanUpdates }, 'success');
 
       return {
         success: true,
         tokenId: token.id,
         tokenName: token.name,
-        updatedProperties: Object.keys(data.updates)
+        updatedProperties: Object.keys(cleanUpdates)
       };
     } catch (error) {
+      this.auditLog('updateToken', data, 'failure', error instanceof Error ? error.message : 'Unknown error');
       throw new Error(`Failed to update token: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -4338,10 +4367,19 @@ export class FoundryDataAccess {
   async deleteTokens(data: { tokenIds: string[] }): Promise<any> {
     this.validateFoundryState();
 
+    // Use permission system
+    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
+      targetIds: data.tokenIds,
+    });
+
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+
     try {
-      const scene = (game.scenes as any)?.active;
+      const scene = (game.scenes as any).current;
       if (!scene) {
-        throw new Error('No active scene');
+        throw new Error('No active scene found');
       }
 
       const deletedTokens: string[] = [];
@@ -4349,7 +4387,7 @@ export class FoundryDataAccess {
 
       for (const tokenId of data.tokenIds) {
         try {
-          const token = scene.tokens?.get(tokenId);
+          const token = scene.tokens.get(tokenId);
           if (token) {
             await token.delete();
             deletedTokens.push(tokenId);
@@ -4361,6 +4399,8 @@ export class FoundryDataAccess {
         }
       }
 
+      this.auditLog('deleteTokens', { tokenIds: data.tokenIds, deletedCount: deletedTokens.length }, 'success');
+
       return {
         success: true,
         deletedCount: deletedTokens.length,
@@ -4368,6 +4408,7 @@ export class FoundryDataAccess {
         failedTokens: failedTokens.length > 0 ? failedTokens : undefined
       };
     } catch (error) {
+      this.auditLog('deleteTokens', data, 'failure', error instanceof Error ? error.message : 'Unknown error');
       throw new Error(`Failed to delete tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -4379,14 +4420,14 @@ export class FoundryDataAccess {
     this.validateFoundryState();
 
     try {
-      const scene = (game.scenes as any)?.active;
+      const scene = (game.scenes as any).current;
       if (!scene) {
-        throw new Error('No active scene');
+        throw new Error('No active scene found');
       }
 
-      const token = scene.tokens?.get(data.tokenId);
+      const token = scene.tokens.get(data.tokenId);
       if (!token) {
-        throw new Error(`Token not found: ${data.tokenId}`);
+        throw new Error(`Token ${data.tokenId} not found in current scene`);
       }
 
       // Get disposition name
@@ -4435,20 +4476,29 @@ export class FoundryDataAccess {
   async toggleTokenCondition(data: { tokenId: string; conditionId: string; active: boolean }): Promise<any> {
     this.validateFoundryState();
 
+    // Use permission system
+    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
+      targetIds: [data.tokenId],
+    });
+
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+
     try {
-      const scene = (game.scenes as any)?.active;
+      const scene = (game.scenes as any).current;
       if (!scene) {
-        throw new Error('No active scene');
+        throw new Error('No active scene found');
       }
 
-      const token = scene.tokens?.get(data.tokenId);
+      const token = scene.tokens.get(data.tokenId);
       if (!token) {
-        throw new Error(`Token not found: ${data.tokenId}`);
+        throw new Error(`Token ${data.tokenId} not found in current scene`);
       }
 
       const actor = token.actor;
       if (!actor) {
-        throw new Error(`Token has no associated actor: ${data.tokenId}`);
+        throw new Error(`Token ${data.tokenId} has no associated actor`);
       }
 
       // Get the condition configuration for the game system
@@ -4482,6 +4532,8 @@ export class FoundryDataAccess {
         }
       }
 
+      this.auditLog('toggleTokenCondition', data, 'success');
+
       return {
         success: true,
         tokenId: token.id,
@@ -4493,6 +4545,7 @@ export class FoundryDataAccess {
           : `Removed ${data.conditionId} from ${token.name}`
       };
     } catch (error) {
+      this.auditLog('toggleTokenCondition', data, 'failure', error instanceof Error ? error.message : 'Unknown error');
       throw new Error(`Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
