@@ -8,11 +8,21 @@
 import type { SystemAdapter, SystemMetadata, SystemCreatureIndex, DSA5CreatureIndex } from '../types.js';
 import { DSA5FiltersSchema, matchesDSA5Filters, describeDSA5Filters, type DSA5Filters } from './filters.js';
 import { FIELD_PATHS, getExperienceLevel, EIGENSCHAFT_NAMES } from './constants.js';
+import { DSA5TokenAdapter } from './token-adapter.js';
+import { Logger } from '../../logger.js';
 
 /**
  * DSA5 system adapter
  */
 export class DSA5Adapter implements SystemAdapter {
+  private tokenAdapter: DSA5TokenAdapter;
+  private logger?: Logger;
+
+  constructor(logger?: Logger) {
+    this.logger = logger;
+    this.tokenAdapter = new DSA5TokenAdapter(logger);
+  }
+
   getMetadata(): SystemMetadata {
     return {
       id: 'dsa5',
@@ -374,5 +384,29 @@ export class DSA5Adapter implements SystemAdapter {
     }
 
     return stats;
+  }
+
+  /**
+   * Format a DSA5 condition for use with toggleTokenCondition
+   * Delegates to token adapter
+   */
+  formatConditionEffect(condition: any): any {
+    return this.tokenAdapter.formatConditionEffect(condition);
+  }
+
+  /**
+   * Extract DSA5-specific token properties
+   * Delegates to token adapter
+   */
+  getTokenProperties(token: any): any {
+    return this.tokenAdapter.getTokenProperties(token);
+  }
+
+  /**
+   * Check if an effect matches a DSA5 condition
+   * Delegates to token adapter
+   */
+  matchesCondition(effect: any, conditionId: string): boolean {
+    return this.tokenAdapter.matchesCondition(effect, conditionId);
   }
 }
