@@ -19,7 +19,9 @@ export class DSA5Adapter implements SystemAdapter {
   private logger?: Logger;
 
   constructor(logger?: Logger) {
-    this.logger = logger;
+    if (logger) {
+      this.logger = logger;
+    }
     this.tokenAdapter = new DSA5TokenAdapter(logger);
   }
 
