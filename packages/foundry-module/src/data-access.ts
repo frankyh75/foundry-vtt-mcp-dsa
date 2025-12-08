@@ -4430,30 +4430,46 @@ export class FoundryDataAccess {
         throw new Error(`Token ${data.tokenId} not found in current scene`);
       }
 
+      // DSA5/Foundry v13+: Token data structure
+      // In modern Foundry, token properties can be accessed directly from the TokenDocument
+      // but we need to handle both direct properties and potential nested structures
+
+      // Helper to safely get token properties - try direct access first, then fallback to nested
+      const getTokenProp = (prop: string, fallbackObj?: string) => {
+        if (token[prop] !== undefined) return token[prop];
+        if (fallbackObj && token[fallbackObj]?.[prop] !== undefined) return token[fallbackObj][prop];
+        return undefined;
+      };
+
+      // Get texture/appearance data
+      const texture = token.texture || {};
+      const img = texture.src || token.img;
+      const scale = texture.scaleX !== undefined ? texture.scaleX : (token.scale !== undefined ? token.scale : 1);
+
       // Return flat structure that matches MCP server expectations
       return {
         success: true,
-        id: token.id,
+        id: token.id || token._id,
         name: token.name,
-        x: token.x,
-        y: token.y,
-        width: token.width,
-        height: token.height,
-        rotation: token.rotation,
-        scale: token.texture?.scaleX || 1,
-        alpha: token.alpha,
-        hidden: token.hidden,
-        disposition: token.disposition,
-        elevation: token.elevation,
-        lockRotation: token.lockRotation,
-        img: token.texture?.src,
-        actorId: token.actor?.id,
+        x: getTokenProp('x'),
+        y: getTokenProp('y'),
+        width: getTokenProp('width'),
+        height: getTokenProp('height'),
+        rotation: getTokenProp('rotation'),
+        scale: scale,
+        alpha: getTokenProp('alpha') !== undefined ? getTokenProp('alpha') : 1,
+        hidden: getTokenProp('hidden') !== undefined ? getTokenProp('hidden') : false,
+        disposition: getTokenProp('disposition') !== undefined ? getTokenProp('disposition') : 0,
+        elevation: getTokenProp('elevation') !== undefined ? getTokenProp('elevation') : 0,
+        lockRotation: getTokenProp('lockRotation') !== undefined ? getTokenProp('lockRotation') : false,
+        img: img,
+        actorId: token.actor?.id || token.actorId,
         actorData: token.actor ? {
           name: token.actor.name,
           type: token.actor.type,
           img: token.actor.img,
         } : null,
-        actorLink: token.actorLink,
+        actorLink: getTokenProp('actorLink') !== undefined ? getTokenProp('actorLink') : false,
       };
     } catch (error) {
       throw new Error(`Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -4517,13 +4533,28 @@ export class FoundryDataAccess {
         // DSA5-specific: Copy all properties from the condition
         // DSA5 conditions have different structure than D&D5e/PF2e
         if ((game.system as any)?.id === 'dsa5') {
-          // For DSA5, use the condition's full data structure
-          Object.assign(effectData, {
-            flags: condition.flags || {},
-            changes: condition.changes || [],
-            duration: condition.duration || {},
-            origin: condition.origin,
-          });
+          // For DSA5, safely copy properties if they exist
+          // DSA5 conditions may not have all properties that D&D5e/PF2e have
+          if (condition.flags) {
+            effectData.flags = condition.flags;
+          }
+          if (condition.changes && Array.isArray(condition.changes)) {
+            effectData.changes = condition.changes;
+          }
+          // DSA5 may not have duration.auto property - only add duration if it exists
+          if (condition.duration) {
+            effectData.duration = condition.duration;
+          }
+          if (condition.origin) {
+            effectData.origin = condition.origin;
+          }
+          // DSA5-specific properties
+          if (condition.transfer !== undefined) {
+            effectData.transfer = condition.transfer;
+          }
+          if (condition.disabled !== undefined) {
+            effectData.disabled = condition.disabled;
+          }
         }
 
         await actor.createEmbeddedDocuments('ActiveEffect', [effectData]);
