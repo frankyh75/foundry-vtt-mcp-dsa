@@ -1,8 +1,8 @@
 {
-  "id": "foundry-mcp-bridge",
-  "title": "Foundry MCP Bridge",
-  "description": "Connect Foundry VTT to AI models through MCP protocol. Enable AI-powered actor creation, intelligent compendium search, campaign analysis, and interactive dice roll coordination. Supports Claude, local LLMs, and future AI models with comprehensive GM-only security.",
-  "version": "0.7.0",
+  "id": "foundry-mcp-dsa",
+  "title": "Foundry MCP Bridge – DSA Edition",
+  "description": "DSA5-erweiterte Version der Foundry MCP Bridge. Enthält DSA-spezifische Creature-Resolver, Systemadapter und KI-gesteuerte Tools für Das Schwarze Auge 5. Basiert auf Adam Dooley's Foundry MCP Bridge mit vollständiger DSA5-Integration.",
+  "version": "0.7.0-dsa.1",
   "compatibility": {
     "minimum": "13",
     "verified": "13",
@@ -10,15 +10,18 @@
   },
   "authors": [
     {
-      "name": "Adam Dooley",
-      "email": "adambriandooley@gmail.com",
+      "name": "Adam Dooley (Original)",
       "url": "https://github.com/adambdooley"
+    },
+    {
+      "name": "Frank H. (DSA Fork)",
+      "url": "https://github.com/frankyh75"
     }
   ],
-  "url": "https://github.com/adambdooley/foundry-vtt-mcp",
-  "bugs": "https://github.com/adambdooley/foundry-vtt-mcp/issues",
-  "changelog": "https://github.com/adambdooley/foundry-vtt-mcp/releases",
-  "readme": "https://github.com/adambdooley/foundry-vtt-mcp/blob/master/README.md",
+  "url": "https://github.com/frankyh75/foundry-vtt-mcp-dsa",
+  "bugs": "https://github.com/frankyh75/foundry-vtt-mcp-dsa/issues",
+  "changelog": "https://github.com/frankyh75/foundry-vtt-mcp-dsa/releases",
+  "readme": "https://github.com/frankyh75/foundry-vtt-mcp-dsa/blob/master/README.md",
   "license": "https://github.com/adambdooley/foundry-vtt-mcp/blob/master/LICENSE",
   "esmodules": [
     "dist/main.js"
