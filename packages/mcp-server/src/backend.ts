@@ -34,6 +34,8 @@ import { MapGenerationTools } from './tools/map-generation.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
+import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
+
 const CONTROL_HOST = '127.0.0.1';
 
 const CONTROL_PORT = 31414;
@@ -1041,13 +1043,30 @@ async function startBackend(): Promise<void> {
 
   const foundryClient = new FoundryClient(config.foundry, logger);
 
-  const characterTools = new CharacterTools({ foundryClient, logger });
+  // Initialize system registry and register adapters
+  const { getSystemRegistry } = await import('./systems/index.js');
+  const { DnD5eAdapter } = await import('./systems/dnd5e/adapter.js');
+  const { PF2eAdapter } = await import('./systems/pf2e/adapter.js');
+  const { DSA5Adapter } = await import('./systems/dsa5/adapter.js');
 
-  const compendiumTools = new CompendiumTools({ foundryClient, logger });
+  const systemRegistry = getSystemRegistry(logger);
+  systemRegistry.register(new DnD5eAdapter());
+  systemRegistry.register(new PF2eAdapter());
+  systemRegistry.register(new DSA5Adapter());
+
+  logger.info('System registry initialized', {
+    supportedSystems: systemRegistry.getSupportedSystems()
+  });
+
+  const characterTools = new CharacterTools({ foundryClient, logger, systemRegistry });
+
+  const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
 
   const sceneTools = new SceneTools({ foundryClient, logger });
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
+
+  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
 
   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
 
@@ -1278,6 +1297,8 @@ async function startBackend(): Promise<void> {
 
     ...actorCreationTools.getToolDefinitions(),
 
+    ...dsa5CharacterCreator.getToolDefinitions(),
+
     ...questCreationTools.getToolDefinitions(),
 
     ...diceRollTools.getToolDefinitions(),
@@ -1447,6 +1468,20 @@ async function startBackend(): Promise<void> {
                 case 'get-compendium-entry-full':
 
                   result = await actorCreationTools.handleGetCompendiumEntryFull(args);
+
+                  break;
+
+                // DSA5 character creation tools
+
+                case 'create-dsa5-character-from-archetype':
+
+                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
+
+                  break;
+
+                case 'list-dsa5-archetypes':
+
+                  result = await dsa5CharacterCreator.handleListArchetypes(args);
 
                   break;
 

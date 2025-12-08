@@ -1,22 +1,26 @@
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import { SystemRegistry } from '../systems/system-registry.js';
 import { detectGameSystem, getSystemPaths, getCreatureLevel, getCreatureType, hasSpellcasting, formatSystemError, type GameSystem } from '../utils/system-detection.js';
 import { GenericFiltersSchema, describeFilters, type GenericFilters } from '../utils/compendium-filters.js';
 
 export interface CompendiumToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
+  systemRegistry?: SystemRegistry;
 }
 
 export class CompendiumTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
+  private systemRegistry: SystemRegistry | null;
   private gameSystem: GameSystem | null = null;
 
-  constructor({ foundryClient, logger }: CompendiumToolsOptions) {
+  constructor({ foundryClient, logger, systemRegistry }: CompendiumToolsOptions) {
     this.foundryClient = foundryClient;
     this.logger = logger.child({ component: 'CompendiumTools' });
+    this.systemRegistry = systemRegistry || null;
   }
 
   /**
@@ -962,8 +966,39 @@ export class CompendiumTools {
     return sanitized;
   }
 
-  private stripHtml(text: string): string {
+  private stripHtml(text: string | any): string {
     if (!text) return '';
+
+    // Handle objects with value property (e.g., {value: "text"})
+    if (typeof text === 'object' && text !== null) {
+      if (text.value) {
+        text = text.value;
+      } else if (text.content) {
+        text = text.content;
+      } else {
+        // For other objects, try to stringify or return empty
+        try {
+          text = JSON.stringify(text);
+        } catch {
+          return '';
+        }
+      }
+    }
+
+    // Handle arrays
+    if (Array.isArray(text)) {
+      return text.map(item => this.stripHtml(item)).join(' ');
+    }
+
+    // Ensure we have a string before calling replace()
+    if (typeof text !== 'string') {
+      const stringified = String(text || '');
+      if (!stringified || stringified === '[object Object]') {
+        return '';
+      }
+      text = stringified;
+    }
+
     return text.replace(/<[^>]*>/g, '').trim();
   }
 
