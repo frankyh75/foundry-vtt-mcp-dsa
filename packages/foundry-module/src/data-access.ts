@@ -4541,10 +4541,10 @@ export class FoundryDataAccess {
           if (condition.changes && Array.isArray(condition.changes)) {
             effectData.changes = condition.changes;
           }
-          // DSA5 may not have duration.auto property - only add duration if it exists
-          if (condition.duration) {
-            effectData.duration = condition.duration;
-          }
+          // DSA5 duration: Skip duration property entirely for DSA5
+          // DSA5 uses a different system and copying duration causes ".auto" errors
+          // Foundry will use default duration handling for DSA5
+
           if (condition.origin) {
             effectData.origin = condition.origin;
           }
