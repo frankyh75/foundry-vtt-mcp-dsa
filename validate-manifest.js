@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 const manifestPath = path.join(__dirname, 'packages', 'foundry-module', 'module.json');
+const sharedConstantsPath = path.join(__dirname, 'shared', 'src', 'constants.ts');
 
 console.log('🔍 Validating Foundry Module Manifest...\n');
 
@@ -67,6 +68,30 @@ try {
         console.log('   ❌ id: Invalid format (should be lowercase, alphanumeric, hyphens only)');
     } else {
         console.log('   ✅ id: Valid format');
+    }
+
+    // Ensure manifest ID stays in sync with the codebase
+    try {
+        const sharedConstants = fs.readFileSync(sharedConstantsPath, 'utf8');
+        const moduleIdMatch = sharedConstants.match(/MODULE_ID\s*=\s*'([^']+)'/);
+        if (moduleIdMatch) {
+            const expectedModuleId = moduleIdMatch[1];
+            if (manifest.id !== expectedModuleId) {
+                errors.push(
+                    `Manifest id ("${manifest.id}") must match shared MODULE_ID ("${expectedModuleId}") ` +
+                    'or the MCP backend will look in the wrong Foundry module folder.'
+                );
+                console.log('   ❌ id: Does not match shared MODULE_ID in shared/src/constants.ts');
+            } else {
+                console.log('   ✅ id: Matches shared MODULE_ID');
+            }
+        } else {
+            warnings.push('Could not read MODULE_ID from shared/src/constants.ts for cross-check');
+            console.log('   ⚠️  id: Unable to verify against shared MODULE_ID');
+        }
+    } catch (readError) {
+        warnings.push(`Failed to verify MODULE_ID from shared constants: ${readError.message}`);
+        console.log('   ⚠️  id: Unable to verify against shared MODULE_ID');
     }
     
     // Version validation

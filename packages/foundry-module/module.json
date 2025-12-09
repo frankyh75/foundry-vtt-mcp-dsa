@@ -15,6 +15,12 @@
       "url": "https://github.com/adambdooley"
     }
   ],
+  "contributors": [
+    {
+      "name": "frankyh75",
+      "url": "https://github.com/frankyh75"
+    }
+  ],
   "url": "https://github.com/adambdooley/foundry-vtt-mcp",
   "bugs": "https://github.com/adambdooley/foundry-vtt-mcp/issues",
   "changelog": "https://github.com/adambdooley/foundry-vtt-mcp/releases",
