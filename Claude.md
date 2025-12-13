@@ -176,12 +176,60 @@ git fetch upstream
 git merge upstream/main  # Sollte konfliktfrei sein!
 ```
 
-## Einschränkungen / Don’ts
+## 🚨 MANDATORY: Adams Architecture Rules
 
-❌ **NICHT `data-access.ts` ändern** - außer für generische Bugfixes
+**ALLE DSA5 Entwicklungen MÜSSEN folgen:**
+
+📖 **Offizielle Vorgaben:** `DSA5_ARCHITECTURE_RULES.md`
+🔗 **Upstream Guide:** https://github.com/adambdooley/foundry-vtt-mcp/blob/master/ADDING_NEW_SYSTEMS.md
+
+### Kern-Prinzipien (v0.6.0 Registry Pattern)
+
+**✅ DO:**
+- **Registry Pattern:** Alle DSA5 Features in `packages/mcp-server/src/systems/dsa5/`
+- **Adapter Interfaces:** SystemAdapter + IndexBuilder implementieren
+- **Helper Functions:** DSA5-Logik in data-access.ts in separate Helpers extrahieren
+- **System Detection:** Minimale `if (systemId === 'dsa5')` Checks OK, aber in Helpers
+- **Test D&D5e/PF2e:** Nach jeder Änderung beide Systeme testen
+
+**❌ DON'T:**
+- **Scattered System Checks:** `if (game.system.id === 'dsa5')` überall verteilt
+- **DSA5 in Core Tools:** Keine DSA5-Logik in `packages/mcp-server/src/tools/*.ts`
+- **Skip Registration:** DSA5Adapter MUSS in `backend.ts` registriert sein
+- **Break Other Systems:** D&D5e/PF2e dürfen NIE brechen
+
+### Required Files für DSA5
+
+```
+packages/mcp-server/src/systems/dsa5/
+├── adapter.ts           # ✅ MANDATORY - SystemAdapter interface
+├── filters.ts           # ✅ MANDATORY - Filter schemas (Zod)
+├── index-builder.ts     # ✅ MANDATORY - IndexBuilder interface
+├── constants.ts         # OPTIONAL  - Experience Levels, Field Paths
+├── character-creator.ts # OPTIONAL  - Archetype-based creation
+└── token-adapter.ts     # OPTIONAL  - Token/Condition handling
+```
+
+**Enforcement Commands:**
+```bash
+# MUST return 0 results:
+grep -r "game\.system\.id === 'dsa5'" packages/mcp-server/src/tools/
+
+# Allowed but should use helpers:
+grep -r "systemId === 'dsa5'" packages/foundry-module/src/data-access.ts
+```
+
+**Siehe:** `DSA5_ARCHITECTURE_RULES.md` für vollständige Regeln und Beispiele
+
+---
+
+## Einschränkungen / Don'ts
+
+❌ **NICHT `data-access.ts` ändern** - außer für generische Bugfixes (mit Helper-Functions!)
 ❌ **NICHT `character.ts` anfassen** - kommt in Phase 4
-❌ **KEINE DSA5-Logik außerhalb von `src/tools/dsa5/`**
+❌ **KEINE DSA5-Logik außerhalb von `src/tools/dsa5/`** (außer data-access.ts Helpers)
 ❌ **KEINE Breaking Changes für DnD5e/PF2e**
+❌ **KEINE System-Checks in MCP Server Tools** (`packages/mcp-server/src/tools/*.ts`)
 
 ## Kontext für AI-Assistenz
 
