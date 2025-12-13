@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
-import { detectGameSystem, getSystemPaths, getCreatureLevel, getCreatureType, hasSpellcasting, formatSystemError, type GameSystem } from '../utils/system-detection.js';
+import { detectGameSystem, getCachedSystemId, getSystemPaths, getCreatureLevel, getCreatureType, hasSpellcasting, formatSystemError, type GameSystem } from '../utils/system-detection.js';
 import { GenericFiltersSchema, describeFilters, type GenericFilters } from '../utils/compendium-filters.js';
 
 export interface CompendiumToolsOptions {
@@ -490,6 +490,51 @@ export class CompendiumTools {
       gameSystem,
       criteria: criteriaDescription
     });
+
+    // DSA5 System: Challenge Rating/Level not supported
+    const systemId = getCachedSystemId();
+    if (systemId === 'dsa5') {
+      if (params.challengeRating || params.level) {
+        this.logger.warn('DSA5 does not support CR/Level filtering - returning helpful error', {
+          requestedCR: params.challengeRating,
+          requestedLevel: params.level
+        });
+
+        return {
+          error: 'DSA5 does not use Challenge Rating or Level for creatures',
+          system: 'dsa5',
+          explanation: 'Das Schwarze Auge 5 uses an Experience Points (AP) system instead of Challenge Rating or Level. Creatures are classified by Erfahrungsgrad (Experience Level 1-7) based on total AP, not a static difficulty rating.',
+          suggestion: 'Use search-compendium instead with broad search terms and filters',
+          alternatives: [
+            {
+              method: 'search-compendium',
+              example: '{ query: "*", packType: "Actor", limit: 50 }',
+              description: 'Search all actors (creatures) and use size/type filters'
+            },
+            {
+              method: 'Size-based search',
+              example: 'Include "large", "medium", etc. in query',
+              description: 'Search by creature size descriptors'
+            },
+            {
+              method: 'Type-based search',
+              example: 'Search for "humanoid", "dragon", "daemon", etc.',
+              description: 'Use creature type keywords in search query'
+            }
+          ],
+          note: 'Future enhancement: Native DSA5 Erfahrungsgrad filtering (Level 1-7) is planned',
+          requestReceived: {
+            challengeRating: params.challengeRating,
+            level: params.level,
+            otherFilters: {
+              creatureType: params.creatureType,
+              size: params.size,
+              hasSpells: params.hasSpells
+            }
+          }
+        };
+      }
+    }
 
     try {
       const results = await this.foundryClient.query('foundry-mcp-bridge.listCreaturesByCriteria', params);
