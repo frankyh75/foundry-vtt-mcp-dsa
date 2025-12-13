@@ -2555,8 +2555,8 @@ export class FoundryDataAccess {
         throw new Error(`Document "${itemId}" not found in pack "${packId}"`);
       }
 
-      if (sourceDocument.type !== 'npc') {
-        throw new Error(`Document "${itemId}" is not an actor/NPC (type: ${sourceDocument.type})`);
+      if (!['npc', 'character'].includes(sourceDocument.type)) {
+        throw new Error(`Document "${itemId}" is not a valid actor type (type: ${sourceDocument.type}). Expected "npc" or "character".`);
       }
 
       const sourceActor = sourceDocument as Actor;
