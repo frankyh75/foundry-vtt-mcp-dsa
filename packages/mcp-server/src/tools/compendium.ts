@@ -401,12 +401,12 @@ export class CompendiumTools {
         const errorMessage = `DSA5 (Das Schwarze Auge 5) does not use Challenge Rating.
 
 DSA5 uses Experience Levels (Erfahrungsgrad) ranging from 1-7 instead:
-- Level 1: Unerfahren (Inexperienced) - 0-1000 AP
-- Level 2: Durchschnittlich (Average) - 1000-2000 AP
-- Level 3: Erfahren (Experienced) - 2000-3000 AP
-- Level 4: Kompetent (Competent) - 3000-4000 AP
-- Level 5: Meisterlich (Masterful) - 4000-5000 AP
-- Level 6: Brilliant (Brilliant) - 5000-6000 AP
+- Level 1: Unerfahren (Inexperienced) - 0-899 AP
+- Level 2: Durchschnittlich (Average) - 900-1999 AP
+- Level 3: Erfahren (Experienced) - 2000-2999 AP
+- Level 4: Kompetent (Competent) - 3000-3999 AP
+- Level 5: Meisterlich (Masterful) - 4000-4999 AP
+- Level 6: Brillant (Brilliant) - 5000-5999 AP
 - Level 7: Legendär (Legendary) - 6000+ AP
 
 Suggested alternatives:

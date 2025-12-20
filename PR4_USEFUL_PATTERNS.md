@@ -33,13 +33,13 @@ DSA5 hat **kein CR** - stattdessen **Experience Levels 1-7**.
  * Level 1-7, nicht 0-6!
  */
 export const EXPERIENCE_LEVELS = [
-  { name: 'Unerfahren', nameEn: 'Inexperienced', min: 0, max: 900, level: 1 },
-  { name: 'Durchschnittlich', nameEn: 'Average', min: 901, max: 1800, level: 2 },
-  { name: 'Erfahren', nameEn: 'Experienced', min: 1801, max: 2700, level: 3 },
-  { name: 'Kompetent', nameEn: 'Competent', min: 2701, max: 3600, level: 4 },
-  { name: 'Meisterlich', nameEn: 'Masterful', min: 3601, max: 4500, level: 5 },
-  { name: 'Brillant', nameEn: 'Brilliant', min: 4501, max: 5400, level: 6 },
-  { name: 'Legendär', nameEn: 'Legendary', min: 5401, max: Infinity, level: 7 },
+  { name: 'Unerfahren', nameEn: 'Inexperienced', min: 0, max: 899, level: 1 },
+  { name: 'Durchschnittlich', nameEn: 'Average', min: 900, max: 1999, level: 2 },
+  { name: 'Erfahren', nameEn: 'Experienced', min: 2000, max: 2999, level: 3 },
+  { name: 'Kompetent', nameEn: 'Competent', min: 3000, max: 3999, level: 4 },
+  { name: 'Meisterlich', nameEn: 'Masterful', min: 4000, max: 4999, level: 5 },
+  { name: 'Brillant', nameEn: 'Brilliant', min: 5000, max: 5999, level: 6 },
+  { name: 'Legendär', nameEn: 'Legendary', min: 6000, max: Infinity, level: 7 },
 ] as const;
 
 /**
