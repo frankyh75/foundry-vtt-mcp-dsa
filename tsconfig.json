@@ -39,6 +39,9 @@
       "path": "./packages/foundry-module"
     },
     {
+      "path": "./packages/mcp-remote-proxy"
+    },
+    {
       "path": "./shared"
     }
   ]
