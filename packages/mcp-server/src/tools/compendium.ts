@@ -392,6 +392,52 @@ export class CompendiumTools {
     // Detect game system for appropriate filtering
     const gameSystem = await this.getGameSystem();
 
+    // Validate system-specific filter compatibility using adapter
+    if (this.systemRegistry && args.challengeRating !== undefined) {
+      const adapter = this.systemRegistry.getAdapter(gameSystem);
+
+      // DSA5 doesn't use Challenge Rating - provide helpful error
+      if (adapter && gameSystem === 'dsa5') {
+        const errorMessage = `DSA5 (Das Schwarze Auge 5) does not use Challenge Rating.
+
+DSA5 uses Experience Levels (Erfahrungsgrad) ranging from 1-7 instead:
+- Level 1: Unerfahren (Inexperienced) - 0-1000 AP
+- Level 2: Durchschnittlich (Average) - 1000-2000 AP
+- Level 3: Erfahren (Experienced) - 2000-3000 AP
+- Level 4: Kompetent (Competent) - 3000-4000 AP
+- Level 5: Meisterlich (Masterful) - 4000-5000 AP
+- Level 6: Brilliant (Brilliant) - 5000-6000 AP
+- Level 7: Legendär (Legendary) - 6000+ AP
+
+Suggested alternatives:
+1. Use level-based filtering: { "level": { "min": 3, "max": 5 } }
+2. Use search-compendium: search by creature name, species, or type
+3. Use size filtering: filter by creature size (tiny, small, medium, large, etc.)
+
+Example queries:
+- Find experienced creatures: { "level": { "min": 3, "max": 4 } }
+- Find Orks: Use search-compendium with query "Ork"
+- Find large creatures: { "size": "large" }`;
+
+        this.logger.info('DSA5 challengeRating filter rejected with helpful error', {
+          gameSystem,
+          attemptedFilter: args.challengeRating
+        });
+
+        return {
+          error: 'Invalid filter for DSA5',
+          system: gameSystem,
+          message: errorMessage,
+          providedFilter: { challengeRating: args.challengeRating },
+          suggestedFilters: [
+            { description: 'Level-based (Erfahrungsgrad)', example: { level: { min: 3, max: 5 } } },
+            { description: 'Size-based', example: { size: 'large' } },
+            { description: 'Species search', tool: 'search-compendium', example: { query: 'Ork', packType: 'Actor' } }
+          ]
+        };
+      }
+    }
+
     // Use generic filters schema to support both systems
     const schema = z.object({
       // D&D 5e: challengeRating
