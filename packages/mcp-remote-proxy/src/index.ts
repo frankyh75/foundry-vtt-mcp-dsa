@@ -16,6 +16,7 @@ if (!MCP_CHILD_ENTRY) {
   console.error('MCP_CHILD_ENTRY is required to start the MCP child process.');
   process.exit(1);
 }
+const childEntry = MCP_CHILD_ENTRY;
 
 const sseClients = new Set<ServerResponse>();
 const pendingRequests = new Map<string, {
@@ -129,21 +130,22 @@ function parseStdoutChunk(chunk: Buffer) {
 }
 
 function startChildProcess() {
-  childProcess = spawn('node', [MCP_CHILD_ENTRY], {
+  const child = spawn('node', [childEntry], {
     cwd: MCP_CHILD_CWD,
     stdio: ['pipe', 'pipe', 'pipe']
   });
+  childProcess = child;
 
-  childProcess.stdout.on('data', parseStdoutChunk);
-  childProcess.stderr.on('data', chunk => {
+  child.stdout.on('data', parseStdoutChunk);
+  child.stderr.on('data', chunk => {
     process.stderr.write(`[mcp-child] ${chunk.toString('utf8')}`);
   });
 
-  childProcess.on('error', error => {
+  child.on('error', error => {
     handleChildExit(`MCP child process error: ${error.message}`);
   });
 
-  childProcess.on('exit', (code, signal) => {
+  child.on('exit', (code, signal) => {
     handleChildExit(`MCP child process exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`);
   });
 }
