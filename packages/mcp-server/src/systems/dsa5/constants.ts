@@ -7,19 +7,23 @@
 
 /**
  * Erfahrungsgrad-Definitionen (DSA5 "Levels")
- * Quelle: https://dsa.ulisses-regelwiki.de/Heldenerschaffung.html
+ * Quelle: https://dsa.ulisses-regelwiki.de/Erfahrung.html
+ * Quelle: https://dsaforum.de/viewtopic.php?t=55440 (offizielles Regelwerk)
  *
- * WICHTIG: Level 1-7, nicht 0-6!
- * DSA5 startet bei Level 1 (Unerfahren), genau wie D&D5e bei Level 1
+ * WICHTIG: Dies sind FESTE STARTWERTE, keine Bereiche!
+ * - Helden starten mit einem dieser AP-Werte basierend auf Erfahrungsgrad
+ * - Für Level-Erkennung: Werte dienen als Schwellenwerte
+ *
+ * DSA5 Level 1-7, nicht 0-6!
  */
 export const EXPERIENCE_LEVELS = [
-  { name: 'Unerfahren', nameEn: 'Inexperienced', min: 0, max: 899, level: 1 },
-  { name: 'Durchschnittlich', nameEn: 'Average', min: 900, max: 1999, level: 2 },
-  { name: 'Erfahren', nameEn: 'Experienced', min: 2000, max: 2999, level: 3 },
-  { name: 'Kompetent', nameEn: 'Competent', min: 3000, max: 3999, level: 4 },
-  { name: 'Meisterlich', nameEn: 'Masterful', min: 4000, max: 4999, level: 5 },
-  { name: 'Brillant', nameEn: 'Brilliant', min: 5000, max: 5999, level: 6 },
-  { name: 'Legendär', nameEn: 'Legendary', min: 6000, max: Infinity, level: 7 },
+  { name: 'Unerfahren', nameEn: 'Inexperienced', startAP: 900, threshold: 900, level: 1 },
+  { name: 'Durchschnittlich', nameEn: 'Average', startAP: 1000, threshold: 1000, level: 2 },
+  { name: 'Erfahren', nameEn: 'Experienced', startAP: 1100, threshold: 1100, level: 3 },
+  { name: 'Kompetent', nameEn: 'Competent', startAP: 1200, threshold: 1200, level: 4 },
+  { name: 'Meisterlich', nameEn: 'Masterful', startAP: 1400, threshold: 1400, level: 5 },
+  { name: 'Brillant', nameEn: 'Brilliant', startAP: 1700, threshold: 1700, level: 6 },
+  { name: 'Legendär', nameEn: 'Legendary', startAP: 2100, threshold: 2100, level: 7 },
 ] as const;
 
 /**
@@ -30,16 +34,28 @@ export type DSA5ExperienceLevel = typeof EXPERIENCE_LEVELS[number];
 /**
  * Konvertiert Abenteuerpunkte zu Erfahrungsgrad
  * @param totalAP - Gesamt-Abenteuerpunkte
- * @returns Erfahrungsgrad-Info (Name, Level, AP-Bereich)
+ * @returns Erfahrungsgrad-Info (Name, Level, Start-AP)
+ *
+ * Logik: Findet den höchsten Erfahrungsgrad, dessen Schwellenwert <= totalAP ist
+ * Beispiele:
+ * - 950 AP → Unerfahren (900)
+ * - 1050 AP → Durchschnittlich (1000)
+ * - 1150 AP → Erfahren (1100)
+ * - 2500 AP → Legendär (2100)
  */
 export function getExperienceLevel(totalAP: number): DSA5ExperienceLevel {
+  // Finde höchsten Level, dessen threshold <= totalAP
+  let selectedLevel = EXPERIENCE_LEVELS[0]; // Default: Unerfahren
+
   for (const level of EXPERIENCE_LEVELS) {
-    if (totalAP >= level.min && totalAP <= level.max) {
-      return level;
+    if (totalAP >= level.threshold) {
+      selectedLevel = level;
+    } else {
+      break; // Array ist aufsteigend sortiert
     }
   }
-  // Fallback: Legendär
-  return EXPERIENCE_LEVELS[6];
+
+  return selectedLevel;
 }
 
 /**

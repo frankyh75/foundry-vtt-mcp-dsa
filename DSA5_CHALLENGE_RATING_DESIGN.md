@@ -101,9 +101,10 @@ const level = experienceLevel.level;
 
 ## 🎲 Challenge Rating Mapping - Vorschlag
 
-### Baseline: Mensch mit 1200 AP (Erfahrungsgrad 2 "Durchschnittlich")
+### Baseline: Mensch mit 1200 AP (Erfahrungsgrad 4 "Kompetent")
 - **Stats:** ~30 LeP, ~12 AT, ~10 PA, 2-4 RS
 - **CR-Äquivalent:** CR 1/4 (wie D&D Goblin)
+- **Quelle:** User-Vorgabe "LeP + AT + PA + RS im Vergleich zum Menschen mit AP Level 1200"
 
 ### Formel (Vorschlag - TODO: Validieren):
 

@@ -30,28 +30,35 @@ DSA5 hat **kein CR** - stattdessen **Experience Levels 1-7**.
 ```typescript
 /**
  * Erfahrungsgrad-Definitionen (DSA5 "Levels")
+ * Quelle: https://dsa.ulisses-regelwiki.de/Erfahrung.html
+ *
+ * WICHTIG: FESTE STARTWERTE, keine Bereiche!
  * Level 1-7, nicht 0-6!
  */
 export const EXPERIENCE_LEVELS = [
-  { name: 'Unerfahren', nameEn: 'Inexperienced', min: 0, max: 899, level: 1 },
-  { name: 'Durchschnittlich', nameEn: 'Average', min: 900, max: 1999, level: 2 },
-  { name: 'Erfahren', nameEn: 'Experienced', min: 2000, max: 2999, level: 3 },
-  { name: 'Kompetent', nameEn: 'Competent', min: 3000, max: 3999, level: 4 },
-  { name: 'Meisterlich', nameEn: 'Masterful', min: 4000, max: 4999, level: 5 },
-  { name: 'Brillant', nameEn: 'Brilliant', min: 5000, max: 5999, level: 6 },
-  { name: 'Legendär', nameEn: 'Legendary', min: 6000, max: Infinity, level: 7 },
+  { name: 'Unerfahren', nameEn: 'Inexperienced', startAP: 900, threshold: 900, level: 1 },
+  { name: 'Durchschnittlich', nameEn: 'Average', startAP: 1000, threshold: 1000, level: 2 },
+  { name: 'Erfahren', nameEn: 'Experienced', startAP: 1100, threshold: 1100, level: 3 },
+  { name: 'Kompetent', nameEn: 'Competent', startAP: 1200, threshold: 1200, level: 4 },
+  { name: 'Meisterlich', nameEn: 'Masterful', startAP: 1400, threshold: 1400, level: 5 },
+  { name: 'Brillant', nameEn: 'Brilliant', startAP: 1700, threshold: 1700, level: 6 },
+  { name: 'Legendär', nameEn: 'Legendary', startAP: 2100, threshold: 2100, level: 7 },
 ] as const;
 
 /**
  * Konvertiert Abenteuerpunkte zu Erfahrungsgrad
+ * Findet höchsten Level, dessen threshold <= totalAP
  */
 export function getExperienceLevel(totalAP: number): DSA5ExperienceLevel {
+  let selectedLevel = EXPERIENCE_LEVELS[0];
   for (const level of EXPERIENCE_LEVELS) {
-    if (totalAP >= level.min && totalAP <= level.max) {
-      return level;
+    if (totalAP >= level.threshold) {
+      selectedLevel = level;
+    } else {
+      break;
     }
   }
-  return EXPERIENCE_LEVELS[6]; // Fallback: Legendär
+  return selectedLevel;
 }
 ```
 

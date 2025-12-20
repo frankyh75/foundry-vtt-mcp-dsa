@@ -400,24 +400,27 @@ export class CompendiumTools {
       if (adapter && gameSystem === 'dsa5') {
         const errorMessage = `DSA5 (Das Schwarze Auge 5) does not use Challenge Rating.
 
-DSA5 uses Experience Levels (Erfahrungsgrad) ranging from 1-7 instead:
-- Level 1: Unerfahren (Inexperienced) - 0-899 AP
-- Level 2: Durchschnittlich (Average) - 900-1999 AP
-- Level 3: Erfahren (Experienced) - 2000-2999 AP
-- Level 4: Kompetent (Competent) - 3000-3999 AP
-- Level 5: Meisterlich (Masterful) - 4000-4999 AP
-- Level 6: Brillant (Brilliant) - 5000-5999 AP
-- Level 7: Legendär (Legendary) - 6000+ AP
+DSA5 uses Experience Levels (Erfahrungsgrad) for HEROES, ranging from 1-7:
+- Level 1: Unerfahren (Inexperienced) - 900 AP start
+- Level 2: Durchschnittlich (Average) - 1000 AP start
+- Level 3: Erfahren (Experienced) - 1100 AP start [Standard]
+- Level 4: Kompetent (Competent) - 1200 AP start
+- Level 5: Meisterlich (Masterful) - 1400 AP start
+- Level 6: Brillant (Brilliant) - 1700 AP start
+- Level 7: Legendär (Legendary) - 2100 AP start
 
-Suggested alternatives:
-1. Use level-based filtering: { "level": { "min": 3, "max": 5 } }
-2. Use search-compendium: search by creature name, species, or type
-3. Use size filtering: filter by creature size (tiny, small, medium, large, etc.)
+IMPORTANT: Creatures do NOT use AP/Experience Levels!
+Creatures use EP (Erfahrungspunkte) and combat stats (LeP, AT, PA, RS).
+
+Suggested alternatives for creature search:
+1. Use search-compendium: search by name, species, or type
+2. Use size filtering: { "size": "large" }
+3. Use species filtering: { "species": "Ork" }
 
 Example queries:
-- Find experienced creatures: { "level": { "min": 3, "max": 4 } }
-- Find Orks: Use search-compendium with query "Ork"
-- Find large creatures: { "size": "large" }`;
+- Find Orks: search-compendium with query "Ork"
+- Find large creatures: { "size": "large" }
+- Find specific creature: search-compendium "Feuerdrache"`;
 
         this.logger.info('DSA5 challengeRating filter rejected with helpful error', {
           gameSystem,

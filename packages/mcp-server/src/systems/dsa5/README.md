@@ -104,17 +104,26 @@ Check: item.system.characteristic (e.g., "MU/IN/CH")
 
 ## Experience Levels (Erfahrungsgrad)
 
-DSA5 uses a 7-level experience classification based on total Adventure Points (AP):
+DSA5 uses a 7-level experience classification for **HEROES** based on Adventure Points (AP).
 
-| Level | Name (DE)           | Name (EN)       | AP Range      |
+**IMPORTANT:** These are **FIXED STARTING VALUES**, not ranges!
+- Heroes start with one of these AP values based on their chosen experience level
+- For level detection: Values serve as thresholds (e.g., 1150 AP → Erfahren)
+
+**Source:** https://dsa.ulisses-regelwiki.de/Erfahrung.html
+
+| Level | Name (DE)           | Name (EN)       | Starting AP   |
 |-------|---------------------|-----------------|---------------|
-| 1     | Unerfahren          | Inexperienced   | 0 - 899       |
-| 2     | Durchschnittlich    | Average         | 900 - 1999    |
-| 3     | Erfahren            | Experienced     | 2000 - 2999   |
-| 4     | Kompetent           | Competent       | 3000 - 3999   |
-| 5     | Meisterlich         | Masterful       | 4000 - 4999   |
-| 6     | Brillant            | Brilliant       | 5000 - 5999   |
-| 7     | Legendär            | Legendary       | 6000+         |
+| 1     | Unerfahren          | Inexperienced   | 900 AP        |
+| 2     | Durchschnittlich    | Average         | 1000 AP       |
+| 3     | Erfahren            | Experienced     | 1100 AP [Standard] |
+| 4     | Kompetent           | Competent       | 1200 AP       |
+| 5     | Meisterlich         | Masterful       | 1400 AP       |
+| 6     | Brillant            | Brilliant       | 1700 AP       |
+| 7     | Legendär            | Legendary       | 2100 AP       |
+
+**NOTE:** Creatures do NOT use Experience Levels or AP values!
+Creatures are characterized by EP (Erfahrungspunkte earned for defeating them) and combat stats (LeP, AT, PA, RS).
 
 ## Usage Examples
 
