@@ -45,10 +45,17 @@ DSA5 Kreaturen haben **weder AP noch EP-Werte**!
 |----------|------|---------------------|
 | **LeP** | 800 | **27x höher** |
 | **AT (Durchschnitt)** | 15 | 1.25x höher |
+| **VW (Verteidigung)** | 8 | Ausweichen |
 | **RS** | 6 | 2x höher |
 | **GS** | 13/18 | 2x höher |
 | **Größe** | Riesig | +++ |
 | **Aktionen** | 2 | 2x |
+
+**WICHTIG:**
+- **VW = Verteidigungswert** (Ausweichen ohne Waffe)
+- **PA = Parade** (nur mit Waffe)
+- Feuerdrache hat **VW 8** weil er natürliche Waffen nutzt (Biss, Klauen)
+- VW 8 = Mit W20 eine 8 oder niedriger würfeln zum erfolgreichen Ausweichen
 
 ### Kampfwerte
 
@@ -282,6 +289,11 @@ export const DSA5_CREATURE_PATHS = {
   ATTACKS: 'items', // Filter type === 'weapon' oder 'combattechnique'
   // AT ist wahrscheinlich in weapon.system.attack.value
 
+  // Verteidigung
+  VW: 'system.status.defense.value',    // Verteidigungswert (Ausweichen ohne Waffe)
+  PA: 'system.status.parry.value',      // Parade (nur mit Waffe)
+  // Hinweis: VW für natürliche Waffen, PA für gehaltene Waffen
+
   // Schutz
   RS: 'system.status.armour.value',
 
@@ -338,23 +350,34 @@ export const DSA5_CREATURE_PATHS = {
 
 ## ❓ Offene Fragen
 
-1. **Wie sind AT-Werte in Foundry gespeichert?**
+1. **✅ VW vs. PA geklärt!**
+   - **VW** (Verteidigungswert) = Ausweichen ohne Waffe (W20 ≤ VW)
+   - **PA** (Parade) = Verteidigung mit Waffe
+   - Feuerdrache: VW 8 (natürliche Waffen)
+   - Field Path: `system.status.defense.value` (VW) oder `system.status.parry.value` (PA)
+
+2. **Wie sind AT-Werte in Foundry gespeichert?**
    - In weapon items?
    - Zentraler AT-Wert?
    - Pro Waffe unterschiedlich?
+   - **Bedarf Foundry-Test!**
 
-2. **Wie viele Aktionen hat eine Kreatur?**
-   - Wo ist das gespeichert?
+3. **Wie viele Aktionen hat eine Kreatur?**
+   - Feuerdrache hat 2 Aktionen
+   - Wo gespeichert? `system.status.actions`?
    - Standard = 1?
+   - **Bedarf Foundry-Test!**
 
-3. **Wie erkenne ich Spezialfähigkeiten?**
+4. **Wie erkenne ich Spezialfähigkeiten?**
    - Aura: In special abilities?
    - Immunität: Flags?
-   - Zauber: Items mit type='spell'?
+   - Zauber: Items mit type='spell'? ✅
+   - **Bedarf Foundry-Test!**
 
-4. **GS-Array oder einzelner Wert?**
+5. **GS-Array oder einzelner Wert?**
    - Feuerdrache hat 13/18 (Boden/Luft)
    - Wie in Foundry strukturiert?
+   - **Bedarf Foundry-Test!**
 
 ---
 
