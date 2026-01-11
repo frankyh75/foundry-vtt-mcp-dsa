@@ -34,7 +34,80 @@ import { MapGenerationTools } from './tools/map-generation.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
-import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
+type ToolDefinition = {
+  name: string;
+  description?: string;
+  inputSchema?: any;
+};
+
+type ToolDefinitionInput = ToolDefinition & Record<string, unknown>;
+
+
+
+
+type ToolResult = {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+};
+
+const normalizeJsonSchema = (schema: any): any => {
+  if (!schema || typeof schema !== 'object') return schema;
+  const normalized = { ...schema };
+
+  if (normalized.type === 'object') {
+    if (normalized.properties && typeof normalized.properties === 'object') {
+      const nextProps: Record<string, any> = {};
+      for (const [key, value] of Object.entries(normalized.properties)) {
+        nextProps[key] = normalizeJsonSchema(value);
+      }
+      normalized.properties = nextProps;
+    }
+  }
+
+  if (normalized.items) {
+    normalized.items = normalizeJsonSchema(normalized.items);
+  }
+
+  return normalized;
+};
+
+const normalizeToolDefinitions = (
+  tools: Array<Omit<ToolDefinition, "description"> & { description?: string | undefined } & Record<string, unknown>>
+): ToolDefinition[] =>
+
+
+  tools.map((tool) => {
+    const normalizedInputSchema = tool.inputSchema
+      ? normalizeJsonSchema(tool.inputSchema)
+      : tool.inputSchema;
+
+    // exactOptionalPropertyTypes: omit description when undefined
+    const { description, ...rest } = tool;
+
+return {
+  ...rest,
+  ...(description !== undefined ? { description } : {}),
+  inputSchema: normalizedInputSchema,
+};
+
+
+  });
+
+
+  
+const buildToolResult = (result: any, maxChars: number): ToolResult => {
+  if (result && typeof result === 'object' && Array.isArray(result.content)) {
+    return result as ToolResult;
+  }
+
+  let text = typeof result === 'string' ? result : JSON.stringify(result);
+  if (text.length > maxChars) {
+    const overflow = text.length - maxChars;
+    text = `${text.slice(0, maxChars)}\n\n[truncated ${overflow} chars; set TOOL_RESPONSE_MAX_CHARS to increase the limit]`;
+  }
+
+  return { content: [{ type: 'text', text }] };
+};
 
 const CONTROL_HOST = '127.0.0.1';
 
@@ -1037,13 +1110,15 @@ async function startBackend(): Promise<void> {
 
     foundryPort: config.foundry.port,
 
+    toolResponseMaxChars: config.toolResponseMaxChars,
+
   });
 
   // Initialize Foundry client and tools
 
   const foundryClient = new FoundryClient(config.foundry, logger);
 
-  // Initialize system registry and register adapters
+  // Initialize SystemRegistry with adapters for multi-system support
   const { getSystemRegistry } = await import('./systems/index.js');
   const { DnD5eAdapter } = await import('./systems/dnd5e/adapter.js');
   const { PF2eAdapter } = await import('./systems/pf2e/adapter.js');
@@ -1065,8 +1140,6 @@ async function startBackend(): Promise<void> {
   const sceneTools = new SceneTools({ foundryClient, logger });
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
-
-  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
 
   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
 
@@ -1287,7 +1360,7 @@ async function startBackend(): Promise<void> {
     backendComfyUIHandlers: (globalThis as any).backendComfyUIHandlers
   });
 
-  const allTools = [
+  const allTools = normalizeToolDefinitions([
 
     ...characterTools.getToolDefinitions(),
 
@@ -1296,8 +1369,6 @@ async function startBackend(): Promise<void> {
     ...sceneTools.getToolDefinitions(),
 
     ...actorCreationTools.getToolDefinitions(),
-
-    ...dsa5CharacterCreator.getToolDefinitions(),
 
     ...questCreationTools.getToolDefinitions(),
 
@@ -1311,7 +1382,7 @@ async function startBackend(): Promise<void> {
 
     ...mapGenerationTools.getToolDefinitions(),
 
-  ];
+  ]);
 
   // Start Foundry connector (owns app port 31415)
 
@@ -1411,24 +1482,6 @@ async function startBackend(): Promise<void> {
 
                   break;
 
-                case 'get-character-entity':
-
-                  result = await characterTools.handleGetCharacterEntity(args);
-
-                  break;
-
-                case 'use-item':
-
-                  result = await characterTools.handleUseItem(args);
-
-                  break;
-
-                case 'search-character-items':
-
-                  result = await characterTools.handleSearchCharacterItems(args);
-
-                  break;
-
                 // Compendium tools
 
                 case 'search-compendium':
@@ -1480,20 +1533,6 @@ async function startBackend(): Promise<void> {
                 case 'get-compendium-entry-full':
 
                   result = await actorCreationTools.handleGetCompendiumEntryFull(args);
-
-                  break;
-
-                // DSA5 character creation tools
-
-                case 'create-dsa5-character-from-archetype':
-
-                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
-
-                  break;
-
-                case 'list-dsa5-archetypes':
-
-                  result = await dsa5CharacterCreator.handleListArchetypes(args);
 
                   break;
 
@@ -1565,7 +1604,7 @@ async function startBackend(): Promise<void> {
 
                   break;
 
-                // Token manipulation tools
+                // Token Manipulation tools
 
                 case 'move-token':
 
@@ -1641,12 +1680,7 @@ async function startBackend(): Promise<void> {
 
               }
 
-              const payload = {
-
-                content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result) }],
-
-              };
-
+              const payload = buildToolResult(result, config.toolResponseMaxChars);
               socket.write(JSON.stringify({ id: msg.id, result: payload }) + '\n');
 
             } catch (e: any) {
@@ -1655,7 +1689,10 @@ async function startBackend(): Promise<void> {
 
               socket.write(
 
-                JSON.stringify({ id: msg.id, result: { content: [{ type: 'text', text: `Error: ${errorMessage}` }], isError: true } }) + '\n'
+                JSON.stringify({
+                  id: msg.id,
+                  result: { ...buildToolResult(`Error: ${errorMessage}`, config.toolResponseMaxChars), isError: true }
+                }) + '\n'
 
               );
 

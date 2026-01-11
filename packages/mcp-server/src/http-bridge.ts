@@ -8,11 +8,15 @@ import process from 'node:process';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import {
-  isJSONRPCErrorResponse,
   isJSONRPCRequest,
-  isJSONRPCResultResponse,
-  type JSONRPCMessage
+  isJSONRPCResponse,
+  type JSONRPCMessage,
+  type JSONRPCResponse,
+  type JSONRPCRequest,
+  type JSONRPCError
 } from '@modelcontextprotocol/sdk/types.js';
+
+
 
 type RequestMeta = {
   startTime: number;
@@ -29,6 +33,12 @@ if (!authToken) {
 
 const httpHost = process.env.MCP_HTTP_HOST || '0.0.0.0';
 const httpPort = Number.parseInt(process.env.MCP_LISTEN_PORT || '3333', 10);
+const isJSONRPCResultResponse = (msg: JSONRPCMessage): msg is JSONRPCResponse & { result: unknown } => {
+  return isJSONRPCResponse(msg) && 'result' in msg;
+};
+const isJSONRPCErrorResponse = (msg: JSONRPCMessage): msg is JSONRPCResponse & { error: JSONRPCError } => {
+  return isJSONRPCResponse(msg) && 'error' in msg;
+};
 
 const serverCommand = process.env.MCP_SERVER_COMMAND || 'node';
 const serverArgsRaw = process.env.MCP_SERVER_ARGS?.trim();
@@ -90,10 +100,15 @@ const isAuthorized = (req: http.IncomingMessage): boolean => {
   return scheme.toLowerCase() === 'bearer' && token === authToken;
 };
 
+const cleanEnv: Record<string, string> = Object.fromEntries(
+  Object.entries(serverEnv).filter(([, v]) => v !== undefined)
+) as Record<string, string>;
+
+
 const stdioTransport = new StdioClientTransport({
   command: serverCommand,
   args: serverArgs,
-  env: serverEnv,
+  env: cleanEnv,
   stderr: 'inherit'
 });
 
@@ -106,11 +121,14 @@ httpTransport.onmessage = async (message: JSONRPCMessage, extra) => {
   if (isJSONRPCRequest(message) && message.id !== undefined) {
     const requestId = String(message.id);
     const toolName = message.method === 'tools/call' ? (message.params as any)?.name : undefined;
+
+    const remoteIp = getRemoteIp(extra?.requestInfo?.headers as RequestHeaders);
+
     requestMeta.set(requestId, {
       startTime: Date.now(),
       method: message.method,
       toolName,
-      remoteIp: getRemoteIp(extra?.requestInfo?.headers as RequestHeaders)
+      ...(remoteIp !== undefined ? { remoteIp } : {})
     });
   }
 
@@ -122,6 +140,7 @@ httpTransport.onmessage = async (message: JSONRPCMessage, extra) => {
     });
   }
 };
+
 
 stdioTransport.onmessage = async (message: JSONRPCMessage) => {
   const requestId =
@@ -141,9 +160,9 @@ stdioTransport.onmessage = async (message: JSONRPCMessage) => {
     const meta = requestMeta.get(requestId);
     if (meta) {
       const durationMs = Date.now() - meta.startTime;
-      const errorReason = isJSONRPCErrorResponse(message)
-        ? message.error?.message
-        : undefined;
+      const errorReason = 'error' in message && message.error
+  ? message.error.message
+  : undefined;
       logInfo('mcp.request.completed', {
         requestId,
         remoteIp: meta.remoteIp,
