@@ -1,0 +1,14 @@
+FROM node:18-slim
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY packages ./packages
+COPY shared ./shared
+
+RUN npm ci
+RUN npm run build --workspace=shared --workspace=packages/mcp-server
+
+EXPOSE 3333
+
+CMD ["node", "packages/mcp-server/dist/http-bridge.js"]

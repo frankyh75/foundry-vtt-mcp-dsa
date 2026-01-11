@@ -89,6 +89,42 @@ Add this to your Claude Desktop configuration (claude_desktop_config.json) file:
 
 Starting Claude Desktop will start the MCP Server.
 
+## ChatGPT Pro (Developer Mode) – 10 Minuten Setup
+
+Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP HTTP Endpoint öffentlich bereitzustellen (Foundry bleibt lokal). Der MCP Endpoint ist per Bearer Token geschützt.
+
+### Voraussetzungen
+
+- Docker Desktop (Windows/Mac)
+- Foundry VTT läuft lokal mit aktiviertem **Foundry MCP Bridge** Modul
+
+### Schritte
+
+1. Lege deine lokale `.env` an:
+   ```bash
+   cp .env.example .env
+   ```
+   - Setze **MCP_AUTH_TOKEN** auf einen starken Wert.
+   - Wenn Foundry auf deinem Host läuft, belasse `FOUNDRY_HOST=host.docker.internal`.
+2. Starte den MCP HTTP Endpoint + Tunnel:
+   ```bash
+   docker compose up
+   ```
+3. Warte auf die Cloudflare-Ausgabe und kopiere die **https://...trycloudflare.com** URL aus den Logs.
+4. Öffne ChatGPT → **Settings → Connectors → Developer Mode → Add MCP Server**:
+   - **Name:** Foundry MCP
+   - **URL:** `https://<deine-url>.trycloudflare.com/mcp`
+   - **Auth:** Bearer Token → Wert aus `MCP_AUTH_TOKEN`
+5. Fertig! Du kannst jetzt Tools aus deinem Foundry World in ChatGPT verwenden.
+
+> **Sicherheit:** Der Tunnel macht den MCP Endpoint öffentlich. Ohne gültiges Token gibt es **401**. Teile den Token nicht.
+
+### Smoke Test (optional)
+
+```bash
+./scripts/smoke-test-chatgpt.sh
+```
+
 ### Getting Started
 
 1. Start Foundry VTT and load your world
