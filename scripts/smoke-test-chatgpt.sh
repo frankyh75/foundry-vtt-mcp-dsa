@@ -4,6 +4,18 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+compose_file="${ROOT_DIR}/docker-compose.yml"
+if [ -f "$compose_file" ]; then
+  if ! rg -q "mcp-http-bridge:3333" "$compose_file"; then
+    echo "FAIL: cloudflared target must be http://mcp-http-bridge:3333."
+    exit 1
+  fi
+  if ! rg -q "MCP_LISTEN_PORT:\\s*3333" "$compose_file"; then
+    echo "FAIL: mcp-http-bridge must listen on port 3333 in compose."
+    exit 1
+  fi
+fi
+
 if [ -f .env ]; then
   set -a
   # shellcheck disable=SC1091
