@@ -34,6 +34,58 @@ import { MapGenerationTools } from './tools/map-generation.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
+type ToolDefinition = {
+  name: string;
+  description?: string;
+  inputSchema?: any;
+};
+
+type ToolResult = {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+};
+
+const normalizeJsonSchema = (schema: any): any => {
+  if (!schema || typeof schema !== 'object') return schema;
+  const normalized = { ...schema };
+
+  if (normalized.type === 'object') {
+    if (normalized.properties && typeof normalized.properties === 'object') {
+      const nextProps: Record<string, any> = {};
+      for (const [key, value] of Object.entries(normalized.properties)) {
+        nextProps[key] = normalizeJsonSchema(value);
+      }
+      normalized.properties = nextProps;
+    }
+  }
+
+  if (normalized.items) {
+    normalized.items = normalizeJsonSchema(normalized.items);
+  }
+
+  return normalized;
+};
+
+const normalizeToolDefinitions = (tools: ToolDefinition[]): ToolDefinition[] =>
+  tools.map((tool) => ({
+    ...tool,
+    inputSchema: tool.inputSchema ? normalizeJsonSchema(tool.inputSchema) : tool.inputSchema,
+  }));
+
+const buildToolResult = (result: any, maxChars: number): ToolResult => {
+  if (result && typeof result === 'object' && Array.isArray(result.content)) {
+    return result as ToolResult;
+  }
+
+  let text = typeof result === 'string' ? result : JSON.stringify(result);
+  if (text.length > maxChars) {
+    const overflow = text.length - maxChars;
+    text = `${text.slice(0, maxChars)}\n\n[truncated ${overflow} chars; set TOOL_RESPONSE_MAX_CHARS to increase the limit]`;
+  }
+
+  return { content: [{ type: 'text', text }] };
+};
+
 const CONTROL_HOST = '127.0.0.1';
 
 const CONTROL_PORT = 31414;
@@ -1035,6 +1087,8 @@ async function startBackend(): Promise<void> {
 
     foundryPort: config.foundry.port,
 
+    toolResponseMaxChars: config.toolResponseMaxChars,
+
   });
 
   // Initialize Foundry client and tools
@@ -1283,7 +1337,7 @@ async function startBackend(): Promise<void> {
     backendComfyUIHandlers: (globalThis as any).backendComfyUIHandlers
   });
 
-  const allTools = [
+  const allTools = normalizeToolDefinitions([
 
     ...characterTools.getToolDefinitions(),
 
@@ -1305,7 +1359,7 @@ async function startBackend(): Promise<void> {
 
     ...mapGenerationTools.getToolDefinitions(),
 
-  ];
+  ]);
 
   // Start Foundry connector (owns app port 31415)
 
@@ -1603,12 +1657,7 @@ async function startBackend(): Promise<void> {
 
               }
 
-              const payload = {
-
-                content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result) }],
-
-              };
-
+              const payload = buildToolResult(result, config.toolResponseMaxChars);
               socket.write(JSON.stringify({ id: msg.id, result: payload }) + '\n');
 
             } catch (e: any) {
@@ -1617,7 +1666,10 @@ async function startBackend(): Promise<void> {
 
               socket.write(
 
-                JSON.stringify({ id: msg.id, result: { content: [{ type: 'text', text: `Error: ${errorMessage}` }], isError: true } }) + '\n'
+                JSON.stringify({
+                  id: msg.id,
+                  result: { ...buildToolResult(`Error: ${errorMessage}`, config.toolResponseMaxChars), isError: true }
+                }) + '\n'
 
               );
 

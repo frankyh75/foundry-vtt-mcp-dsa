@@ -1,22 +1,72 @@
-## v0.6.3 (2025-12-07)
+## v0.6.2 (2025-12-03)
 
 ### New Features
 
-- **Character Entity Tool**: Added `get-character-entity` tool for retrieving detailed information about items, actions, and effects within characters
-- **Token Manipulation Suite**: Added 6 new token manipulation tools:
+- **Spellcasting Data Extraction** (Issue #14)
+  - `get-character` now returns full spellcasting entries with spell lists
+  - PF2e: Spellcasting entries with traditions, DC, attack, slots, prepared/expended status
+  - D&D 5e: Class-based spellcasting with spell slots and prepared spells
+  - DSA5: Zauber (spells), Liturgien, Zeremonien, Rituale with AsP/KaP tracking
+  - **Spell Targeting Info**: Each spell now includes `range`, `target`, and `area` fields
+    - D&D 5e: Range (Self/Touch/60 ft), target type (1 creature/self/area), area template
+    - PF2e: Range, descriptive target, area type (emanation/cone/burst)
+    - DSA5: Reichweite, Zielkategorie, Wirkungsbereich
+
+- **Use Item Tool** (`use-item`)
+  - Cast spells, use abilities, activate features, consume items
+  - Works across systems: D&D 5e, PF2e, DSA5
+  - Supports spell upcasting (D&D 5e)
+  - Proper resource consumption (spell slots, charges, consumables)
+  - GM-only with character targeting
+  - **Target Selection**: Specify targets by name or use `["self"]` to target caster
+    - Example: "Have Clark cast Magic Missile on the Goblin"
+    - Example: "Have Vitch use a healing potion on himself"
+    - Targets set via Foundry's targeting system before item use
+
+- **Search Character Items Tool** (`search-character-items`)
+  - Token-efficient item search within a character's inventory
+  - Filter by type (weapon, spell, feat, equipment, etc.)
+  - Filter by category (items, spells, features, all)
+  - Text search across item names and descriptions
+  - Returns compact results without full descriptions
+
+---
+
+## v0.6.1 (2025-12-03)
+
+### New Features
+
+- **DSA5 System Support** (PR #12 by @frankyh75)
+  - Full SystemAdapter implementation for Das Schwarze Auge 5
+  - Supports all 8 Eigenschaften (MU/KL/IN/CH/FF/GE/KO/KK)
+  - LeP, AsP, KaP resource tracking
+  - DSA5-specific filters: level, species, culture, size, hasSpells
+  - DSA5IndexBuilder for creature compendium indexing
+  - DSA5 character creation from archetypes
+
+- **Token Manipulation Tools** (PR #13)
   - `move-token` - Move tokens with optional animation
-  - `update-token` - Update token properties (name, scale, visibility, elevation, etc.)
-  - `delete-tokens` - Delete one or multiple tokens from the scene
-  - `get-token-details` - Get comprehensive token information including position, disposition, and effects
-  - `toggle-token-condition` - Apply or remove status conditions/effects from tokens
-  - `get-available-conditions` - List all available conditions for the current game system
+  - `update-token` - Update visibility, disposition, size, rotation, elevation
+  - `delete-tokens` - Bulk token deletion
+  - `get-token-details` - Detailed token info with linked actor data
+  - `toggle-token-condition` - Apply/remove status effects (prone, poisoned, etc.)
+  - `get-available-conditions` - List system-specific status effects
+
+- **Character API Optimization** (PR #9)
+  - Lazy-loading: `get-character` now returns minimal item metadata (no descriptions)
+  - New `get-character-entity` tool for on-demand full entity details
+  - Removed 20-item limit - now returns ALL items
+  - ~37% token reduction per character
+  - PF2e: traits, rarity, level, actionType
+  - D&D 5e: attunement status
 
 ### Improvements
 
-- Enhanced MCP tool count from 26 to 33 tools
-- Added comprehensive Foundry module handlers for all new tools
-- Improved error handling and validation for token operations
-- Added system-agnostic condition management that works across D&D 5e, PF2e, and DSA5
+- **Documentation** (PR #8)
+  - Clarified search-compendium limitations (name-only search, heuristic filters)
+  - Directed users to list-creatures-by-criteria for accurate filtering
+
+---
 
 ## v0.4.17 (2025-09-09)
 

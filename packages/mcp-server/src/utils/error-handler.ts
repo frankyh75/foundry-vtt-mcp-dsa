@@ -140,9 +140,9 @@ export class ErrorHandler {
   }
 
   /**
-   * Format error for Claude response
+   * Format error for MCP client response
    */
-  formatErrorForClaude(mcpError: MCPError, toolName: string): string {
+  formatErrorMessage(mcpError: MCPError, toolName: string): string {
     const typeEmoji = this.getErrorEmoji(mcpError.type);
     const recoveryText = mcpError.recoverable ? '🔄 **This can be fixed**' : '⚠️ **System error**';
     
@@ -214,7 +214,7 @@ export class ErrorHandler {
     const mcpError = this.mapFoundryError(error, `${toolName} ${context}`.trim());
     this.logError(mcpError, toolName, error);
     
-    const formattedMessage = this.formatErrorForClaude(mcpError, toolName);
+    const formattedMessage = this.formatErrorMessage(mcpError, toolName);
     throw new Error(formattedMessage);
   }
 
