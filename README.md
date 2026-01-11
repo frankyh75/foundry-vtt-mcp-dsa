@@ -105,6 +105,7 @@ Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP H
    cp .env.example .env
    ```
    - Setze **MCP_AUTH_TOKEN** auf einen starken Wert.
+   - **MCP_HTTP_PORT** steuert nur den Host-Port; der Container lauscht immer auf **3333**.
    - Wenn Foundry auf deinem Host läuft, belasse `FOUNDRY_HOST=host.docker.internal`.
 2. Starte den MCP HTTP Endpoint + Tunnel:
    ```bash

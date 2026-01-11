@@ -28,7 +28,7 @@ if (!authToken) {
 }
 
 const httpHost = process.env.MCP_HTTP_HOST || '0.0.0.0';
-const httpPort = Number.parseInt(process.env.MCP_HTTP_PORT || '3333', 10);
+const httpPort = Number.parseInt(process.env.MCP_LISTEN_PORT || '3333', 10);
 
 const serverCommand = process.env.MCP_SERVER_COMMAND || 'node';
 const serverArgsRaw = process.env.MCP_SERVER_ARGS?.trim();
