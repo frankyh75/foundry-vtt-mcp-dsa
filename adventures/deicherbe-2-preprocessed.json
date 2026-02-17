@@ -1,0 +1,204 @@
+{
+"metadata": {
+"title": "Deicherbe",
+"genre": "Abenteuer/Kurzabenteuer",
+"complexity": "gering – gering",
+"playerCount": "3-5",
+"locations": ["Nostria", "Salza", "Thorwal", "Küstenstraße", "Lyckwieden"],
+"timeframe": "1027 BF",
+"description": "Die Helden helfen dem Bauern Elidan, dessen Hof durch einen alten Fluch und einen bevorstehenden Thorwaler-Überfall bedroht ist. Dabei begegnen sie mysteriösen Ereignissen, einem Krakenmolch und einer Hexe, die Hinweise auf das Übel liefert. Das Abenteuer behandelt Loyalität, Angst und den Schutz einfacher Leute."
+},
+"scenes": [
+{
+"id": 2,
+"title": "Auf dem Deichbauernhof",
+"type": "exploration",
+"description": "Die Helden erreichen das Anwesen von Elidan. Sie lernen seine Familie kennen und erhalten Einblick in das Dorfleben. Gemeinsam sollen sie beim Deichbau helfen, wobei sie auf verschiedene Probleme stoßen.",
+"readAloudText": "Elidan steht vor seinem Haus, von wo aus man den Deich und die nahen Wiesen sehen kann. Er winkt den Helden freundlich zu und bittet sie hinein.",
+"challenges": [
+{
+"type": "skill_check",
+"skill": "Holzbearbeitung",
+"attributes": ["FF", "KO", "KK"],
+"modifier": -1,
+"description": "Reparatur beschädigter Deichstellen mit Holz- und Steinmaterialien."
+},
+{
+"type": "skill_check",
+"skill": "Fährtensuchen",
+"attributes": ["MU", "IN", "KL"],
+"modifier": 0,
+"description": "Spuren im Schlamm deuten auf fremde Bewegungen hin."
+}
+],
+"npcs": ["Elidan", "Elidans Kinder"],
+"items": [],
+"locationDescription": "Ein ländlicher Deichhof nahe der Küste mit Feldern, Scheune und einfachem Wohnhaus",
+"needsMap": true
+},
+{
+"id": 3,
+"title": "Ein nächtlicher Besuch",
+"type": "combat",
+"description": "In der Nacht dringt ein deformiertes Wesen in das Haus ein. Es greift die Bewohner an, bis es überwältigt wird. Später stellt sich heraus, dass es sich um einen ehemaligen Nachbarn handelt, der vom Fluch befallen war.",
+"readAloudText": "Ein widerlicher, fauliger Geruch liegt in der Luft. Im Dämmerlicht erkennt ihr eine Kreatur mit verzerrtem Gesicht, die sich kriechend nähert – mit einer rostigen Gabel bewaffnet.",
+"challenges": [
+{
+"type": "combat",
+"skill": "Körperbeherrschung",
+"attributes": ["KO", "GE", "FF"],
+"modifier": 0,
+"description": "Kampf gegen die mutierte Kreatur mit improvisierten Waffen im engen Haus."
+}
+],
+"npcs": ["Deichbauer (verflucht)"],
+"items": ["Rostige Gabel"],
+"locationDescription": "Innenbereich des Bauernhauses, beengte Verhältnisse, Möbel und Werkzeuge",
+"needsMap": true
+},
+{
+"id": 4,
+"title": "Der Thorwaler-Überfall",
+"type": "combat",
+"description": "Thorwaler greifen den Hof an, während die Flut steigt. Die Helden müssen den Bauernhof verteidigen und die Familie schützen. Möglicherweise kommt es zu einem Duell mit dem Anführer.",
+"readAloudText": "Das Tosen der See übertönt fast das Kriegsgeschrei. Im aufgewühlten Licht der Fackeln erscheinen Thorwaler am Horizont, Äxte und Schilde bereit.",
+"challenges": [
+{
+"type": "combat",
+"skill": "Kriegsführung",
+"attributes": ["MU", "IN", "KL"],
+"modifier": 0,
+"description": "Verteidigung des Hofes durch geschickte Positionierung und Taktik."
+}
+],
+"npcs": ["Thorbold Vaarnason", "Thorwaler"],
+"items": ["Streitaxt", "Thorwaler-Rüstung"],
+"locationDescription": "Offenes Gelände um den Deichhof mit Hindernissen, Stallungen und Feldern",
+"needsMap": true
+},
+{
+"id": 5,
+"title": "Gespräch mit der Hexe",
+"type": "social",
+"description": "Die Helden finden die zurückgezogen lebende Hexe Karlitha, die Hinweise zur Natur des Fluchs geben kann. Die Gespräche erfordern diplomatisches Geschick und Empathie.",
+"readAloudText": "Karlitha sitzt ruhig in ihrer Hütte, mit einem Blick, der gleichzeitig müde und wissend wirkt. 'Ihr kommt wegen des Fluchs? Die Zeit drängt...'",
+"challenges": [
+{
+"type": "skill_check",
+"skill": "Überreden",
+"attributes": ["MU", "CH", "IN"],
+"modifier": 0,
+"description": "Karlitha zur Kooperation bewegen, ohne sie zu bedrängen."
+}
+],
+"npcs": ["Karlitha"],
+"items": ["Fluchsalbe", "Kräuter"],
+"locationDescription": "Hexenhütte im Wald, umgeben von Nebel, Tieren und Kräutergärten",
+"needsMap": true
+}
+],
+"npcs": [
+{
+"name": "Elidan",
+"role": "protagonist",
+"attributes": {
+"MU": 12, "KL": 11, "IN": 12, "CH": 11,
+"FF": 12, "GE": 10, "KO": 13, "KK": 13
+},
+"LeP": 32,
+"AsP": null,
+"KaP": null,
+"skills": [
+{"name": "Holzbearbeitung", "value": 5},
+{"name": "Schwimmen", "value": 3},
+{"name": "Kraftakt", "value": 4}
+],
+"specialAbilities": ["Zäher Hund", "Verwurzelt"],
+"equipment": ["Arbeitskleidung", "Werkzeug"],
+"description": "Ein bodenständiger, ehrlicher Bauer mit starkem Familiensinn, der mit den Widrigkeiten seines verfluchten Hofes kämpft.",
+"motivation": "Er will seine Familie beschützen und den Fluch bannen, um ein neues Leben zu beginnen.",
+"secrets": "Hat den verfluchten Zahn aus dem Watt nicht korrekt entsorgt, sondern vergraben."
+},
+{
+"name": "Karlitha",
+"role": "supporting",
+"attributes": {
+"MU": 13, "KL": 15, "IN": 14, "CH": 12,
+"FF": 12, "GE": 11, "KO": 10, "KK": 8
+},
+"LeP": 24,
+"AsP": 30,
+"KaP": null,
+"skills": [
+{"name": "Alchimie", "value": 8},
+{"name": "Heilkunde Seele", "value": 6},
+{"name": "Magiekunde", "value": 7}
+],
+"specialAbilities": ["Zaubertrank brauen", "Vertrautentier"],
+"equipment": ["Hexenkessel", "Rabenfeder", "Kräuter"],
+"description": "Zurückgezogen lebende Hexe mit düsterem Ruf, aber großem Wissen über Flüche und Heilung.",
+"motivation": "Sie will das alte Unrecht wiedergutmachen, ohne erneut in die Dorfgemeinschaft gezogen zu werden.",
+"secrets": "Kennt den Ursprung des Fluchs und hat einst Elidans Familie nicht geholfen – aus Angst vor Vergeltung."
+},
+{
+"name": "Thorbold Vaarnason",
+"role": "antagonist",
+"attributes": {
+"MU": 14, "KL": 11, "IN": 12, "CH": 10,
+"FF": 9, "GE": 13, "KO": 15, "KK": 14
+},
+"LeP": 40,
+"AsP": null,
+"KaP": null,
+"skills": [
+{"name": "Kriegsführung", "value": 7},
+{"name": "Einschüchtern", "value": 6},
+{"name": "Kraftakt", "value": 6}
+],
+"specialAbilities": ["Anführer der Plünderer", "Waffenmeister"],
+"equipment": ["Thorwaler-Axt", "Lederrüstung"],
+"description": "Ein brutaler und entschlossener Thorwaler, der durch Stärke und Furcht führt.",
+"motivation": "Er sucht Ruhm und Beute, um seine Stellung im eigenen Clan zu sichern.",
+"secrets": "Er hat Zweifel an seiner Mission, will aber vor seinen Männern keine Schwäche zeigen."
+}
+],
+"locations": [
+{
+"name": "Deichbauernhof Nostria",
+"type": "coastal",
+"description": "Ein abgelegener Bauernhof in Küstennähe, umgeben von Feldern, Deichen und salzhaltigen Wiesen. Das einfache Wohnhaus ist Zentrum des Geschehens.",
+"mapPrompt": "DSA5 battlemap: coastal nostrian farmhouse with deich, barn, sheep paddock, muddy paths, top-down view, detailed",
+"size": "medium",
+"features": ["Haus", "Scheune", "Deich", "Feldweg", "Keller"]
+},
+{
+"name": "Karlithas Hexenhütte",
+"type": "forest",
+"description": "Versteckt im dichten Wald liegt eine alte, verwilderte Hütte mit Garten und Tierspuren. Der Ort wirkt gleichzeitig heimelig und unheimlich.",
+"mapPrompt": "DSA5 battlemap: witch's hut in dark forest clearing with herb garden and mist, top-down view, detailed",
+"size": "small",
+"features": ["Hütte", "Kräutergarten", "Vogelnest", "Feuerstelle"]
+}
+],
+"items": [
+{
+"name": "Rostige Gabel",
+"type": "weapon",
+"description": "Improvisierte Stichwaffe mit Alters- und Wetterschäden.",
+"properties": {
+"TP": "1W6+1",
+"Bruchfaktor": 2
+}
+},
+{
+"name": "Fluchsalbe",
+"type": "magical",
+"description": "Eine dickflüssige, übelriechende Paste, die zur Beseitigung von Fluchspuren verwendet wird.",
+"properties": {
+"Anwendung": "äußerlich",
+"Wirkung": "Löst einfache Verfluchungen bei Toten und Lebenden"
+}
+}
+],
+"spells": []
+}

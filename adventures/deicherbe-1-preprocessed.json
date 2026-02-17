@@ -1,0 +1,81 @@
+{
+"metadata": {
+"title": "Deicherbe",
+"genre": "Abenteuer/Kurzabenteuer",
+"complexity": "gering – gering",
+"playerCount": "3-5",
+"locations": ["Nostria", "Seenland"],
+"timeframe": "1027 BF",
+"description": "In Nostria helfen die Helden einem Bauern, dessen Hof von Fluch und Thorwalertreiben bedroht wird. Die Spur führt zu einem verfluchten Zahn im Deich und einer seltsamen Verwandlung. Ein bodenständiges Abenteuer über Loyalität, Aberglaube und den Mut einfacher Menschen."
+},
+"scenes": [
+{
+"id": 1,
+"title": "Ein Kind in Not",
+"type": "exploration",
+"description": "Die Helden entdecken auf dem Rückweg ein Kind, das im Wattenmeer eingesunken ist. Der Junge steckt fest und droht zu ertrinken. Die Szene bietet Gelegenheit für Heldentum und erste Einbindung der Heldengruppe.",
+"readAloudText": "Das Wasser ist bereits so weit zurückgekehrt, dass nur mehr Alsilios Brust und Kopf über Wasser ragen und man ihn nur noch schwimmend (oder fliegend) erreichen kann.",
+"challenges": [
+{
+"type": "skill_check",
+"skill": "Heilkunde Seele",
+"attributes": ["MU", "IN", "CH"],
+"modifier": 0,
+"description": "Das Kind beruhigen, falls es in Panik gerät."
+},
+{
+"type": "skill_check",
+"skill": "Kraftakt",
+"attributes": ["KO", "KK", "GE"],
+"modifier": -1,
+"description": "Kind aus dem Schlick ziehen (Ziehen & Zerren)."
+},
+{
+"type": "skill_check",
+"skill": "Schwimmen",
+"attributes": ["GE", "KO", "KK"],
+"modifier": 0,
+"description": "Sicher zum Kind schwimmen und es zurückbringen."
+}
+],
+"npcs": ["Alsilio"],
+"items": [],
+"locationDescription": "Küstenstraße mit angrenzendem Schlickfeld, nahe einem Prielen, im nostrischen Seenland",
+"needsMap": true
+}
+],
+"npcs": [
+{
+"name": "Alsilio",
+"role": "minor",
+"attributes": {
+"MU": 8, "KL": 9, "IN": 10, "CH": 8,
+"FF": 9, "GE": 10, "KO": 8, "KK": 7
+},
+"LeP": 20,
+"AsP": null,
+"KaP": null,
+"skills": [
+{"name": "Schwimmen", "value": 2},
+{"name": "Orientierung", "value": 3}
+],
+"specialAbilities": [],
+"equipment": ["Kindlicher Wanderstab", "kleiner Beutel"],
+"description": "Alsilio ist der junge Sohn des Bauern Elidan, abenteuerlustig, etwas ungestüm und von der Suche nach Schätzen fasziniert.",
+"motivation": "Er wollte seinen Mut beweisen, indem er allein zum Watt aufbrach, um verborgene Schätze zu finden.",
+"secrets": "Er hat in der Vergangenheit beobachtet, wie der Vater heimlich etwas im Deich vergraben hat."
+}
+],
+"locations": [
+{
+"name": "Nostria – Seenland am Deich",
+"type": "coastal",
+"description": "Ein raues, windgepeitschtes Küstengebiet mit Wattflächen, kleinen Prielen und einem alten, von Flüchen belasteten Deichbauernhof.",
+"mapPrompt": "DSA5 battlemap: nostrian coastal deichfarm with small house, barn, dike, muddy paths and flooded fields, detailed, top-down view",
+"size": "medium",
+"features": ["Deich", "Wattfläche", "altes Bauernhaus", "kleiner Keller", "Schafstall"]
+}
+],
+"items": [],
+"spells": []
+}
