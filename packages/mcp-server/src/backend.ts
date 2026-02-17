@@ -22,6 +22,8 @@ import { SceneTools } from './tools/scene.js';
 
 import { ActorCreationTools } from './tools/actor-creation.js';
 
+import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
+
 import { QuestCreationTools } from './tools/quest-creation.js';
 
 import { DiceRollTools } from './tools/dice-roll.js';
@@ -1141,6 +1143,9 @@ async function startBackend(): Promise<void> {
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
 
+  // DSA5-specific character creation tools
+  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
+
   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
 
   const diceRollTools = new DiceRollTools({ foundryClient, logger });
@@ -1370,6 +1375,8 @@ async function startBackend(): Promise<void> {
 
     ...actorCreationTools.getToolDefinitions(),
 
+    ...dsa5CharacterCreator.getToolDefinitions(),
+
     ...questCreationTools.getToolDefinitions(),
 
     ...diceRollTools.getToolDefinitions(),
@@ -1476,9 +1483,27 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'get-character-entity':
+
+                  result = await characterTools.handleGetCharacterEntity(args);
+
+                  break;
+
                 case 'list-characters':
 
                   result = await characterTools.handleListCharacters(args);
+
+                  break;
+
+                case 'use-item':
+
+                  result = await characterTools.handleUseItem(args);
+
+                  break;
+
+                case 'search-character-items':
+
+                  result = await characterTools.handleSearchCharacterItems(args);
 
                   break;
 
@@ -1533,6 +1558,19 @@ async function startBackend(): Promise<void> {
                 case 'get-compendium-entry-full':
 
                   result = await actorCreationTools.handleGetCompendiumEntryFull(args);
+
+                  break;
+
+                // DSA5 character creation tools
+                case 'create-dsa5-character-from-archetype':
+
+                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
+
+                  break;
+
+                case 'list-dsa5-archetypes':
+
+                  result = await dsa5CharacterCreator.handleListArchetypes(args);
 
                   break;
 

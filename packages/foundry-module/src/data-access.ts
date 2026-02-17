@@ -2891,6 +2891,35 @@ export class FoundryDataAccess {
   }
 
   /**
+   * Get pack index for a specific compendium pack
+   * Returns the index containing all documents in the pack without loading full documents
+   */
+  async getPackIndex(packId: string): Promise<any[]> {
+    try {
+      const pack = game.packs.get(packId);
+      if (!pack) {
+        throw new Error(`Compendium pack "${packId}" not found`);
+      }
+
+      // Ensure pack index is loaded
+      if (!pack.indexed) {
+        await pack.getIndex({});
+      }
+
+      // Return index as array of entries
+      const indexArray = Array.from(pack.index.values());
+      
+      console.log(`[${this.moduleId}] Retrieved pack index for ${packId}: ${indexArray.length} entries`);
+
+      return indexArray;
+
+    } catch (error) {
+      console.error(`[${this.moduleId}] Failed to get pack index for ${packId}:`, error);
+      throw new Error(`Failed to get pack index for ${packId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Sanitize data to remove sensitive information and make it JSON-safe
    */
   private sanitizeData(data: any): any {
