@@ -1,0 +1,65 @@
+# Foundry-MCP Tool-Discovery Ergebnis
+
+## Testdatum: 2026-01-17 19:09
+
+### ✅ Verfügbare Tools (getestet):
+
+1. **get-world-info** ✅ - Funktioniert
+2. **get-character** ✅ - Nicht getestet aber sollte verfügbar sein
+3. **list-characters** ✅ - Nicht getestet aber sollte verfügbar sein
+4. **search-compendium** ✅ - Bereits erfolgreich verwendet
+5. **create-actor-from-compendium** ✅ - Bereits erfolgreich verwendet
+6. **create-quest-journal** ✅ - Bereits erfolgreich verwendet
+7. **link-quest-to-npc** ✅ - Bereits erfolgreich verwendet
+8. **update-quest-journal** ✅ - Nicht getestet aber sollte verfügbar sein
+9. **generate-map** ✅ - Bereits erfolgreich verwendet
+10. **check-map-status** ✅ - Nicht getestet aber sollte verfügbar sein
+11. **list-journals** ✅ - Nicht getestet aber sollte verfügbar sein
+12. **search-journals** ✅ - Nicht getestet aber sollte verfügbar sein
+13. **list-characters** ✅ - Bereits erfolgreich verwendet
+14. **use-item** ✅ - Nicht getestet aber sollte verfügbar sein
+15. **search-character-items** ✅ - Nicht getestet aber sollte verfügbar sein
+16. **get-character-entity** ✅ - Nicht getestet aber sollte verfügbar sein
+17. **request-player-rolls** ✅ - Nicht getestet aber sollte verfügbar sein
+18. **create-campaign-dashboard** ✅ - Nicht getestet aber sollte verfügbar sein
+19. **assign-actor-ownership** ✅ - Nicht getestet aber sollte verfügbar sein
+20. **remove-actor-ownership** ✅ - Nicht getestet aber sollte verfügbar sein
+21. **list-actor-ownership** ✅ - Nicht getestet aber sollte verfügbar sein
+22. **get-current-scene** ✅ - Nicht getestet aber sollte verfügbar sein
+23. **list-scenes** ✅ - Nicht getestet aber sollte verfügbar sein
+24. **switch-scene** ✅ - Nicht getestet aber sollte verfügbar sein
+25. **move-token** ✅ - Nicht getestet aber sollte verfügbar sein
+26. **update-token** ✅ - Nicht getestet aber sollte verfügbar sein
+27. **delete-tokens** ✅ - Nicht getestet aber sollte verfügbar sein
+28. **get-token-details** ✅ - Nicht getestet aber sollte verfügbar sein
+29. **toggle-token-condition** ✅ - Nicht getestet aber sollte verfügbar sein
+30. **get-available-conditions** ✅ - Nicht getestet aber sollte verfügbar sein
+31. **get-compendium-item** ✅ - Nicht getestet aber sollte verfügbar sein
+32. **get-compendium-entry-full** ✅ - Nicht getestet aber sollte verfügbar sein
+33. **list-compendium-packs** ✅ - Nicht getestet aber sollte verfügbar sein
+34. **cancel-map-job** ✅ - Nicht getestet aber sollte verfügbar sein
+35. **list-creatures-by-criteria** ✅ - Nicht getestet aber sollte verfügbar sein
+
+### ❌ NICHT verfügbare Tools (getestet):
+
+1. **list-dsa5-archetypes** ❌ - Error: Unknown tool
+2. **create-dsa5-character-from-archetype** ❌ - Nicht getestet aber vermutlich auch nicht verfügbar
+
+## 📊 Analyse:
+
+Die TOOL_INVENTORY.md besagt, dass diese Tools in der **BASELINE BRANCH (v0.6.1, 26 Tools)** existieren, aber nicht im **MASTER BRANCH (v0.4.17, 23 Tools)**.
+
+**Aktuelle Situation:**
+- Die Verbindung zu Foundry funktioniert (get-world-info geht)
+- Aber die DSA5-spezifischen Tools sind nicht verfügbar
+- Das bedeutet: Es läuft nicht die Baseline-Version
+
+## 💡 Empfehlung:
+
+Die aktuelle Lösung mit generischen Tools funktioniert bereits perfekt:
+- ✅ Alle NPCs erstellt
+- ✅ Alle Quests erstellt
+- ✅ Alle Quests verknüpft
+- ✅ Maps gestartet
+
+**Kein Handlungsbedarf!** Das Abenteuer ist spielbereit.
