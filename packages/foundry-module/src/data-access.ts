@@ -3515,6 +3515,133 @@ export class FoundryDataAccess {
   }
 
   /**
+   * Create an actor directly from provided actor data (generic import path).
+   * Intended for system-specific importers that already mapped source JSON to Foundry actor shape.
+   */
+  async createActorFromData(request: {
+    actorData: Record<string, unknown>;
+    addToScene?: boolean;
+    placement?: {
+      type: 'random' | 'grid' | 'center' | 'coordinates';
+      coordinates?: { x: number; y: number }[];
+    };
+  }): Promise<{
+    success: boolean;
+    actor?: { id: string; name: string; type: string };
+    tokensPlaced?: number;
+    errors?: string[];
+  }> {
+    this.validateFoundryState();
+
+    const permissionCheck = permissionManager.checkWritePermission('createActor', { quantity: 1 });
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+    permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
+
+    try {
+      const actorData = foundry.utils.deepClone(request.actorData) as any;
+
+      delete actorData._id;
+      delete actorData.sort;
+
+      if (!actorData.name || typeof actorData.name !== 'string') {
+        throw new Error('actorData.name is required and must be a string');
+      }
+      if (!actorData.type || typeof actorData.type !== 'string') {
+        actorData.type = 'character';
+      }
+      if (!actorData.system || typeof actorData.system !== 'object') {
+        actorData.system = {};
+      }
+
+      if (Array.isArray(actorData.items)) {
+        actorData.items = actorData.items
+          .filter((item: any) => item && typeof item === 'object')
+          .map((item: any) => {
+            const clonedItem = foundry.utils.deepClone(item);
+            delete clonedItem._id;
+            delete clonedItem.folder;
+            delete clonedItem.sort;
+            return clonedItem;
+          });
+      } else {
+        actorData.items = [];
+      }
+
+      if (Array.isArray(actorData.effects)) {
+        actorData.effects = actorData.effects
+          .filter((effect: any) => effect && typeof effect === 'object')
+          .map((effect: any) => {
+            const clonedEffect = foundry.utils.deepClone(effect);
+            delete clonedEffect._id;
+            delete clonedEffect.folder;
+            delete clonedEffect.sort;
+            return clonedEffect;
+          });
+      } else {
+        actorData.effects = [];
+      }
+
+      if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
+        actorData.prototypeToken.texture.src = null;
+      }
+
+      if (!actorData.folder) {
+        const folderId = await this.getOrCreateFolder('Foundry MCP Imported Actors', 'Actor');
+        if (folderId) {
+          actorData.folder = folderId;
+        }
+      }
+
+      const createdActor = await Actor.create(actorData);
+      if (!createdActor) {
+        throw new Error('Failed to create actor from provided data');
+      }
+
+      let tokensPlaced = 0;
+      const errors: string[] = [];
+      if (request.addToScene) {
+        try {
+          const sceneResult = await this.addActorsToScene({
+            actorIds: [createdActor.id],
+            placement: request.placement?.type || 'grid',
+            hidden: false,
+            ...(request.placement?.coordinates ? { coordinates: request.placement.coordinates } : {}),
+          });
+          tokensPlaced = sceneResult.success ? sceneResult.tokensCreated : 0;
+        } catch (error) {
+          errors.push(`Failed to add actor to scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      const result: {
+        success: boolean;
+        actor: { id: string; name: string; type: string };
+        tokensPlaced: number;
+        errors?: string[];
+      } = {
+        success: true,
+        actor: {
+          id: createdActor.id,
+          name: createdActor.name,
+          type: createdActor.type,
+        },
+        tokensPlaced,
+      };
+      if (errors.length > 0) {
+        result.errors = errors;
+      }
+
+      this.auditLog('createActorFromData', request, 'success');
+      return result;
+    } catch (error) {
+      this.auditLog('createActorFromData', request, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  /**
    * Get full compendium document with all embedded data
    */
   async getCompendiumDocumentFull(packId: string, documentId: string): Promise<CompendiumEntryFull> {
