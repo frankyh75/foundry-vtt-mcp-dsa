@@ -1,8 +1,11 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
+  applyResolvedItemOverrides,
   detectDSA5ImportFormat,
   mapCustomDsa5Payload,
   mapOptolithLikePayload,
+  normalizeInputKeys,
+  validateImportPayload,
 } from './json-actor-importer.js';
 
 describe('DSA5 JSON actor importer mapper', () => {
@@ -56,7 +59,7 @@ describe('DSA5 JSON actor importer mapper', () => {
         fingerfertigkeit: 16,
         gewandheit: 12,
         konstitution: 11,
-        körperkraft: 8,
+        koerperkraft: 8,
       },
       energien: {
         lebensenergie: 27,
@@ -65,15 +68,24 @@ describe('DSA5 JSON actor importer mapper', () => {
         schicksalspunkte: 3,
       },
       vorteile: [{ name: 'Zauberer' }],
-      talente: [{ name: 'Sinnesschärfe' }],
+      talente: [{ name: 'Sinnesschaerfe' }],
+      kampftechniken: [{ name: 'Dolche', talentwert: 9 }],
+      zauberUndLiturgien: [{ name: 'Axxeleratus', talentwert: 7 }],
+      nahkampfwaffen: [{ name: 'Dolch', anzahl: 2 }],
     });
 
     expect(result.actorData.name).toBe('Loreley');
     expect((result.actorData.system as any).details.species.value).toBe('Halbelf');
     expect((result.actorData.system as any).characteristics.mu.advances).toBe(2);
+    expect((result.actorData.system as any).status.wounds.initial).toBe(5);
     expect((result.actorData.system as any).status.wounds.value).toBe(27);
+    expect(result.candidateItemNames).toContain('Halbelf');
     expect(result.candidateItemNames).toContain('Zauberer');
-    expect(result.candidateItemNames).toContain('Sinnesschärfe');
+    expect(result.candidateItemNames).toContain('Sinnesschaerfe');
+    expect(result.itemOverrides.sinnesschaerfe?.talentValue).toBeUndefined();
+    expect(result.itemOverrides.dolche?.talentValue).toBe(9);
+    expect(result.itemOverrides.axxeleratus?.talentValue).toBe(7);
+    expect(result.itemOverrides.dolch?.quantity).toBe(2);
   });
 
   it('maps optolith-like payload into actor core fields', () => {
@@ -102,6 +114,87 @@ describe('DSA5 JSON actor importer mapper', () => {
     expect((result.actorData.system as any).characteristics.mu.advances).toBe(6);
     expect((result.actorData.system as any).status.astralenergy.advances).toBe(4);
     expect((result.actorData.system as any).details.experience.total).toBe(1500);
-    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('fixes mojibake keys in attribute object', () => {
+    const fixed = normalizeInputKeys({ 'kÃ¶rperkraft': 12 });
+    expect(fixed['körperkraft']).toBe(12);
+    expect('kÃ¶rperkraft' in fixed).toBe(false);
+  });
+
+  it('rejects unknown format with helpful message', () => {
+    const result = validateImportPayload({ foo: 'bar' });
+    expect(result.isValid).toBe(false);
+    expect(result.detectedFormat).toBe('unknown');
+    expect(result.errors[0]).toContain('Format nicht erkannt');
+  });
+
+  it('rejects optolith_like without attr.values', () => {
+    const result = validateImportPayload({
+      name: 'Test',
+      r: 'x',
+      c: 'y',
+      p: 'z',
+      attr: { values: [] },
+    });
+    expect(result.isValid).toBe(false);
+  });
+
+  it('validates correct optolith_like payload', () => {
+    const result = validateImportPayload({
+      name: 'Test',
+      r: 'x',
+      c: 'y',
+      p: 'z',
+      attr: { values: [{ id: 'ATTR_1', value: 12 }] },
+    });
+    expect(result.isValid).toBe(true);
+  });
+
+  it('maps optolith talents and items from belongings', () => {
+    const result = mapOptolithLikePayload({
+      name: 'Hero',
+      attr: { values: [{ id: 'ATTR_1', value: 12 }], lp: 2, ae: 0, kp: 0 },
+      talents: { TAL_1: 3, TAL_8: 7 },
+      ct: { CT_3: 10 },
+      activatable: { ADV_4: [{}] },
+      belongings: { items: { item_1: { name: 'Dolch', amount: 2 } } },
+      ap: { total: 1000 },
+    });
+
+    expect(result.itemOverrides['tal_1']?.talentValue).toBe(3);
+    expect(result.itemOverrides['ct_3']?.talentValue).toBe(10);
+    expect(result.candidateItemNames).toContain('ADV_4');
+    expect(result.itemOverrides['dolch']?.quantity).toBe(2);
+  });
+
+  it('applies item overrides to resolved embedded items', () => {
+    const items = [
+      {
+        name: 'Klettern',
+        type: 'skill',
+        system: {
+          talentValue: { value: 0 },
+        },
+      },
+      {
+        name: 'Kurzbogen',
+        type: 'rangeweapon',
+        system: {
+          quantity: { value: 1 },
+        },
+      },
+    ] as any[];
+
+    const result = applyResolvedItemOverrides(items, {
+      klettern: { sourceName: 'Klettern', talentValue: 2 },
+      kurzbogen: { sourceName: 'Kurzbogen', quantity: 3 },
+    });
+
+    expect((items[0].system as any).talentValue.value).toBe(2);
+    expect((items[1].system as any).quantity.value).toBe(3);
+    expect(result.appliedCount).toBe(2);
+    expect(result.unappliedSourceNames).toEqual([]);
   });
 });

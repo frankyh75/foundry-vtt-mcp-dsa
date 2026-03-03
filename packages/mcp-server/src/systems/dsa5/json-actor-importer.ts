@@ -32,6 +32,39 @@ interface ItemOverride {
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const fixMojibake = (s: string): string =>
+  s.replace(/Ã¶/g, 'ö')
+    .replace(/Ã¼/g, 'ü')
+    .replace(/Ã¤/g, 'ä')
+    .replace(/ÃŸ/g, 'ß')
+    .replace(/Ã–/g, 'Ö')
+    .replace(/Ãœ/g, 'Ü')
+    .replace(/Ã„/g, 'Ä');
+
+const normalizeValue = (value: unknown, parentKey?: string): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeValue(entry, parentKey));
+  }
+
+  if (isRecord(value)) {
+    const normalized: JsonRecord = {};
+    for (const [key, entryValue] of Object.entries(value)) {
+      const fixedKey = fixMojibake(key);
+      normalized[fixedKey] = normalizeValue(entryValue, fixedKey);
+    }
+    return normalized;
+  }
+
+  if (typeof value === 'string' && parentKey === 'name') {
+    return fixMojibake(value);
+  }
+
+  return value;
+};
+
+export const normalizeInputKeys = (payload: JsonRecord): JsonRecord =>
+  normalizeValue(payload) as JsonRecord;
+
 const toNumber = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -77,7 +110,7 @@ const normalizeName = (name: string): string =>
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[^a-z0-9_]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -221,25 +254,139 @@ const getSearchCandidates = (name: string): string[] => {
 };
 
 export const detectDSA5ImportFormat = (payload: JsonRecord): DSA5ImportFormat => {
-  if (isRecord(payload.system) && typeof payload.type === 'string') {
+  const normalizedPayload = normalizeInputKeys(payload);
+
+  if (isRecord(normalizedPayload.system) && typeof normalizedPayload.type === 'string') {
     return 'raw_foundry';
   }
 
-  const attr = payload.attr;
-  const optolithLike =
-    isRecord(attr) &&
-    Array.isArray(attr.values) &&
-    (typeof payload.r === 'string' || typeof payload.c === 'string' || typeof payload.p === 'string');
+  const attr = normalizedPayload.attr;
+  const optolithLike = isRecord(attr) && Array.isArray(attr.values);
   if (optolithLike) return 'optolith_like';
 
   const customLike =
-    isRecord(payload.attribute) ||
-    Array.isArray(payload.vorteile) ||
-    Array.isArray(payload.talente) ||
-    Array.isArray(payload.kampftechniken);
+    isRecord(normalizedPayload.attribute) ||
+    Array.isArray(normalizedPayload.vorteile) ||
+    Array.isArray(normalizedPayload.talente) ||
+    Array.isArray(normalizedPayload.kampftechniken);
   if (customLike) return 'custom_dsa5';
 
   return 'unknown';
+};
+
+export const validateImportPayload = (
+  payload: JsonRecord
+): {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  detectedFormat: DSA5ImportFormat;
+  missingCriticalFields: string[];
+  availableTopLevelKeys: string[];
+} => {
+  const normalizedPayload = normalizeInputKeys(payload);
+  const detectedFormat = detectDSA5ImportFormat(normalizedPayload);
+  const availableTopLevelKeys = Object.keys(normalizedPayload);
+  const missingCriticalFields: string[] = [];
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (detectedFormat === 'raw_foundry') {
+    if (typeof normalizedPayload.type !== 'string') {
+      missingCriticalFields.push('type');
+    }
+    if (!isRecord(normalizedPayload.system)) {
+      missingCriticalFields.push('system');
+    }
+    if (missingCriticalFields.length > 0) {
+      errors.push(`raw_foundry: Pflichtfelder fehlen (${missingCriticalFields.join(', ')}).`);
+    }
+  }
+
+  if (detectedFormat === 'optolith_like') {
+    if (!toStringValue(normalizedPayload.name)) {
+      missingCriticalFields.push('name');
+    }
+
+    const attr = isRecord(normalizedPayload.attr) ? normalizedPayload.attr : undefined;
+    const values = attr && Array.isArray(attr.values) ? attr.values : [];
+    if (values.length === 0) {
+      missingCriticalFields.push('attr.values');
+    }
+
+    if (missingCriticalFields.length > 0) {
+      errors.push(`optolith_like: Pflichtfelder fehlen (${missingCriticalFields.join(', ')}).`);
+    }
+
+    const hasR = Boolean(toStringValue(normalizedPayload.r));
+    const hasC = Boolean(toStringValue(normalizedPayload.c));
+    const hasP = Boolean(toStringValue(normalizedPayload.p));
+    if (!hasR || !hasC || !hasP) {
+      warnings.push('Spezies/Kultur/Profession fehlen');
+    }
+    if (!isRecord(normalizedPayload.talents) || Object.keys(normalizedPayload.talents).length === 0) {
+      warnings.push('Keine Talente gefunden');
+    }
+  }
+
+  if (detectedFormat === 'custom_dsa5') {
+    if (!toStringValue(normalizedPayload.name)) {
+      missingCriticalFields.push('name');
+    }
+
+    const attribute = isRecord(normalizedPayload.attribute) ? normalizedPayload.attribute : undefined;
+    const knownAttributeKeys = [
+      'mut',
+      'klugheit',
+      'intuition',
+      'charisma',
+      'fingerfertigkeit',
+      'gewandheit',
+      'konstitution',
+      'körperkraft',
+      'koerperkraft',
+    ];
+    const hasKnownAttribute =
+      attribute !== undefined && knownAttributeKeys.some((key) => key in attribute);
+    if (!hasKnownAttribute) {
+      missingCriticalFields.push('attribute');
+    }
+
+    if (missingCriticalFields.length > 0) {
+      errors.push(`custom_dsa5: Pflichtfelder fehlen (${missingCriticalFields.join(', ')}).`);
+    }
+
+    if (!isRecord(normalizedPayload.energien)) {
+      warnings.push('Energien (Lebensenergie etc.) fehlen');
+    }
+
+    const hasTalente = Array.isArray(normalizedPayload.talente) && normalizedPayload.talente.length > 0;
+    const hasVorteile = Array.isArray(normalizedPayload.vorteile) && normalizedPayload.vorteile.length > 0;
+    const hasKampftechniken =
+      Array.isArray(normalizedPayload.kampftechniken) && normalizedPayload.kampftechniken.length > 0;
+    if (!hasTalente && !hasVorteile && !hasKampftechniken) {
+      warnings.push('Keine Items');
+    }
+  }
+
+  if (detectedFormat === 'unknown') {
+    const keyList = availableTopLevelKeys.length > 0 ? availableTopLevelKeys.join(', ') : '(keine)';
+    errors.push(
+      `Format nicht erkannt. Erkannte Felder: [${keyList}]. ` +
+      `Unterstützte Formate: custom_dsa5, optolith_like, raw_foundry. ` +
+      `Für custom_dsa5 wird mindestens 'name' + 'attribute' benötigt. ` +
+      `Für optolith_like wird mindestens 'name' + 'attr.values' benötigt.`
+    );
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings,
+    detectedFormat,
+    missingCriticalFields,
+    availableTopLevelKeys,
+  };
 };
 
 export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
@@ -272,7 +419,7 @@ export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
         ko: { advances: characteristicAdvance(attribute.konstitution) ?? 0 },
         kk: {
           advances:
-            characteristicAdvance(getByKeys(attribute, ['körperkraft', 'koerperkraft', 'kÃ¶rperkraft'])) ?? 0,
+            characteristicAdvance(getByKeys(attribute, ['körperkraft', 'koerperkraft'])) ?? 0,
         },
       },
       status: {
@@ -401,6 +548,9 @@ export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
 export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
   const attr = isRecord(payload.attr) ? payload.attr : {};
   const details = isRecord(payload.pers) ? payload.pers : {};
+  const itemOverrides: Record<string, ItemOverride> = {};
+  const candidateItemNames: string[] = [];
+  const warnings: string[] = [];
 
   const characteristics: Record<string, { advances: number }> = {
     mu: { advances: 0 },
@@ -414,16 +564,86 @@ export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
   };
 
   const attrValues = Array.isArray(attr.values) ? attr.values : [];
-  const mappingKeys = ['mu', 'kl', 'in', 'ch', 'ff', 'ge', 'ko', 'kk'] as const;
+  const attrToCharacteristic: Record<string, keyof typeof characteristics> = {
+    ATTR_1: 'mu',
+    ATTR_2: 'kl',
+    ATTR_3: 'in',
+    ATTR_4: 'ch',
+    ATTR_5: 'ff',
+    ATTR_6: 'ge',
+    ATTR_7: 'ko',
+    ATTR_8: 'kk',
+  };
   for (const entry of attrValues) {
     if (!isRecord(entry)) continue;
     const idRaw = toStringValue(entry.id);
     const value = toNumber(entry.value);
     if (!idRaw || value === undefined) continue;
-    const idParts = idRaw.split('_');
-    const idx = Number.parseInt(idParts[idParts.length - 1] ?? '', 10) - 1;
-    if (idx >= 0 && idx < mappingKeys.length) {
-      characteristics[mappingKeys[idx]] = { advances: Math.round(value) - 8 };
+    const characteristicKey = attrToCharacteristic[idRaw];
+    if (characteristicKey) {
+      characteristics[characteristicKey] = { advances: Math.round(value) - 8 };
+    }
+  }
+
+  const speciesId = toStringValue(payload.r);
+  const cultureId = toStringValue(payload.c);
+  const professionId = toStringValue(payload.p);
+  if (speciesId) candidateItemNames.push(speciesId);
+  if (cultureId) candidateItemNames.push(cultureId);
+  if (professionId) candidateItemNames.push(professionId);
+  if (speciesId || cultureId || professionId) {
+    warnings.push('Spezies/Kultur/Profession sind als IDs gespeichert - Compendium-Suche kann davon abweichen.');
+  }
+
+  const addIdBasedTalentValues = (source: unknown): boolean => {
+    if (!isRecord(source)) return false;
+    let detected = false;
+    for (const [id, value] of Object.entries(source)) {
+      const numeric = toNumber(value);
+      if (numeric === undefined) continue;
+      candidateItemNames.push(id);
+      addItemOverride(itemOverrides, id, { talentValue: Math.round(numeric) });
+      detected = true;
+    }
+    return detected;
+  };
+
+  const hasTalentIds = [
+    addIdBasedTalentValues(payload.talents),
+    addIdBasedTalentValues(payload.ct),
+    addIdBasedTalentValues(payload.spells),
+    addIdBasedTalentValues(payload.liturgies),
+  ].some(Boolean);
+  if (hasTalentIds) {
+    warnings.push('Talent-IDs (TAL_x) wurden übergeben - Compendium-Treffer hängen vom DSA5-System-Modul ab.');
+  }
+
+  const pushArrayNames = (source: unknown) => {
+    if (!Array.isArray(source)) return;
+    for (const entry of source) {
+      const name = toStringValue(entry);
+      if (name) candidateItemNames.push(name);
+    }
+  };
+  pushArrayNames(payload.cantrips);
+  pushArrayNames(payload.blessings);
+
+  if (isRecord(payload.activatable)) {
+    for (const [id] of Object.entries(payload.activatable)) {
+      candidateItemNames.push(id);
+    }
+  }
+
+  const belongings = isRecord(payload.belongings) ? payload.belongings : {};
+  const belongingsItems = isRecord(belongings.items) ? belongings.items : {};
+  for (const [, itemData] of Object.entries(belongingsItems)) {
+    if (!isRecord(itemData)) continue;
+    const itemName = toStringValue(itemData.name);
+    if (!itemName) continue;
+    candidateItemNames.push(itemName);
+    const amount = toNumber(itemData.amount);
+    if (amount !== undefined) {
+      addItemOverride(itemOverrides, itemName, { quantity: Math.max(0, Math.round(amount)) });
     }
   }
 
@@ -448,10 +668,19 @@ export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
         },
       },
       details: {
+        species: { value: speciesId ?? '' },
+        culture: { value: cultureId ?? '' },
+        career: { value: professionId ?? '' },
+        socialstate: { value: toStringValue(details.socialstatus) ?? '' },
         age: { value: toStringValue(details.age) ?? '' },
         gender: { value: toStringValue(payload.sex) ?? '' },
         home: { value: toStringValue(details.placeofbirth) ?? '' },
         family: { value: toStringValue(details.family) ?? '' },
+        haircolor: { value: toStringValue(details.haircolor) ?? '' },
+        eyecolor: { value: toStringValue(details.eyecolor) ?? '' },
+        height: { value: toStringValue(details.height) ?? '' },
+        weight: { value: toStringValue(details.weight) ?? '' },
+        characteristics: { value: toStringValue(details.characteristics) ?? '' },
         experience: {
           total: toNumber((isRecord(payload.ap) ? payload.ap.total : undefined)) ?? 0,
         },
@@ -459,14 +688,10 @@ export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
     },
   };
 
-  const warnings = [
-    'Optolith-like payload detected. This importer currently maps core fields only and skips ID-based item translation.',
-  ];
-
   return {
     actorData,
-    candidateItemNames: [],
-    itemOverrides: {},
+    candidateItemNames: uniqueNames(candidateItemNames),
+    itemOverrides,
     warnings,
     unmappedFields: [],
   };
@@ -634,14 +859,25 @@ export class DSA5JsonActorImporter {
       await this.assertDsa5World();
 
       const payload = await extractPayload(jsonPayload, filePath);
-      const detectedFormat = detectDSA5ImportFormat(payload);
+      const normalizedPayload = normalizeInputKeys(payload);
+      const validation = validateImportPayload(normalizedPayload);
+      if (validation.errors.length > 0) {
+        return {
+          success: false,
+          error: validation.errors.join(' | '),
+          detectedFormat: validation.detectedFormat,
+          availableTopLevelKeys: validation.availableTopLevelKeys,
+        };
+      }
+
+      const detectedFormat = validation.detectedFormat;
       const selectedFormat = strategy === 'auto' ? detectedFormat : strategy;
 
       let mappingResult: MappingResult;
       switch (selectedFormat) {
         case 'raw_foundry':
           mappingResult = {
-            actorData: sanitizeActorPayload(payload),
+            actorData: sanitizeActorPayload(normalizedPayload),
             candidateItemNames: [],
             itemOverrides: {},
             warnings: [],
@@ -649,10 +885,10 @@ export class DSA5JsonActorImporter {
           };
           break;
         case 'optolith_like':
-          mappingResult = mapOptolithLikePayload(payload);
+          mappingResult = mapOptolithLikePayload(normalizedPayload);
           break;
         case 'custom_dsa5':
-          mappingResult = mapCustomDsa5Payload(payload);
+          mappingResult = mapCustomDsa5Payload(normalizedPayload);
           break;
         default:
           throw new Error(
@@ -660,7 +896,7 @@ export class DSA5JsonActorImporter {
           );
       }
 
-      const warnings = [...mappingResult.warnings];
+      const warnings = Array.from(new Set([...validation.warnings, ...mappingResult.warnings]));
       const unresolvedItemNames: string[] = [];
       let appliedItemOverrides = 0;
       let unappliedItemOverrideNames: string[] = [];
