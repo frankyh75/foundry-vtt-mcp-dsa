@@ -23,10 +23,7 @@ const ConfigSchema = z.object({
     rejectUnauthorized: z.boolean().default(true), // TLS certificate validation
     // WebRTC configuration
     webrtc: z.object({
-      stunServers: z.array(z.string()).default([
-        'stun:stun.l.google.com:19302',
-        'stun:stun1.l.google.com:19302'
-      ]),
+      stunServers: z.array(z.string()).default([]),
       // Future: TURN servers support
       // turnServers: z.array(z.object({
       //   urls: z.string(),
@@ -34,7 +31,7 @@ const ConfigSchema = z.object({
       //   credential: z.string().optional()
       // })).optional()
     }).default({
-      stunServers: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']
+      stunServers: []
     })
   }),
   comfyui: z.object({
@@ -73,7 +70,7 @@ const rawConfig = {
     webrtc: {
       stunServers: process.env.FOUNDRY_STUN_SERVERS
         ? process.env.FOUNDRY_STUN_SERVERS.split(',')
-        : ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']
+        : []
     }
   },
   comfyui: {
