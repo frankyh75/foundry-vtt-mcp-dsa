@@ -89,6 +89,38 @@ Add this to your Claude Desktop configuration (claude_desktop_config.json) file:
 
 Starting Claude Desktop will start the MCP Server.
 
+### Local LLM Setup (Ulisses-konform)
+
+Für den Betrieb mit DSA5-Kompendiumsdaten empfehlen wir einen lokalen LLM-Client,
+damit keine Inhalte an externe Server übertragen werden.
+
+**Empfohlen: LM Studio ≥ 0.3**
+
+1. [LM Studio](https://lmstudio.ai/) herunterladen und starten
+2. Ein Ollama-kompatibles Modell laden (z. B. Llama 3.1 8B oder Mistral 7B)
+3. MCP-Server identisch zur Claude Desktop Konfiguration eintragen:
+
+```json
+{
+  "mcpServers": {
+    "foundry-mcp": {
+      "command": "node",
+      "args": ["PFAD/ZU/packages/mcp-server/dist/index.js"]
+    }
+  }
+}
+```
+
+4. LM Studio Chat starten — der MCP-Server verbindet sich automatisch
+
+**STUN-Server deaktivieren (LAN-Betrieb)**
+
+Im LAN ist kein externer STUN-Server nötig. `.env`:
+```
+FOUNDRY_STUN_SERVERS=
+AUDIT_LOG=false
+```
+
 ## ChatGPT Pro (Developer Mode) – 10 Minuten Setup
 
 Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP HTTP Endpoint öffentlich bereitzustellen (Foundry bleibt lokal). Der MCP Endpoint ist per Bearer Token geschützt.
