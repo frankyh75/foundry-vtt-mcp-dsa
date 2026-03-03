@@ -423,6 +423,9 @@ export class QueryHandlers {
   private async handleCreateActorFromData(data: {
     actorData: Record<string, unknown>;
     addToScene?: boolean;
+    updateExisting?: boolean;
+    existingActorIdentifier?: string;
+    preserveItemTypes?: string[];
     placement?: {
       type: 'random' | 'grid' | 'center' | 'coordinates';
       coordinates?: { x: number; y: number }[];
@@ -444,6 +447,9 @@ export class QueryHandlers {
       const requestData: {
         actorData: Record<string, unknown>;
         addToScene?: boolean;
+        updateExisting?: boolean;
+        existingActorIdentifier?: string;
+        preserveItemTypes?: string[];
         placement?: {
           type: 'random' | 'grid' | 'center' | 'coordinates';
           coordinates?: { x: number; y: number }[];
@@ -451,7 +457,14 @@ export class QueryHandlers {
       } = {
         actorData: data.actorData,
         addToScene: data.addToScene ?? false,
+        updateExisting: data.updateExisting ?? false,
       };
+      if (data.existingActorIdentifier) {
+        requestData.existingActorIdentifier = data.existingActorIdentifier;
+      }
+      if (data.preserveItemTypes?.length) {
+        requestData.preserveItemTypes = data.preserveItemTypes;
+      }
       if (data.placement) {
         requestData.placement = data.placement;
       }

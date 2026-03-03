@@ -18,8 +18,15 @@ export type DSA5ImportStrategy = 'auto' | 'raw_foundry' | 'optolith_like' | 'cus
 interface MappingResult {
   actorData: JsonRecord;
   candidateItemNames: string[];
+  itemOverrides: Record<string, ItemOverride>;
   warnings: string[];
   unmappedFields: string[];
+}
+
+interface ItemOverride {
+  sourceName: string;
+  talentValue?: number;
+  quantity?: number;
 }
 
 const isRecord = (value: unknown): value is JsonRecord =>
@@ -70,6 +77,7 @@ const normalizeName = (name: string): string =>
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -98,6 +106,120 @@ const sanitizeEmbeddedDocuments = (docs: unknown): JsonRecord[] => {
     });
 };
 
+const addItemOverride = (
+  itemOverrides: Record<string, ItemOverride>,
+  sourceName: string,
+  next: Partial<ItemOverride>
+): void => {
+  const normalized = normalizeName(sourceName);
+  if (normalized.length === 0) return;
+  const current = itemOverrides[normalized] ?? { sourceName };
+  itemOverrides[normalized] = {
+    ...current,
+    ...next,
+    sourceName: current.sourceName ?? sourceName,
+  };
+};
+
+const collectTalentOverrides = (
+  source: unknown,
+  itemOverrides: Record<string, ItemOverride>
+): void => {
+  if (!Array.isArray(source)) return;
+  for (const entry of source) {
+    if (!isRecord(entry)) continue;
+    const name = toStringValue(entry.name);
+    const talentValue = toNumber(entry.talentwert);
+    if (!name || talentValue === undefined) continue;
+    addItemOverride(itemOverrides, name, { talentValue });
+  }
+};
+
+const collectQuantityOverrides = (
+  source: unknown,
+  itemOverrides: Record<string, ItemOverride>
+): void => {
+  if (!Array.isArray(source)) return;
+  for (const entry of source) {
+    if (!isRecord(entry)) continue;
+    const name = toStringValue(entry.name);
+    const quantity = toNumber(getByKeys(entry, ['anzahl', 'menge', 'quantity']));
+    if (!name || quantity === undefined) continue;
+    addItemOverride(itemOverrides, name, { quantity: Math.max(0, Math.round(quantity)) });
+  }
+};
+
+export const applyResolvedItemOverrides = (
+  items: JsonRecord[],
+  itemOverrides: Record<string, ItemOverride>
+): { appliedCount: number; unappliedSourceNames: string[] } => {
+  if (items.length === 0 || Object.keys(itemOverrides).length === 0) {
+    return { appliedCount: 0, unappliedSourceNames: [] };
+  }
+
+  const matched = new Set<string>();
+  let appliedCount = 0;
+
+  for (const item of items) {
+    const itemName = toStringValue(item.name);
+    if (!itemName) continue;
+    const normalized = normalizeName(itemName);
+    const override = itemOverrides[normalized];
+    if (!override) continue;
+
+    if (!isRecord(item.system)) {
+      item.system = {};
+    }
+
+    let touched = false;
+
+    if (override.talentValue !== undefined) {
+      const talentValue = isRecord((item.system as JsonRecord).talentValue)
+        ? { ...((item.system as JsonRecord).talentValue as JsonRecord) }
+        : {};
+      talentValue.value = Math.round(override.talentValue);
+      (item.system as JsonRecord).talentValue = talentValue;
+      touched = true;
+    }
+
+    if (override.quantity !== undefined) {
+      const quantity = isRecord((item.system as JsonRecord).quantity)
+        ? { ...((item.system as JsonRecord).quantity as JsonRecord) }
+        : {};
+      quantity.value = Math.max(0, Math.round(override.quantity));
+      (item.system as JsonRecord).quantity = quantity;
+      touched = true;
+    }
+
+    if (touched) {
+      matched.add(normalized);
+      appliedCount += 1;
+    }
+  }
+
+  const unappliedSourceNames = Object.entries(itemOverrides)
+    .filter(([normalized]) => !matched.has(normalized))
+    .map(([, override]) => override.sourceName);
+
+  return {
+    appliedCount,
+    unappliedSourceNames: uniqueNames(unappliedSourceNames),
+  };
+};
+
+const getSearchCandidates = (name: string): string[] => {
+  const candidates = [
+    name,
+    name.replace(/\s*-\s*[ivx]+$/i, ''),
+    name.replace(/\s+[ivx]+$/i, ''),
+    name.replace(/\s*\([^)]*\)\s*/g, ' ').trim(),
+  ]
+    .map((candidate) => candidate.trim())
+    .filter((candidate) => candidate.length > 0);
+
+  return uniqueNames(candidates);
+};
+
 export const detectDSA5ImportFormat = (payload: JsonRecord): DSA5ImportFormat => {
   if (isRecord(payload.system) && typeof payload.type === 'string') {
     return 'raw_foundry';
@@ -123,11 +245,18 @@ export const detectDSA5ImportFormat = (payload: JsonRecord): DSA5ImportFormat =>
 export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
   const attribute = isRecord(payload.attribute) ? payload.attribute : {};
   const energien = isRecord(payload.energien) ? payload.energien : {};
+  const itemOverrides: Record<string, ItemOverride> = {};
 
   const species = toStringValue(payload.spezies);
   const culture = toStringValue(payload.kultur);
   const profession = toStringValue(payload.profession);
   const socialStatus = toStringValue(payload.sozialstatus);
+  const koValue = toNumber(attribute.konstitution);
+  const lifeEnergy = toNumber(energien.lebensenergie);
+  const derivedWoundsInitial =
+    lifeEnergy !== undefined && koValue !== undefined
+      ? Math.max(0, Math.round(lifeEnergy - koValue * 2))
+      : undefined;
 
   const actorData: JsonRecord = {
     name: toStringValue(payload.name) ?? 'Imported DSA5 Character',
@@ -148,8 +277,11 @@ export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
       },
       status: {
         wounds: {
-          value: toNumber(energien.lebensenergie) ?? 0,
-          max: toNumber(energien.lebensenergie) ?? 0,
+          // DSA5 computes max LeP from wounds.initial + KO*2 (+modifiers).
+          // Keep initial aligned with imported lifeEnergy to avoid 27/22 mismatches.
+          initial: derivedWoundsInitial ?? 0,
+          value: lifeEnergy ?? 0,
+          max: lifeEnergy ?? 0,
         },
         astralenergy: {
           value: toNumber(energien.astralenergie) ?? 0,
@@ -179,6 +311,10 @@ export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
   };
 
   const nameBuckets: string[] = [];
+  if (species) nameBuckets.push(species);
+  if (culture) nameBuckets.push(culture);
+  if (profession) nameBuckets.push(profession);
+
   const pushNames = (value: unknown) => {
     if (!Array.isArray(value)) return;
     for (const entry of value) {
@@ -202,6 +338,13 @@ export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
   pushNames(payload.gegenstände);
   pushNames(payload.sprachen);
   pushNames(payload.schriften);
+
+  collectTalentOverrides(payload.talente, itemOverrides);
+  collectTalentOverrides(payload.kampftechniken, itemOverrides);
+  collectTalentOverrides(payload.zauberUndLiturgien, itemOverrides);
+  collectQuantityOverrides(payload.nahkampfwaffen, itemOverrides);
+  collectQuantityOverrides(payload.fernkampfwaffen, itemOverrides);
+  collectQuantityOverrides(payload.gegenstände, itemOverrides);
 
   const warnings: string[] = [];
   if (!species) warnings.push('No species in payload; actor will be created with empty species field.');
@@ -249,6 +392,7 @@ export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
   return {
     actorData,
     candidateItemNames: uniqueNames(nameBuckets),
+    itemOverrides,
     warnings,
     unmappedFields,
   };
@@ -322,6 +466,7 @@ export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
   return {
     actorData,
     candidateItemNames: [],
+    itemOverrides: {},
     warnings,
     unmappedFields: [],
   };
@@ -435,6 +580,17 @@ export class DSA5JsonActorImporter {
               default: false,
               description: 'Add created actor to active scene as token.',
             },
+            updateExisting: {
+              type: 'boolean',
+              default: true,
+              description:
+                'If true, update an existing actor (same name by default) instead of creating a duplicate.',
+            },
+            existingActorIdentifier: {
+              type: 'string',
+              description:
+                'Optional actor ID or exact name used when updateExisting is true. Defaults to imported name.',
+            },
             strict: {
               type: 'boolean',
               default: false,
@@ -455,15 +611,28 @@ export class DSA5JsonActorImporter {
         strategy: z.enum(['auto', 'custom_dsa5', 'optolith_like', 'raw_foundry']).default('auto'),
         resolveItems: z.boolean().default(true),
         addToScene: z.boolean().default(false),
+        updateExisting: z.boolean().default(true),
+        existingActorIdentifier: z.string().optional(),
         strict: z.boolean().default(false),
       })
       .refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
         message: 'Either jsonPayload or filePath is required.',
       });
 
-    const { jsonPayload, filePath, strategy, resolveItems, addToScene, strict } = schema.parse(args);
+    const {
+      jsonPayload,
+      filePath,
+      strategy,
+      resolveItems,
+      addToScene,
+      updateExisting,
+      existingActorIdentifier,
+      strict,
+    } = schema.parse(args);
 
     try {
+      await this.assertDsa5World();
+
       const payload = await extractPayload(jsonPayload, filePath);
       const detectedFormat = detectDSA5ImportFormat(payload);
       const selectedFormat = strategy === 'auto' ? detectedFormat : strategy;
@@ -474,6 +643,7 @@ export class DSA5JsonActorImporter {
           mappingResult = {
             actorData: sanitizeActorPayload(payload),
             candidateItemNames: [],
+            itemOverrides: {},
             warnings: [],
             unmappedFields: [],
           };
@@ -492,6 +662,8 @@ export class DSA5JsonActorImporter {
 
       const warnings = [...mappingResult.warnings];
       const unresolvedItemNames: string[] = [];
+      let appliedItemOverrides = 0;
+      let unappliedItemOverrideNames: string[] = [];
 
       if (resolveItems && mappingResult.candidateItemNames.length > 0) {
         const resolved = await this.resolveItemsByName(mappingResult.candidateItemNames);
@@ -510,6 +682,22 @@ export class DSA5JsonActorImporter {
         }
       }
 
+      const actorItems = Array.isArray(mappingResult.actorData.items)
+        ? sanitizeEmbeddedDocuments(mappingResult.actorData.items)
+        : [];
+      if (actorItems.length > 0 && Object.keys(mappingResult.itemOverrides).length > 0) {
+        const overrideResult = applyResolvedItemOverrides(actorItems, mappingResult.itemOverrides);
+        appliedItemOverrides = overrideResult.appliedCount;
+        unappliedItemOverrideNames = overrideResult.unappliedSourceNames;
+        mappingResult.actorData.items = actorItems;
+
+        if (overrideResult.unappliedSourceNames.length > 0) {
+          warnings.push(
+            `Unapplied value overrides (${overrideResult.unappliedSourceNames.length}): ${overrideResult.unappliedSourceNames.join(', ')}`
+          );
+        }
+      }
+
       if (strict && unresolvedItemNames.length > 0) {
         throw new Error(
           `Strict import aborted because ${unresolvedItemNames.length} item names could not be resolved.`
@@ -519,6 +707,9 @@ export class DSA5JsonActorImporter {
       const creationResult = await this.foundryClient.query('foundry-mcp-bridge.createActorFromData', {
         actorData: sanitizeActorPayload(mappingResult.actorData),
         addToScene,
+        updateExisting,
+        existingActorIdentifier: existingActorIdentifier ?? String(mappingResult.actorData.name ?? ''),
+        ...(updateExisting ? { preserveItemTypes: ['species', 'culture', 'career'] } : {}),
       });
 
       const actor = isRecord(creationResult) && isRecord(creationResult.actor)
@@ -533,6 +724,8 @@ export class DSA5JsonActorImporter {
           detectedFormat,
           strategy,
           resolveItems,
+          updateExisting,
+          existingActorIdentifier,
           strict,
           source: filePath ? `file:${filePath}` : 'jsonPayload',
         },
@@ -540,6 +733,12 @@ export class DSA5JsonActorImporter {
         warnings,
         unmappedFields: mappingResult.unmappedFields,
         unresolvedItemNames,
+        valueOverrides: {
+          total: Object.keys(mappingResult.itemOverrides).length,
+          applied: appliedItemOverrides,
+          unapplied: unappliedItemOverrideNames.length,
+          unappliedNames: unappliedItemOverrideNames,
+        },
         message:
           `Import completed via ${selectedFormat}.\n` +
           `Warnings: ${warnings.length}\n` +
@@ -550,6 +749,19 @@ export class DSA5JsonActorImporter {
     }
   }
 
+  private async assertDsa5World(): Promise<void> {
+    const worldInfo = await this.foundryClient.query('foundry-mcp-bridge.getWorldInfo');
+    const systemIdRaw =
+      isRecord(worldInfo) && typeof worldInfo.system === 'string' ? worldInfo.system : undefined;
+    const systemId = systemIdRaw?.toLowerCase();
+
+    if (systemId && systemId !== 'dsa5') {
+      throw new Error(
+        `import-dsa5-actor-from-json supports only DSA5 worlds. Detected system: ${systemIdRaw}.`
+      );
+    }
+  }
+
   private async resolveItemsByName(itemNames: string[]): Promise<ResolvedItemsResult> {
     const unique = uniqueNames(itemNames).slice(0, 120);
     const resolvedItems: JsonRecord[] = [];
@@ -557,24 +769,36 @@ export class DSA5JsonActorImporter {
 
     for (const candidateName of unique) {
       try {
-        const searchResponse = await this.foundryClient.query('foundry-mcp-bridge.searchCompendium', {
-          query: candidateName,
-          packType: 'Item',
-        });
+        const searchCandidates = getSearchCandidates(candidateName);
+        let selected: unknown;
 
-        if (!Array.isArray(searchResponse) || searchResponse.length === 0) {
-          unresolved.push(candidateName);
-          continue;
+        for (const searchName of searchCandidates) {
+          const searchResponse = await this.foundryClient.query('foundry-mcp-bridge.searchCompendium', {
+            query: searchName,
+            packType: 'Item',
+          });
+
+          if (!Array.isArray(searchResponse) || searchResponse.length === 0) {
+            continue;
+          }
+
+          const exact = searchResponse.find((entry: unknown) => {
+            if (!isRecord(entry)) return false;
+            const name = toStringValue(entry.name);
+            if (!name) return false;
+            const normalizedItemName = normalizeName(name);
+            return (
+              normalizedItemName === normalizeName(candidateName) ||
+              normalizedItemName === normalizeName(searchName)
+            );
+          });
+
+          // Avoid false positives like mapping "Piken" -> "Pikenwall".
+          // Only accept normalized exact matches and treat all other hits as unresolved.
+          selected = exact;
+          if (selected) break;
         }
 
-        const exact = searchResponse.find((entry: unknown) => {
-          if (!isRecord(entry)) return false;
-          const name = toStringValue(entry.name);
-          if (!name) return false;
-          return normalizeName(name) === normalizeName(candidateName);
-        });
-
-        const selected = (exact ?? searchResponse[0]) as unknown;
         if (!isRecord(selected)) {
           unresolved.push(candidateName);
           continue;

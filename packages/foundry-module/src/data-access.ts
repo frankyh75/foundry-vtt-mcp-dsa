@@ -1168,7 +1168,7 @@ export class FoundryDataAccess {
       effects: actor.effects.map(effect => ({
         id: effect.id,
         name: (effect as any).name || (effect as any).label || 'Unknown Effect',
-        ...((effect as any).icon ? { icon: (effect as any).icon } : {}),
+        ...((effect as any).img ? { icon: (effect as any).img } : {}),
         disabled: (effect as any).disabled,
         ...(((effect as any).duration) ? {
           duration: {
@@ -3521,6 +3521,9 @@ export class FoundryDataAccess {
   async createActorFromData(request: {
     actorData: Record<string, unknown>;
     addToScene?: boolean;
+    updateExisting?: boolean;
+    existingActorIdentifier?: string;
+    preserveItemTypes?: string[];
     placement?: {
       type: 'random' | 'grid' | 'center' | 'coordinates';
       coordinates?: { x: number; y: number }[];
@@ -3528,6 +3531,7 @@ export class FoundryDataAccess {
   }): Promise<{
     success: boolean;
     actor?: { id: string; name: string; type: string };
+    updatedExisting?: boolean;
     tokensPlaced?: number;
     errors?: string[];
   }> {
@@ -3594,9 +3598,110 @@ export class FoundryDataAccess {
         }
       }
 
-      const createdActor = await Actor.create(actorData);
-      if (!createdActor) {
-        throw new Error('Failed to create actor from provided data');
+      const incomingItems = actorData.items;
+      const incomingEffects = actorData.effects;
+      delete actorData.items;
+      delete actorData.effects;
+
+      const findExistingActor = (): Actor | undefined => {
+        if (!request.updateExisting) return undefined;
+
+        const byIdentifier = request.existingActorIdentifier?.trim();
+        if (byIdentifier) {
+          const byId = game.actors.get(byIdentifier);
+          if (byId) return byId;
+
+          const normalizedIdentifier = byIdentifier.toLowerCase();
+          return game.actors.find((actor) => actor.name?.toLowerCase() === normalizedIdentifier);
+        }
+
+        const normalizedName = String(actorData.name).toLowerCase().trim();
+        const desiredType = String(actorData.type || '').toLowerCase().trim();
+        return game.actors.find((actor) => {
+          const actorName = actor.name?.toLowerCase().trim();
+          const actorType = String(actor.type || '').toLowerCase().trim();
+          return actorName === normalizedName && actorType === desiredType;
+        });
+      };
+
+      const existingActor = findExistingActor();
+      let targetActor: Actor | null = null;
+      let updatedExisting = false;
+
+      if (existingActor) {
+        await existingActor.update(actorData);
+
+        let mergedIncomingItems = Array.isArray(incomingItems) ? [...incomingItems] : [];
+        const preserveIdentityTypes = new Set(request.preserveItemTypes ?? []);
+        const incomingTypeSet = new Set(
+          mergedIncomingItems
+            .map((item: any) => String(item?.type || '').toLowerCase().trim())
+            .filter((itemType: string) => itemType.length > 0)
+        );
+        const missingIdentityTypes = [...preserveIdentityTypes].filter((itemType) => !incomingTypeSet.has(itemType));
+        if (missingIdentityTypes.length > 0) {
+          const incomingKeys = new Set(
+            mergedIncomingItems.map(
+              (item: any) => `${String(item?.type || '').toLowerCase().trim()}::${String(item?.name || '').toLowerCase().trim()}`
+            )
+          );
+          const preservedIdentityItems = existingActor.items
+            .filter((item) => missingIdentityTypes.includes(String(item.type || '').toLowerCase().trim()))
+            .map((item) => item.toObject())
+            .filter((itemData: any) => {
+              const key = `${String(itemData?.type || '').toLowerCase().trim()}::${String(itemData?.name || '').toLowerCase().trim()}`;
+              return !incomingKeys.has(key);
+            })
+            .map((itemData: any) => {
+              const clonedItem = foundry.utils.deepClone(itemData);
+              delete clonedItem._id;
+              delete clonedItem.folder;
+              delete clonedItem.sort;
+              return clonedItem;
+            });
+          if (preservedIdentityItems.length > 0) {
+            mergedIncomingItems = [...mergedIncomingItems, ...preservedIdentityItems];
+          }
+        }
+
+        const existingItemIds = existingActor.items
+          .map((item) => item.id)
+          .filter((id): id is string => Boolean(id));
+        if (existingItemIds.length > 0) {
+          await existingActor.deleteEmbeddedDocuments('Item', existingItemIds);
+        }
+
+        if (Array.isArray(mergedIncomingItems) && mergedIncomingItems.length > 0) {
+          await existingActor.createEmbeddedDocuments('Item', mergedIncomingItems as any[]);
+        }
+
+        const existingEffectIds = existingActor.effects
+          .map((effect) => effect.id)
+          .filter((id): id is string => Boolean(id));
+        if (existingEffectIds.length > 0) {
+          await existingActor.deleteEmbeddedDocuments('ActiveEffect', existingEffectIds);
+        }
+
+        if (Array.isArray(incomingEffects) && incomingEffects.length > 0) {
+          await existingActor.createEmbeddedDocuments('ActiveEffect', incomingEffects as any[]);
+        }
+
+        targetActor = existingActor;
+        updatedExisting = true;
+      } else {
+        const createdActor = await Actor.create({
+          ...actorData,
+          items: incomingItems,
+          effects: incomingEffects,
+        });
+        if (!createdActor) {
+          throw new Error('Failed to create actor from provided data');
+        }
+        targetActor = createdActor;
+      }
+
+      if (!targetActor?.id) {
+        throw new Error('Target actor could not be created or resolved');
       }
 
       let tokensPlaced = 0;
@@ -3604,7 +3709,7 @@ export class FoundryDataAccess {
       if (request.addToScene) {
         try {
           const sceneResult = await this.addActorsToScene({
-            actorIds: [createdActor.id],
+            actorIds: [targetActor.id],
             placement: request.placement?.type || 'grid',
             hidden: false,
             ...(request.placement?.coordinates ? { coordinates: request.placement.coordinates } : {}),
@@ -3618,15 +3723,17 @@ export class FoundryDataAccess {
       const result: {
         success: boolean;
         actor: { id: string; name: string; type: string };
+        updatedExisting: boolean;
         tokensPlaced: number;
         errors?: string[];
       } = {
         success: true,
         actor: {
-          id: createdActor.id,
-          name: createdActor.name,
-          type: createdActor.type,
+          id: targetActor.id,
+          name: targetActor.name ?? String(actorData.name),
+          type: targetActor.type ?? String(actorData.type ?? 'character'),
         },
+        updatedExisting,
         tokensPlaced,
       };
       if (errors.length > 0) {
@@ -3684,7 +3791,7 @@ export class FoundryDataAccess {
       fullEntry.effects = (document as any).effects.map((effect: any) => ({
         id: effect.id,
         name: effect.name || effect.label || 'Unknown Effect',
-        icon: effect.icon || undefined,
+        icon: effect.img || undefined,
         disabled: effect.disabled || false,
         duration: this.sanitizeData(effect.duration || {}),
       }));
@@ -5239,7 +5346,7 @@ export class FoundryDataAccess {
           entity: {
             id: entity.id,
             name: entity.name || entity.label,
-            icon: entity.icon,
+            icon: entity.img,
             disabled: entity.disabled,
             duration: entity.duration,
             changes: entity.changes
@@ -5493,7 +5600,7 @@ export class FoundryDataAccess {
         // Add the condition - handle DSA5 and other systems
         const effectData: any = {
           name: condition.name || condition.label || condition.id,
-          icon: condition.icon || condition.img,
+          icon: condition.img || condition.icon,
         };
 
         // Add statuses for systems that support it (D&D5e, PF2e)
@@ -5573,7 +5680,7 @@ export class FoundryDataAccess {
         conditions: conditions.map((condition: any) => ({
           id: condition.id,
           name: condition.name || condition.label || condition.id,
-          icon: condition.icon || condition.img,
+          icon: condition.img || condition.icon,
           description: condition.description || ''
         }))
       };
