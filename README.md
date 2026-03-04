@@ -1,4 +1,4 @@
-# Foundry VTT MCP Bridge
+﻿# Foundry VTT MCP Bridge
 
 Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition and Pathfinder Second Edition. The majority of MCP tools are system agnostic but character creation and compendium tools are only able to work with D&D5e and PF2E. 
 
@@ -91,14 +91,47 @@ Starting Claude Desktop will start the MCP Server.
 
 ### Local LLM Setup (Ulisses-konform)
 
-Für den Betrieb mit DSA5-Kompendiumsdaten empfehlen wir einen lokalen LLM-Client,
-damit keine Inhalte an externe Server übertragen werden.
+Für den Betrieb mit DSA5-Kompendiumsdaten empfehlen wir einen lokalen LLM-Client.
+Die KI verarbeitet alles lokal — keine Daten gehen an externe Server.
 
-**Empfohlen: LM Studio ≥ 0.3**
+**Getestetes Setup:** LM Studio 0.4.6 + Qwen 2.5 7B + Foundry MCP
 
-1. [LM Studio](https://lmstudio.ai/) herunterladen und starten
-2. Ein Ollama-kompatibles Modell laden (z. B. Llama 3.1 8B oder Mistral 7B)
-3. MCP-Server identisch zur Claude Desktop Konfiguration eintragen:
+---
+
+#### Schritt 1: LM Studio installieren
+
+[LM Studio herunterladen](https://lmstudio.ai/) und installieren.
+
+---
+
+#### Schritt 2: Modell laden
+
+Empfehlungen nach VRAM:
+
+| VRAM | Modell | Quantisierung |
+|------|--------|---------------|
+| 6 GB | Qwen2.5 7B Instruct | Q4_K_M |
+| 8 GB | Qwen2.5 7B Instruct | Q5_K_M (empfohlen) |
+| 12 GB+ | Qwen2.5 14B Instruct | Q4_K_M |
+
+In LM Studio: Suchfeld → `qwen2.5 7b instruct` → Anbieter `lmstudio-community` → Q5_K_M → Download.
+
+**Wichtig — Kontextlänge erhöhen:**
+
+1. Modell-Auswahl öffnen (oben auf Modellname klicken)
+2. Toggle **"Manually choose model load parameters"** einschalten (oder `Alt` gedrückt halten beim Laden)
+3. **Context Length** auf `16384` setzen
+4. Modell laden
+
+> Ohne diese Einstellung lädt das Modell mit 4096 Tokens — zu wenig für die Foundry-Tool-Definitionen.
+
+---
+
+#### Schritt 3: MCP-Server konfigurieren
+
+1. Im Chat-Fenster: rechte Seitenleiste → Tab mit Werkzeug-Icon (Tools)
+2. **+ Install → Edit mcp.json**
+3. Folgendes eintragen und speichern (`Ctrl+S`):
 
 ```json
 {
@@ -111,24 +144,57 @@ damit keine Inhalte an externe Server übertragen werden.
 }
 ```
 
-4. LM Studio Chat starten — der MCP-Server verbindet sich automatisch
+`PFAD/ZU/` durch den absoluten Pfad zur Installation ersetzen, z. B.:
 
-**STUN-Server deaktivieren (LAN-Betrieb)**
+Windows: `C:\\Users\\DEINNAME\\Documents\\foundry-vtt-mcp-dsa\\packages\\mcp-server\\dist\\index.js`
+Mac/Linux: `/home/DEINNAME/foundry-vtt-mcp-dsa/packages/mcp-server/dist/index.js`
 
-Im LAN ist kein externer STUN-Server nötig. `.env`:
+In der rechten Seitenleiste den Toggle bei `mcp/foundry-mcp` einschalten.
+
+Schritt 4: System-Prompt auf Deutsch setzen
+
+In der rechten Seitenleiste → System Prompt:
+
+```text
+Du bist ein hilfreicher Assistent für Foundry VTT und DSA5. Antworte immer auf Deutsch.
 ```
+
+Als Preset speichern: + Save Preset As… → "Foundry DSA5"
+
+Schritt 5: MCP-Server starten
+
+```bash
+npm run build:server
+npm -w @foundry-mcp/server run start
+```
+
+Foundry VTT muss ebenfalls laufen (lokal oder Forge VTT).
+
+Schritt 6: Testen
+
+Im Chat:
+
+„Lade die Szenen-Infos"
+
+LM Studio ruft automatisch list-scenes auf und zeigt die Foundry-Szenen an.
+
+STUN-Server deaktivieren (LAN-Betrieb)
+In .env:
+
+```env
 FOUNDRY_STUN_SERVERS=
 AUDIT_LOG=false
 ```
 
-## ChatGPT Pro (Developer Mode) – 10 Minuten Setup
+---
+## ChatGPT Pro (Developer Mode) â€“ 10 Minuten Setup
 
-Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP HTTP Endpoint öffentlich bereitzustellen (Foundry bleibt lokal). Der MCP Endpoint ist per Bearer Token geschützt.
+Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP HTTP Endpoint Ã¶ffentlich bereitzustellen (Foundry bleibt lokal). Der MCP Endpoint ist per Bearer Token geschÃ¼tzt.
 
 ### Voraussetzungen
 
 - Docker Desktop (Windows/Mac)
-- Foundry VTT läuft lokal mit aktiviertem **Foundry MCP Bridge** Modul
+- Foundry VTT lÃ¤uft lokal mit aktiviertem **Foundry MCP Bridge** Modul
 
 ### Schritte
 
@@ -138,19 +204,19 @@ Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP H
    ```
    - Setze **MCP_AUTH_TOKEN** auf einen starken Wert.
    - **MCP_HTTP_PORT** steuert nur den Host-Port; der Container lauscht immer auf **3333**.
-   - Wenn Foundry auf deinem Host läuft, belasse `FOUNDRY_HOST=host.docker.internal`.
+   - Wenn Foundry auf deinem Host lÃ¤uft, belasse `FOUNDRY_HOST=host.docker.internal`.
 2. Starte den MCP HTTP Endpoint + Tunnel:
    ```bash
    docker compose up
    ```
 3. Warte auf die Cloudflare-Ausgabe und kopiere die **https://...trycloudflare.com** URL aus den Logs.
-4. Öffne ChatGPT → **Settings → Connectors → Developer Mode → Add MCP Server**:
+4. Ã–ffne ChatGPT â†’ **Settings â†’ Connectors â†’ Developer Mode â†’ Add MCP Server**:
    - **Name:** Foundry MCP
    - **URL:** `https://<deine-url>.trycloudflare.com/mcp`
-   - **Auth:** Bearer Token → Wert aus `MCP_AUTH_TOKEN`
+   - **Auth:** Bearer Token â†’ Wert aus `MCP_AUTH_TOKEN`
 5. Fertig! Du kannst jetzt Tools aus deinem Foundry World in ChatGPT verwenden.
 
-> **Sicherheit:** Der Tunnel macht den MCP Endpoint öffentlich. Ohne gültiges Token gibt es **401**. Teile den Token nicht.
+> **Sicherheit:** Der Tunnel macht den MCP Endpoint Ã¶ffentlich. Ohne gÃ¼ltiges Token gibt es **401**. Teile den Token nicht.
 
 ### Smoke Test (optional)
 
@@ -224,8 +290,8 @@ Once connected, ask Claude Desktop:
 ## Architecture
 
 ```
-Claude Desktop ↔ MCP Protocol ↔ MCP Server ↔ WebSocket ↔ Foundry Module ↔ Foundry VTT
-                                     ↓
+Claude Desktop â†” MCP Protocol â†” MCP Server â†” WebSocket â†” Foundry Module â†” Foundry VTT
+                                     â†“
                               ComfyUI Service
                               (AI Map Generation)
 ```
@@ -264,3 +330,4 @@ npm run test:mcp:schema
 - **YouTube Channel**: [Subscribe for updates and tutorials](https://www.youtube.com/channel/UCVrSC-FzuAk5AgvfboJj0WA)
 - **Documentation**: Built with TypeScript, comprehensive documentation included
 - **License**: MIT License (Additional Third Party licenses are included for bundled components for the installers)
+
