@@ -2,6 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Arbeitsaufteilung: Claude plant, Codex führt aus
+
+**Claude (claude-sonnet):** Analysiert, plant, schreibt Codex-Prompts. Kein direktes Editieren von Code-Dateien.
+**Codex:** Führt die eigentlichen Code-Änderungen aus, läuft im Auto-Approve-Modus.
+
+### Workflow
+1. Claude liest Dateien, analysiert Architektur, erkennt Probleme
+2. Claude schreibt einen präzisen Codex-Prompt mit: betroffenen Dateien, exakten Änderungen, Constraints
+3. Codex führt aus, läuft Tests, committet
+
+### Claude-Permissions in diesem Repo
+- **Erlaubt ohne Rückfrage:** Read, Grep, Glob, Bash (read-only: git log/diff/show/status), TodoWrite
+- **Nicht erlaubt:** Edit, Write, Bash (schreibend) — das ist Codex-Domäne
+- **Ausnahme:** CLAUDE.md und Memory-Dateien darf Claude direkt schreiben
+
 ## Project Overview
 
 Fork of `foundry-vtt-mcp` adding DSA5 (Das Schwarze Auge 5) support. An MCP (Model Context Protocol) bridge connecting Foundry VTT to AI assistants (Claude Desktop, ChatGPT Pro) for AI-powered campaign management.
@@ -254,3 +269,17 @@ MCP_PUBLIC_URL="https://YOUR-URL.trycloudflare.com" MCP_AUTH_TOKEN="testtoken" n
 - URL: `https://YOUR-URL.trycloudflare.com/mcp` (oder `/sse` wenn Pattern 1)
 - Authentication: `Keine Authentifizierung` (solange OAuth nicht vollständig)
 - Checkbox: "Ich vertraue dieser Anwendung" aktivieren
+
+## Session Notes & Lessons Learned
+
+### 2026-01-15
+- Verified MCP tool list via stdio (34 tools exposed).
+- Added backend routing for character tools in `packages/mcp-server/src/backend.ts` (get-character-entity, use-item, search-character-items).
+- `search-character-items` and `get-character` timing out via backend control channel; needs follow-up in Foundry logs or tool handler.
+- Foundry bridge requires MCP server running on localhost:31415 (`npm -w @foundry-mcp/server run start`).
+
+### 2026-02-17
+- `tools/list` success only proves MCP stdio server availability, not Foundry runtime connectivity.
+- Character/scene tool diagnostics must run a bridge preflight first (e.g. `list-characters`) and explicitly detect `Foundry VTT module not connected`.
+- Avoid hardcoded character names/IDs in diagnostics; select dynamically from `list-characters` to prevent false negatives across worlds.
+- Treat `Error:` text payloads from tool calls as functional failures, not transport hangs.

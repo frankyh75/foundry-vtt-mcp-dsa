@@ -13,6 +13,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "composite": true,
     "outDir": "./dist",
     "rootDir": "./src"
   },

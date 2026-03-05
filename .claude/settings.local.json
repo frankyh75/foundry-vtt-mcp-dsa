@@ -101,7 +101,12 @@
       "Bash(/Users/Adam/Projects/foundry-vtt-mcp/update-wrapper.sh:*)",
       "Bash(/Applications/FoundryMCPServer.app/Contents/Resources/ComfyUI/venv/bin/python /Applications/FoundryMCPServer.app/Contents/Resources/ComfyUI/main.py --help)",
       "Bash(./update-backend-now.sh:*)",
-      "Bash(hdiutil detach:*)"
+      "Bash(hdiutil detach:*)",
+      "mcp__web-reader__webReader",
+      "WebFetch(domain:dersmarteheld.de)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__web-search-prime__webSearchPrime"
     ],
     "deny": [],
     "ask": [],
