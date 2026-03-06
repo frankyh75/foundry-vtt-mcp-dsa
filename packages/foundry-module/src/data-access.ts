@@ -10,6 +10,36 @@ interface CharacterInfo {
   system: Record<string, unknown>;
   items: CharacterItem[];
   effects: CharacterEffect[];
+  actions?: any[]; // PF2e actions (strikes, spells, etc.)
+  itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
+  itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
+  spellcasting?: SpellcastingEntry[]; // PF2e/D&D 5e spellcasting entries
+}
+
+interface SpellcastingEntry {
+  id: string;
+  name: string;
+  tradition?: string | undefined; // arcane, divine, primal, occult (PF2e)
+  type: string; // prepared, spontaneous, innate, focus (PF2e) or class name (5e)
+  ability?: string | undefined; // spellcasting ability (int, wis, cha)
+  dc?: number | undefined;
+  attack?: number | undefined;
+  slots?: Record<string, { value: number; max: number }> | undefined; // spell slots per level/rank
+  spells: SpellInfo[];
+}
+
+interface SpellInfo {
+  id: string;
+  name: string;
+  level: number; // spell level/rank
+  prepared?: boolean | undefined; // for prepared casters
+  expended?: boolean | undefined; // has this spell slot been used
+  traits?: string[] | undefined;
+  actionCost?: string | undefined; // 1, 2, 3, reaction, free
+  // Targeting info - helps Claude decide whether to specify targets
+  range?: string | undefined; // "touch", "self", "60 feet", etc.
+  target?: string | undefined; // "1 creature", "self", "area", etc.
+  area?: string | undefined; // "20-foot radius", "30-foot cone", etc. (for template spells)
 }
 
 interface CharacterItem {
@@ -1126,17 +1156,19 @@ export class FoundryDataAccess {
       type: actor.type,
       ...(actor.img ? { img: actor.img } : {}),
       system: this.sanitizeData((actor as any).system),
-      items: actor.items.map(item => ({
-        id: item.id,
-        name: item.name,
-        type: item.type,
-        ...(item.img ? { img: item.img } : {}),
-        system: this.sanitizeData(item.system),
-      })),
+      items: actor.items.map(item => {
+        return {
+          id: item.id,
+          name: item.name,
+          type: item.type,
+          ...(item.img ? { img: item.img } : {}),
+          system: this.sanitizeData(item.system),
+        };
+      }),
       effects: actor.effects.map(effect => ({
         id: effect.id,
         name: (effect as any).name || (effect as any).label || 'Unknown Effect',
-        ...((effect as any).icon ? { icon: (effect as any).icon } : {}),
+        ...((effect as any).img ? { icon: (effect as any).img } : {}),
         disabled: (effect as any).disabled,
         ...(((effect as any).duration) ? {
           duration: {
@@ -1148,7 +1180,798 @@ export class FoundryDataAccess {
       })),
     };
 
+    // Add PF2e-specific data if available
+    const actorAny = actor as any;
+
+    // Include actions (PF2e strikes, spells, etc.)
+    if (actorAny.system?.actions) {
+      characterData.actions = actorAny.system.actions.map((action: any) => ({
+        name: action.label || action.name,
+        type: action.type,
+        ...(action.item ? { itemId: action.item.id } : {}),
+        ...(action.variants ? {
+          variants: action.variants.map((v: any) => ({
+            label: v.label,
+            ...(v.traits ? { traits: v.traits } : {})
+          }))
+        } : {}),
+        ...(action.ready !== undefined ? { ready: action.ready } : {}),
+      }));
+    }
+
+    // Include item variants and toggles
+    const itemVariants: any[] = [];
+    const itemToggles: any[] = [];
+
+    actor.items.forEach(item => {
+      const itemAny = item as any;
+
+      // Extract rule element variants (e.g., weapon variants, stance toggles)
+      if (itemAny.system?.rules) {
+        itemAny.system.rules.forEach((rule: any, ruleIndex: number) => {
+          // Variants (ChoiceSet, RollOption with choices)
+          if (rule.key === 'ChoiceSet' || (rule.key === 'RollOption' && rule.choices)) {
+            itemVariants.push({
+              itemId: item.id,
+              itemName: item.name,
+              ruleIndex: ruleIndex,
+              ruleKey: rule.key,
+              label: rule.label || rule.prompt,
+              ...(rule.selection ? { selected: rule.selection } : {}),
+              ...(rule.choices ? { choices: rule.choices } : {}),
+            });
+          }
+
+          // Toggles (RollOption toggleable, ToggleProperty)
+          if ((rule.key === 'RollOption' && rule.toggleable) || rule.key === 'ToggleProperty') {
+            itemToggles.push({
+              itemId: item.id,
+              itemName: item.name,
+              ruleIndex: ruleIndex,
+              ruleKey: rule.key,
+              label: rule.label,
+              option: rule.option,
+              ...(rule.value !== undefined ? { enabled: rule.value } : {}),
+              ...(rule.toggleable !== undefined ? { toggleable: rule.toggleable } : {}),
+            });
+          }
+        });
+      }
+
+      // Also check for item-level toggles (e.g., equipped, identified)
+      if (itemAny.system?.equipped !== undefined) {
+        itemToggles.push({
+          itemId: item.id,
+          itemName: item.name,
+          type: 'equipped',
+          enabled: itemAny.system.equipped,
+        });
+      }
+    });
+
+    // Add to character data if any found
+    if (itemVariants.length > 0) {
+      characterData.itemVariants = itemVariants;
+    }
+    if (itemToggles.length > 0) {
+      characterData.itemToggles = itemToggles;
+    }
+
+    // Extract spellcasting data (PF2e and D&D 5e)
+    const spellcastingEntries = this.extractSpellcastingData(actor);
+    if (spellcastingEntries.length > 0) {
+      characterData.spellcasting = spellcastingEntries;
+    }
+
     return characterData;
+  }
+
+  /**
+   * Search within a character's items, spells, actions, and effects
+   * More token-efficient than getCharacterInfo when you need specific items
+   */
+  async searchCharacterItems(params: {
+    characterIdentifier: string;
+    query?: string | undefined;
+    type?: string | undefined;
+    category?: string | undefined;
+    limit?: number | undefined;
+  }): Promise<{
+    characterId: string;
+    characterName: string;
+    query?: string;
+    type?: string;
+    category?: string;
+    matches: Array<{
+      id: string;
+      name: string;
+      type: string;
+      description?: string;
+      // For spells
+      level?: number;
+      prepared?: boolean;
+      expended?: boolean;
+      range?: string;
+      target?: string;
+      area?: string;
+      actionCost?: string;
+      traits?: string[];
+      // For items
+      quantity?: number;
+      equipped?: boolean;
+      invested?: boolean;
+      // For actions
+      actionType?: string;
+    }>;
+    totalMatches: number;
+  }> {
+    this.validateFoundryState();
+
+    const { characterIdentifier, query, type, category, limit = 20 } = params;
+
+    // Find the actor
+    const actor = this.findActorByIdentifier(characterIdentifier);
+    if (!actor) {
+      throw new Error(`Character not found: ${characterIdentifier}`);
+    }
+
+    const actorAny = actor as any;
+    const systemId = (game.system as any).id;
+    const matches: Array<any> = [];
+
+    // Normalize search query
+    const searchQuery = query?.toLowerCase().trim();
+    const searchType = type?.toLowerCase().trim();
+    const searchCategory = category?.toLowerCase().trim();
+
+    // Helper to check if text matches query (safely handles non-strings)
+    const matchesQuery = (text: unknown): boolean => {
+      if (!searchQuery) return true;
+      if (typeof text !== 'string') return false;
+      return text.toLowerCase().includes(searchQuery);
+    };
+
+    // Helper to check if item matches type filter
+    const matchesType = (itemType: string): boolean => {
+      if (!searchType) return true;
+      return itemType.toLowerCase() === searchType;
+    };
+
+    // Search items
+    for (const item of actor.items) {
+      const itemSystem = item.system as any;
+
+      // Check type filter
+      if (!matchesType(item.type)) continue;
+
+      // Check query filter (name or description)
+      // Ensure description is a string (could be an object in some systems)
+      let description = itemSystem?.description?.value || itemSystem?.description;
+      if (typeof description !== 'string') description = '';
+      if (!matchesQuery(item.name) && !matchesQuery(description)) continue;
+
+      // Build result based on item type
+      const result: any = {
+        id: item.id,
+        name: item.name,
+        type: item.type,
+      };
+
+      // Add description (truncated for token efficiency)
+      if (description) {
+        // Strip HTML and truncate
+        const plainText = description.replace(/<[^>]*>/g, '').trim();
+        result.description = plainText.length > 300 ? plainText.substring(0, 300) + '...' : plainText;
+      }
+
+      // Spell-specific fields
+      if (item.type === 'spell') {
+        result.level = itemSystem?.level?.value ?? itemSystem?.level ?? itemSystem?.rank ?? 0;
+        result.prepared = itemSystem?.preparation?.prepared ?? itemSystem?.location?.prepared;
+        result.expended = itemSystem?.location?.expended;
+
+        // Get targeting info
+        if (systemId === 'pf2e') {
+          const targeting = this.extractPF2eSpellTargeting(itemSystem);
+          if (targeting.range) result.range = targeting.range;
+          if (targeting.target) result.target = targeting.target;
+          if (targeting.area) result.area = targeting.area;
+          result.actionCost = this.formatPF2eActionCost(itemSystem?.time?.value);
+          result.traits = itemSystem?.traits?.value || [];
+        } else if (systemId === 'dnd5e') {
+          const targeting = this.extractDnD5eSpellTargeting(itemSystem);
+          if (targeting.range) result.range = targeting.range;
+          if (targeting.target) result.target = targeting.target;
+          if (targeting.area) result.area = targeting.area;
+          result.actionCost = itemSystem?.activation?.type;
+        } else if (systemId === 'dsa5') {
+          const targeting = this.extractDSA5SpellTargeting(itemSystem);
+          if (targeting.range) result.range = targeting.range;
+          if (targeting.target) result.target = targeting.target;
+          if (targeting.area) result.area = targeting.area;
+          result.actionCost = itemSystem?.castingTime?.value;
+        }
+
+        // Category filter for spells
+        if (searchCategory) {
+          const spellLevel = result.level || 0;
+          const isPrepared = result.prepared !== false;
+          const isCantrip = spellLevel === 0;
+          const isFocus = itemSystem?.traits?.value?.includes('focus') || itemSystem?.category?.value === 'focus';
+
+          if (searchCategory === 'cantrip' && !isCantrip) continue;
+          if (searchCategory === 'prepared' && !isPrepared) continue;
+          if (searchCategory === 'focus' && !isFocus) continue;
+        }
+      }
+
+      // Equipment-specific fields
+      if (['weapon', 'armor', 'equipment', 'consumable', 'backpack', 'loot'].includes(item.type)) {
+        result.quantity = itemSystem?.quantity ?? 1;
+        result.equipped = itemSystem?.equipped ?? false;
+        result.invested = itemSystem?.equipped?.invested ?? itemSystem?.invested ?? undefined;
+
+        // Category filter for equipment
+        if (searchCategory) {
+          if (searchCategory === 'equipped' && !result.equipped) continue;
+          if (searchCategory === 'invested' && !result.invested) continue;
+        }
+      }
+
+      // Feat/feature fields
+      if (['feat', 'feature', 'class', 'ancestry', 'heritage', 'background'].includes(item.type)) {
+        if (systemId === 'pf2e') {
+          result.traits = itemSystem?.traits?.value || [];
+          result.level = itemSystem?.level?.value ?? undefined;
+          result.actionCost = this.formatPF2eActionCost(itemSystem?.actionType?.value);
+        }
+      }
+
+      // Action fields
+      if (item.type === 'action') {
+        if (systemId === 'pf2e') {
+          result.traits = itemSystem?.traits?.value || [];
+          result.actionCost = this.formatPF2eActionCost(itemSystem?.actionType?.value || itemSystem?.actions?.value);
+        }
+      }
+
+      matches.push(result);
+
+      // Stop if we've reached the limit
+      if (matches.length >= limit) break;
+    }
+
+    // Also search actions if type filter includes 'action' or is empty
+    if (!searchType || searchType === 'action') {
+      const actions = actorAny.system?.actions || actorAny.items?.filter((i: any) => i.type === 'action') || [];
+      for (const action of actions) {
+        if (matches.length >= limit) break;
+
+        const actionName = action.name || action.label || '';
+        if (!matchesQuery(actionName)) continue;
+
+        const result: any = {
+          id: action.id || action.slug || actionName,
+          name: actionName,
+          type: 'action',
+          actionType: action.type || action.actionType || 'action',
+        };
+
+        if (systemId === 'pf2e') {
+          result.traits = action.traits || [];
+          result.actionCost = this.formatPF2eActionCost(action.actionCost?.value || action.actions);
+        }
+
+        matches.push(result);
+      }
+    }
+
+    // Search effects if type filter includes 'effect' or is empty
+    if (!searchType || searchType === 'effect') {
+      const effects = actor.effects || [];
+      for (const effect of effects) {
+        if (matches.length >= limit) break;
+
+        const effectAny = effect as any;
+        if (!matchesQuery(effectAny.name || effectAny.label)) continue;
+
+        matches.push({
+          id: effectAny.id,
+          name: effectAny.name || effectAny.label,
+          type: 'effect',
+          description: effectAny.description || undefined,
+        });
+      }
+    }
+
+    this.auditLog('searchCharacterItems', {
+      characterId: actor.id,
+      query,
+      type,
+      category,
+      matchCount: matches.length
+    }, 'success');
+
+    const result: {
+      characterId: string;
+      characterName: string;
+      query?: string;
+      type?: string;
+      category?: string;
+      matches: any[];
+      totalMatches: number;
+    } = {
+      characterId: actor.id || '',
+      characterName: actor.name || '',
+      matches,
+      totalMatches: matches.length,
+    };
+
+    if (query) result.query = query;
+    if (type) result.type = type;
+    if (category) result.category = category;
+
+    return result;
+  }
+
+  /**
+   * Extract spellcasting data from an actor (supports PF2e and D&D 5e)
+   */
+  private extractSpellcastingData(actor: Actor): SpellcastingEntry[] {
+    const entries: SpellcastingEntry[] = [];
+    const actorAny = actor as any;
+    const systemId = (game.system as any).id;
+
+    // Get all spell items from the actor
+    const spellItems = actor.items.filter(item => item.type === 'spell');
+
+    if (systemId === 'pf2e') {
+      // PF2e: Extract from spellcastingEntries
+      const spellcastingEntries = actorAny.spellcasting?.contents || actorAny.items?.filter((i: any) => i.type === 'spellcastingEntry') || [];
+
+      for (const entry of spellcastingEntries) {
+        const entryData = entry.system || entry;
+        const entrySpells: SpellInfo[] = [];
+
+        // Get spells associated with this entry
+        // In PF2e, spells have a location property pointing to their spellcasting entry
+        const entryId = entry.id;
+        const associatedSpells = spellItems.filter((spell: any) => {
+          const spellSystem = spell.system as any;
+          return spellSystem?.location?.value === entryId ||
+                 spellSystem?.location === entryId;
+        });
+
+        for (const spell of associatedSpells) {
+          const spellSystem = spell.system as any;
+          const targeting = this.extractPF2eSpellTargeting(spellSystem);
+          entrySpells.push({
+            id: spell.id || '',
+            name: spell.name || '',
+            level: spellSystem?.level?.value ?? spellSystem?.rank ?? 0,
+            prepared: spellSystem?.location?.prepared ?? true,
+            expended: spellSystem?.location?.expended ?? false,
+            traits: spellSystem?.traits?.value || [],
+            actionCost: this.formatPF2eActionCost(spellSystem?.time?.value),
+            range: targeting.range,
+            target: targeting.target,
+            area: targeting.area,
+          });
+        }
+
+        // Also check for spells in the entry's spell collection
+        if (entry.spells) {
+          for (const [levelKey, levelData] of Object.entries(entry.spells as Record<string, any>)) {
+            const spellsAtLevel = levelData?.value || levelData || [];
+            if (Array.isArray(spellsAtLevel)) {
+              for (const spellRef of spellsAtLevel) {
+                // Skip if we already have this spell
+                if (entrySpells.some(s => s.id === spellRef.id)) continue;
+
+                const spellItem = actor.items.get(spellRef.id || spellRef);
+                if (spellItem) {
+                  const spellSystem = spellItem.system as any;
+                  const targeting = this.extractPF2eSpellTargeting(spellSystem);
+                  entrySpells.push({
+                    id: spellItem.id || '',
+                    name: spellItem.name || '',
+                    level: parseInt(levelKey.replace('spell', '')) || spellSystem?.level?.value || 0,
+                    prepared: spellRef.prepared ?? true,
+                    expended: spellRef.expended ?? false,
+                    traits: spellSystem?.traits?.value || [],
+                    actionCost: this.formatPF2eActionCost(spellSystem?.time?.value),
+                    range: targeting.range,
+                    target: targeting.target,
+                    area: targeting.area,
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        entries.push({
+          id: entry.id || '',
+          name: entry.name || 'Spellcasting',
+          tradition: entryData?.tradition?.value || entryData?.tradition || undefined,
+          type: entryData?.prepared?.value || entryData?.prepared || 'prepared',
+          ability: entryData?.ability?.value || entryData?.ability || undefined,
+          dc: entryData?.spelldc?.dc || entryData?.dc?.value || undefined,
+          attack: entryData?.spelldc?.value || entryData?.attack?.value || undefined,
+          slots: this.extractPF2eSpellSlots(entryData),
+          spells: entrySpells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+        });
+      }
+
+      // Also capture focus spells and innate spells that might not be in entries
+      const focusSpells = spellItems.filter((spell: any) => {
+        const spellSystem = spell.system as any;
+        return spellSystem?.traits?.value?.includes('focus') ||
+               spellSystem?.category?.value === 'focus';
+      });
+
+      if (focusSpells.length > 0 && !entries.some(e => e.type === 'focus')) {
+        entries.push({
+          id: 'focus-spells',
+          name: 'Focus Spells',
+          type: 'focus',
+          spells: focusSpells.map((spell: any) => {
+            const spellSystem = spell.system as any;
+            const targeting = this.extractPF2eSpellTargeting(spellSystem);
+            return {
+              id: spell.id || '',
+              name: spell.name || '',
+              level: spellSystem?.level?.value || 0,
+              traits: spellSystem?.traits?.value || [],
+              actionCost: this.formatPF2eActionCost(spellSystem?.time?.value),
+              range: targeting.range,
+              target: targeting.target,
+              area: targeting.area,
+            };
+          }),
+        });
+      }
+
+    } else if (systemId === 'dnd5e') {
+      // D&D 5e: Extract from classes with spellcasting
+      const classes = actor.items.filter(item => item.type === 'class');
+      const spellSlots = actorAny.system?.spells || {};
+
+      // Group spells by their source class or create a general entry
+      const spellsByClass: Record<string, SpellInfo[]> = {};
+
+      for (const spell of spellItems) {
+        const spellSystem = spell.system as any;
+        const sourceClass = spellSystem?.sourceClass || 'general';
+
+        if (!spellsByClass[sourceClass]) {
+          spellsByClass[sourceClass] = [];
+        }
+
+        const targeting = this.extractDnD5eSpellTargeting(spellSystem);
+        spellsByClass[sourceClass].push({
+          id: spell.id || '',
+          name: spell.name || '',
+          level: spellSystem?.level || 0,
+          prepared: spellSystem?.preparation?.prepared ?? true,
+          traits: [], // D&D 5e doesn't use traits the same way
+          actionCost: spellSystem?.activation?.type || undefined,
+          range: targeting.range,
+          target: targeting.target,
+          area: targeting.area,
+        });
+      }
+
+      // Create entries for each spellcasting class
+      for (const classItem of classes) {
+        const classSystem = classItem.system as any;
+        if (classSystem?.spellcasting?.progression && classSystem.spellcasting.progression !== 'none') {
+          const className = classItem.name || 'Unknown';
+          const classSpells = spellsByClass[classItem.id || ''] || spellsByClass[className.toLowerCase()] || [];
+
+          entries.push({
+            id: classItem.id || '',
+            name: `${className} Spellcasting`,
+            type: classSystem?.spellcasting?.type || 'prepared',
+            ability: classSystem?.spellcasting?.ability || undefined,
+            slots: this.extractDnD5eSpellSlots(spellSlots),
+            spells: classSpells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+          });
+        }
+      }
+
+      // If no class-based entries found but we have spells, create a general entry
+      if (entries.length === 0 && spellItems.length > 0) {
+        const allSpells: SpellInfo[] = [];
+        for (const spell of spellItems) {
+          const spellSystem = spell.system as any;
+          const targeting = this.extractDnD5eSpellTargeting(spellSystem);
+          allSpells.push({
+            id: spell.id || '',
+            name: spell.name || '',
+            level: spellSystem?.level || 0,
+            prepared: spellSystem?.preparation?.prepared ?? true,
+            actionCost: spellSystem?.activation?.type || undefined,
+            range: targeting.range,
+            target: targeting.target,
+            area: targeting.area,
+          });
+        }
+
+        entries.push({
+          id: 'spellcasting',
+          name: 'Spellcasting',
+          type: 'prepared',
+          slots: this.extractDnD5eSpellSlots(spellSlots),
+          spells: allSpells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+        });
+      }
+    } else if (systemId === 'dsa5') {
+      // DSA5: Extract Zauber (spells), Liturgien (liturgies), Zeremonien (ceremonies), Rituale (rituals)
+      const astralSpells = actor.items.filter(item => item.type === 'spell');
+      const karmaSpells = actor.items.filter(item => ['liturgy', 'ceremony'].includes(item.type));
+      const rituals = actor.items.filter(item => item.type === 'ritual');
+
+      // Get AsP and KaP from actor
+      const asp = actorAny.system?.status?.astralenergy || actorAny.system?.astralenergy;
+      const kap = actorAny.system?.status?.karmaenergy || actorAny.system?.karmaenergy;
+
+      // Zauber (Arcane spells using AsP)
+      if (astralSpells.length > 0) {
+        entries.push({
+          id: 'zauber',
+          name: 'Zauber (Spells)',
+          type: 'arcane',
+          slots: asp ? {
+            asp: { value: asp.value ?? 0, max: asp.max ?? 0 }
+          } : undefined,
+          spells: astralSpells.map((spell: any) => {
+            const spellSystem = spell.system as any;
+            const targeting = this.extractDSA5SpellTargeting(spellSystem);
+            return {
+              id: spell.id || '',
+              name: spell.name || '',
+              level: spellSystem?.level?.value ?? spellSystem?.level ?? 0,
+              traits: spellSystem?.effect?.attributes || [],
+              actionCost: spellSystem?.castingTime?.value || undefined,
+              range: targeting.range,
+              target: targeting.target,
+              area: targeting.area,
+            };
+          }).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+        });
+      }
+
+      // Liturgien & Zeremonien (Divine spells using KaP)
+      if (karmaSpells.length > 0) {
+        entries.push({
+          id: 'liturgien',
+          name: 'Liturgien & Zeremonien (Liturgies)',
+          type: 'divine',
+          slots: kap ? {
+            kap: { value: kap.value ?? 0, max: kap.max ?? 0 }
+          } : undefined,
+          spells: karmaSpells.map((spell: any) => {
+            const spellSystem = spell.system as any;
+            const targeting = this.extractDSA5SpellTargeting(spellSystem);
+            return {
+              id: spell.id || '',
+              name: spell.name || '',
+              level: spellSystem?.level?.value ?? spellSystem?.level ?? 0,
+              traits: spellSystem?.effect?.attributes || [],
+              actionCost: spellSystem?.castingTime?.value || undefined,
+              range: targeting.range,
+              target: targeting.target,
+              area: targeting.area,
+            };
+          }).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+        });
+      }
+
+      // Rituale (Rituals - can use either AsP or KaP depending on tradition)
+      if (rituals.length > 0) {
+        entries.push({
+          id: 'rituale',
+          name: 'Rituale (Rituals)',
+          type: 'ritual',
+          spells: rituals.map((spell: any) => {
+            const spellSystem = spell.system as any;
+            const targeting = this.extractDSA5SpellTargeting(spellSystem);
+            return {
+              id: spell.id || '',
+              name: spell.name || '',
+              level: spellSystem?.level?.value ?? spellSystem?.level ?? 0,
+              traits: spellSystem?.effect?.attributes || [],
+              actionCost: spellSystem?.castingTime?.value || undefined,
+              range: targeting.range,
+              target: targeting.target,
+              area: targeting.area,
+            };
+          }).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+        });
+      }
+    }
+
+    return entries;
+  }
+
+  /**
+   * Format PF2e action cost to human-readable string
+   */
+  private formatPF2eActionCost(actionValue: any): string | undefined {
+    if (!actionValue) return undefined;
+    if (typeof actionValue === 'number') {
+      return actionValue === 1 ? '1 action' : `${actionValue} actions`;
+    }
+    if (actionValue === 'reaction') return 'reaction';
+    if (actionValue === 'free') return 'free action';
+    return String(actionValue);
+  }
+
+  /**
+   * Extract PF2e spell slots from spellcasting entry data
+   */
+  private extractPF2eSpellSlots(entryData: any): Record<string, { value: number; max: number }> | undefined {
+    const slots: Record<string, { value: number; max: number }> = {};
+
+    // PF2e stores slots per rank
+    for (let rank = 1; rank <= 10; rank++) {
+      const slotKey = `slot${rank}`;
+      const slotData = entryData?.slots?.[slotKey] || entryData?.[slotKey];
+      if (slotData && (slotData.max > 0 || slotData.value > 0)) {
+        slots[`rank${rank}`] = {
+          value: slotData.value ?? 0,
+          max: slotData.max ?? 0,
+        };
+      }
+    }
+
+    return Object.keys(slots).length > 0 ? slots : undefined;
+  }
+
+  /**
+   * Extract D&D 5e spell slots from actor system data
+   */
+  private extractDnD5eSpellSlots(spellsData: any): Record<string, { value: number; max: number }> | undefined {
+    const slots: Record<string, { value: number; max: number }> = {};
+
+    // D&D 5e stores slots as spell1, spell2, etc.
+    for (let level = 1; level <= 9; level++) {
+      const slotKey = `spell${level}`;
+      const slotData = spellsData?.[slotKey];
+      if (slotData && (slotData.max > 0 || slotData.value > 0)) {
+        slots[`level${level}`] = {
+          value: slotData.value ?? 0,
+          max: slotData.max ?? 0,
+        };
+      }
+    }
+
+    // Also check for pact slots (warlock)
+    const pactSlot = spellsData?.pact;
+    if (pactSlot && (pactSlot.max > 0 || pactSlot.value > 0)) {
+      slots['pact'] = {
+        value: pactSlot.value ?? 0,
+        max: pactSlot.max ?? 0,
+      };
+    }
+
+    return Object.keys(slots).length > 0 ? slots : undefined;
+  }
+
+  /**
+   * Extract spell targeting info for D&D 5e
+   * D&D 5e spells have: target.type ("self", "creature", "point", etc.), range.value, range.units
+   */
+  private extractDnD5eSpellTargeting(spellSystem: any): { range?: string; target?: string; area?: string } {
+    const result: { range?: string; target?: string; area?: string } = {};
+
+    // Range (e.g., "60 feet", "Self", "Touch")
+    const rangeValue = spellSystem?.range?.value;
+    const rangeUnits = spellSystem?.range?.units;
+    if (rangeUnits === 'self') {
+      result.range = 'Self';
+    } else if (rangeUnits === 'touch') {
+      result.range = 'Touch';
+    } else if (rangeUnits === 'spec') {
+      result.range = spellSystem?.range?.special || 'Special';
+    } else if (rangeValue && rangeUnits) {
+      result.range = `${rangeValue} ${rangeUnits}`;
+    }
+
+    // Target type (e.g., "1 creature", "self", "area")
+    const targetType = spellSystem?.target?.type;
+    const targetValue = spellSystem?.target?.value;
+    if (targetType === 'self') {
+      result.target = 'self';
+    } else if (targetType === 'creature' || targetType === 'ally' || targetType === 'enemy') {
+      result.target = targetValue ? `${targetValue} ${targetType}${targetValue > 1 ? 's' : ''}` : targetType;
+    } else if (targetType === 'object') {
+      result.target = targetValue ? `${targetValue} object${targetValue > 1 ? 's' : ''}` : 'object';
+    } else if (targetType === 'space' || targetType === 'point') {
+      result.target = 'point';
+    } else if (targetType) {
+      result.target = targetType;
+    }
+
+    // Area (for AoE spells - e.g., "20-foot radius", "30-foot cone")
+    const areaType = spellSystem?.target?.template?.type;
+    const areaSize = spellSystem?.target?.template?.size;
+    const areaUnits = spellSystem?.target?.template?.units || 'ft';
+    if (areaType && areaSize) {
+      result.area = `${areaSize}-${areaUnits} ${areaType}`;
+      // If spell has area, target is usually "area"
+      if (!result.target || result.target === 'point') {
+        result.target = 'area';
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Extract spell targeting info for PF2e
+   * PF2e spells have: target (string), range.value, area.type, area.value
+   */
+  private extractPF2eSpellTargeting(spellSystem: any): { range?: string; target?: string; area?: string } {
+    const result: { range?: string; target?: string; area?: string } = {};
+
+    // Range (e.g., "30 feet", "touch")
+    const rangeValue = spellSystem?.range?.value;
+    if (rangeValue) {
+      result.range = String(rangeValue);
+    }
+
+    // Target (PF2e has a descriptive target string)
+    const targetValue = spellSystem?.target?.value;
+    if (targetValue) {
+      result.target = String(targetValue);
+    }
+
+    // Area (e.g., "15-foot emanation", "30-foot cone")
+    const areaType = spellSystem?.area?.type;
+    const areaValue = spellSystem?.area?.value;
+    if (areaType) {
+      if (areaValue) {
+        result.area = `${areaValue}-foot ${areaType}`;
+      } else {
+        result.area = areaType;
+      }
+      // If has area but no explicit target, it's an area spell
+      if (!result.target) {
+        result.target = 'area';
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Extract spell targeting info for DSA5
+   * DSA5 spells have: targetCategory, range, etc.
+   */
+  private extractDSA5SpellTargeting(spellSystem: any): { range?: string; target?: string; area?: string } {
+    const result: { range?: string; target?: string; area?: string } = {};
+
+    // Range
+    const rangeValue = spellSystem?.range?.value || spellSystem?.Reichweite;
+    if (rangeValue) {
+      result.range = String(rangeValue);
+    }
+
+    // Target category
+    const targetCategory = spellSystem?.targetCategory?.value || spellSystem?.Zielkategorie;
+    if (targetCategory) {
+      result.target = String(targetCategory);
+    }
+
+    // Area (Wirkungsbereich)
+    const areaValue = spellSystem?.effectRadius?.value || spellSystem?.Wirkungsbereich;
+    if (areaValue) {
+      result.area = String(areaValue);
+    }
+
+    return result;
   }
 
   /**
@@ -2068,6 +2891,35 @@ export class FoundryDataAccess {
   }
 
   /**
+   * Get pack index for a specific compendium pack
+   * Returns the index containing all documents in the pack without loading full documents
+   */
+  async getPackIndex(packId: string): Promise<any[]> {
+    try {
+      const pack = game.packs.get(packId);
+      if (!pack) {
+        throw new Error(`Compendium pack "${packId}" not found`);
+      }
+
+      // Ensure pack index is loaded
+      if (!pack.indexed) {
+        await pack.getIndex({});
+      }
+
+      // Return index as array of entries
+      const indexArray = Array.from(pack.index.values());
+      
+      console.log(`[${this.moduleId}] Retrieved pack index for ${packId}: ${indexArray.length} entries`);
+
+      return indexArray;
+
+    } catch (error) {
+      console.error(`[${this.moduleId}] Failed to get pack index for ${packId}:`, error);
+      throw new Error(`Failed to get pack index for ${packId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Sanitize data to remove sensitive information and make it JSON-safe
    */
   private sanitizeData(data: any): any {
@@ -2663,6 +3515,240 @@ export class FoundryDataAccess {
   }
 
   /**
+   * Create an actor directly from provided actor data (generic import path).
+   * Intended for system-specific importers that already mapped source JSON to Foundry actor shape.
+   */
+  async createActorFromData(request: {
+    actorData: Record<string, unknown>;
+    addToScene?: boolean;
+    updateExisting?: boolean;
+    existingActorIdentifier?: string;
+    preserveItemTypes?: string[];
+    placement?: {
+      type: 'random' | 'grid' | 'center' | 'coordinates';
+      coordinates?: { x: number; y: number }[];
+    };
+  }): Promise<{
+    success: boolean;
+    actor?: { id: string; name: string; type: string };
+    updatedExisting?: boolean;
+    tokensPlaced?: number;
+    errors?: string[];
+  }> {
+    this.validateFoundryState();
+
+    const permissionCheck = permissionManager.checkWritePermission('createActor', { quantity: 1 });
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+    permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
+
+    try {
+      const actorData = foundry.utils.deepClone(request.actorData) as any;
+
+      delete actorData._id;
+      delete actorData.sort;
+
+      if (!actorData.name || typeof actorData.name !== 'string') {
+        throw new Error('actorData.name is required and must be a string');
+      }
+      if (!actorData.type || typeof actorData.type !== 'string') {
+        actorData.type = 'character';
+      }
+      if (!actorData.system || typeof actorData.system !== 'object') {
+        actorData.system = {};
+      }
+
+      if (Array.isArray(actorData.items)) {
+        actorData.items = actorData.items
+          .filter((item: any) => item && typeof item === 'object')
+          .map((item: any) => {
+            const clonedItem = foundry.utils.deepClone(item);
+            delete clonedItem._id;
+            delete clonedItem.folder;
+            delete clonedItem.sort;
+            return clonedItem;
+          });
+      } else {
+        actorData.items = [];
+      }
+
+      if (Array.isArray(actorData.effects)) {
+        actorData.effects = actorData.effects
+          .filter((effect: any) => effect && typeof effect === 'object')
+          .map((effect: any) => {
+            const clonedEffect = foundry.utils.deepClone(effect);
+            delete clonedEffect._id;
+            delete clonedEffect.folder;
+            delete clonedEffect.sort;
+            return clonedEffect;
+          });
+      } else {
+        actorData.effects = [];
+      }
+
+      if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
+        actorData.prototypeToken.texture.src = null;
+      }
+
+      if (!actorData.folder) {
+        const folderId = await this.getOrCreateFolder('Foundry MCP Imported Actors', 'Actor');
+        if (folderId) {
+          actorData.folder = folderId;
+        }
+      }
+
+      const incomingItems = actorData.items;
+      const incomingEffects = actorData.effects;
+      delete actorData.items;
+      delete actorData.effects;
+
+      const findExistingActor = (): Actor | undefined => {
+        if (!request.updateExisting) return undefined;
+
+        const byIdentifier = request.existingActorIdentifier?.trim();
+        if (byIdentifier) {
+          const byId = game.actors.get(byIdentifier);
+          if (byId) return byId;
+
+          const normalizedIdentifier = byIdentifier.toLowerCase();
+          return game.actors.find((actor) => actor.name?.toLowerCase() === normalizedIdentifier);
+        }
+
+        const normalizedName = String(actorData.name).toLowerCase().trim();
+        const desiredType = String(actorData.type || '').toLowerCase().trim();
+        return game.actors.find((actor) => {
+          const actorName = actor.name?.toLowerCase().trim();
+          const actorType = String(actor.type || '').toLowerCase().trim();
+          return actorName === normalizedName && actorType === desiredType;
+        });
+      };
+
+      const existingActor = findExistingActor();
+      let targetActor: Actor | null = null;
+      let updatedExisting = false;
+
+      if (existingActor) {
+        await existingActor.update(actorData);
+
+        let mergedIncomingItems = Array.isArray(incomingItems) ? [...incomingItems] : [];
+        const preserveIdentityTypes = new Set(request.preserveItemTypes ?? []);
+        const incomingTypeSet = new Set(
+          mergedIncomingItems
+            .map((item: any) => String(item?.type || '').toLowerCase().trim())
+            .filter((itemType: string) => itemType.length > 0)
+        );
+        const missingIdentityTypes = [...preserveIdentityTypes].filter((itemType) => !incomingTypeSet.has(itemType));
+        if (missingIdentityTypes.length > 0) {
+          const incomingKeys = new Set(
+            mergedIncomingItems.map(
+              (item: any) => `${String(item?.type || '').toLowerCase().trim()}::${String(item?.name || '').toLowerCase().trim()}`
+            )
+          );
+          const preservedIdentityItems = existingActor.items
+            .filter((item) => missingIdentityTypes.includes(String(item.type || '').toLowerCase().trim()))
+            .map((item) => item.toObject())
+            .filter((itemData: any) => {
+              const key = `${String(itemData?.type || '').toLowerCase().trim()}::${String(itemData?.name || '').toLowerCase().trim()}`;
+              return !incomingKeys.has(key);
+            })
+            .map((itemData: any) => {
+              const clonedItem = foundry.utils.deepClone(itemData);
+              delete clonedItem._id;
+              delete clonedItem.folder;
+              delete clonedItem.sort;
+              return clonedItem;
+            });
+          if (preservedIdentityItems.length > 0) {
+            mergedIncomingItems = [...mergedIncomingItems, ...preservedIdentityItems];
+          }
+        }
+
+        const existingItemIds = existingActor.items
+          .map((item) => item.id)
+          .filter((id): id is string => Boolean(id));
+        if (existingItemIds.length > 0) {
+          await existingActor.deleteEmbeddedDocuments('Item', existingItemIds);
+        }
+
+        if (Array.isArray(mergedIncomingItems) && mergedIncomingItems.length > 0) {
+          await existingActor.createEmbeddedDocuments('Item', mergedIncomingItems as any[]);
+        }
+
+        const existingEffectIds = existingActor.effects
+          .map((effect) => effect.id)
+          .filter((id): id is string => Boolean(id));
+        if (existingEffectIds.length > 0) {
+          await existingActor.deleteEmbeddedDocuments('ActiveEffect', existingEffectIds);
+        }
+
+        if (Array.isArray(incomingEffects) && incomingEffects.length > 0) {
+          await existingActor.createEmbeddedDocuments('ActiveEffect', incomingEffects as any[]);
+        }
+
+        targetActor = existingActor;
+        updatedExisting = true;
+      } else {
+        const createdActor = await Actor.create({
+          ...actorData,
+          items: incomingItems,
+          effects: incomingEffects,
+        });
+        if (!createdActor) {
+          throw new Error('Failed to create actor from provided data');
+        }
+        targetActor = createdActor;
+      }
+
+      if (!targetActor?.id) {
+        throw new Error('Target actor could not be created or resolved');
+      }
+
+      let tokensPlaced = 0;
+      const errors: string[] = [];
+      if (request.addToScene) {
+        try {
+          const sceneResult = await this.addActorsToScene({
+            actorIds: [targetActor.id],
+            placement: request.placement?.type || 'grid',
+            hidden: false,
+            ...(request.placement?.coordinates ? { coordinates: request.placement.coordinates } : {}),
+          });
+          tokensPlaced = sceneResult.success ? sceneResult.tokensCreated : 0;
+        } catch (error) {
+          errors.push(`Failed to add actor to scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      const result: {
+        success: boolean;
+        actor: { id: string; name: string; type: string };
+        updatedExisting: boolean;
+        tokensPlaced: number;
+        errors?: string[];
+      } = {
+        success: true,
+        actor: {
+          id: targetActor.id,
+          name: targetActor.name ?? String(actorData.name),
+          type: targetActor.type ?? String(actorData.type ?? 'character'),
+        },
+        updatedExisting,
+        tokensPlaced,
+      };
+      if (errors.length > 0) {
+        result.errors = errors;
+      }
+
+      this.auditLog('createActorFromData', request, 'success');
+      return result;
+    } catch (error) {
+      this.auditLog('createActorFromData', request, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  /**
    * Get full compendium document with all embedded data
    */
   async getCompendiumDocumentFull(packId: string, documentId: string): Promise<CompendiumEntryFull> {
@@ -2705,7 +3791,7 @@ export class FoundryDataAccess {
       fullEntry.effects = (document as any).effects.map((effect: any) => ({
         id: effect.id,
         name: effect.name || effect.label || 'Unknown Effect',
-        icon: effect.icon || undefined,
+        icon: effect.img || undefined,
         disabled: effect.disabled || false,
         duration: this.sanitizeData(effect.duration || {}),
       }));
@@ -4260,7 +5346,7 @@ export class FoundryDataAccess {
           entity: {
             id: entity.id,
             name: entity.name || entity.label,
-            icon: entity.icon,
+            icon: entity.img,
             disabled: entity.disabled,
             duration: entity.duration,
             changes: entity.changes
@@ -4514,7 +5600,7 @@ export class FoundryDataAccess {
         // Add the condition - handle DSA5 and other systems
         const effectData: any = {
           name: condition.name || condition.label || condition.id,
-          icon: condition.icon || condition.img,
+          icon: condition.img || condition.icon,
         };
 
         // Add statuses for systems that support it (D&D5e, PF2e)
@@ -4594,12 +5680,243 @@ export class FoundryDataAccess {
         conditions: conditions.map((condition: any) => ({
           id: condition.id,
           name: condition.name || condition.label || condition.id,
-          icon: condition.icon || condition.img,
+          icon: condition.img || condition.icon,
           description: condition.description || ''
         }))
       };
     } catch (error) {
       throw new Error(`Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Move a token to a new position
+   */
+  
+  
+  /**
+   * Use an item on a character (cast spell, use ability, consume item, etc.)
+   * This triggers the item's default use behavior in Foundry VTT
+   */
+  async useItem(params: {
+    actorIdentifier: string;
+    itemIdentifier: string;
+    targets?: string[] | undefined;       // Target character/token names or IDs. "self" targets the caster.
+    options?: {
+      consume?: boolean | undefined;      // Whether to consume charges/uses
+      configureDialog?: boolean | undefined; // Whether to show configuration dialog
+      skipDialog?: boolean | undefined;   // Skip confirmation dialogs (default: true for MCP)
+      spellLevel?: number | undefined;    // For spells: cast at higher level
+      versatile?: boolean | undefined;    // For versatile weapons: use versatile damage
+    } | undefined;
+  }): Promise<{
+    success: boolean;
+    status?: string;
+    message: string;
+    itemName?: string;
+    actorName?: string;
+    targets?: string[];
+    requiresGMInteraction?: boolean;
+  }> {
+    this.validateFoundryState();
+
+    const { actorIdentifier, itemIdentifier, targets, options = {} } = params;
+
+    // Find the actor
+    const actor = this.findActorByIdentifier(actorIdentifier);
+    if (!actor) {
+      throw new Error(`Actor not found: ${actorIdentifier}`);
+    }
+
+    // Find the item on the actor
+    const item = actor.items.find((i: any) =>
+      i.id === itemIdentifier ||
+      i.name.toLowerCase() === itemIdentifier.toLowerCase()
+    );
+
+    if (!item) {
+      throw new Error(`Item "${itemIdentifier}" not found on actor "${actor.name}"`);
+    }
+
+    const itemAny = item as any;
+    const systemId = (game.system as any).id;
+
+    // Handle targeting if targets are specified
+    const resolvedTargetNames: string[] = [];
+    if (targets && targets.length > 0) {
+      // Get all tokens on the current scene
+      const scene = (game.scenes as any)?.active;
+      if (!scene) {
+        throw new Error('No active scene to find targets on');
+      }
+
+      const sceneTokens = scene.tokens;
+      const tokenIds: string[] = [];
+
+      for (const targetIdentifier of targets) {
+        // Handle "self" - target the caster's token
+        if (targetIdentifier.toLowerCase() === 'self') {
+          // Find token for the caster actor
+          const selfToken = sceneTokens.find((t: any) =>
+            t.actor?.id === actor.id || t.actorId === actor.id
+          );
+          if (selfToken) {
+            tokenIds.push(selfToken.id);
+            resolvedTargetNames.push(actor.name);
+          } else {
+            console.warn(`[foundry-mcp-bridge] No token found on scene for actor "${actor.name}" (self)`);
+          }
+          continue;
+        }
+
+        // Find token by name or ID
+        const targetToken = sceneTokens.find((t: any) =>
+          t.id === targetIdentifier ||
+          t.name?.toLowerCase() === targetIdentifier.toLowerCase() ||
+          t.actor?.name?.toLowerCase() === targetIdentifier.toLowerCase()
+        );
+
+        if (targetToken) {
+          tokenIds.push(targetToken.id);
+          resolvedTargetNames.push(targetToken.name || targetToken.actor?.name || targetIdentifier);
+        } else {
+          console.warn(`[foundry-mcp-bridge] Target not found: "${targetIdentifier}"`);
+        }
+      }
+
+      // Set targets using Foundry's targeting system
+      if (tokenIds.length > 0 && game.user) {
+        await (game.user as any).updateTokenTargets(tokenIds);
+        console.log(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
+      }
+    }
+
+    try {
+      // For items that may show dialogs (spells with choices, etc.),
+      // we fire-and-forget to avoid timeout issues. The GM will interact
+      // with the dialog in Foundry, and the result appears in chat.
+
+      // Check if item has a use() method (common in D&D 5e, PF2e)
+      if (typeof itemAny.use === 'function') {
+        // D&D 5e and similar systems
+        // Only pass options that D&D 5e's item.use() expects
+        const useOptions: Record<string, any> = {
+          createMessage: true,
+        };
+
+        // D&D 5e specific options
+        if (systemId === 'dnd5e') {
+          useOptions.consumeResource = options.consume ?? true;
+          useOptions.consumeSpellSlot = options.consume ?? true;
+          useOptions.consumeUsage = options.consume ?? true;
+          // Always show dialog so GM can make choices
+          useOptions.configureDialog = true;
+        }
+
+        // Spell level for upcasting
+        if (options.spellLevel !== undefined) {
+          useOptions.slotLevel = options.spellLevel; // D&D 5e
+          useOptions.level = options.spellLevel; // generic
+        }
+
+        // Fire and forget - don't await, as dialogs block the promise
+        itemAny.use(useOptions).catch((err: Error) => {
+          console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
+        });
+      } else if (typeof itemAny.toChat === 'function') {
+        // PF2e and some other systems use toChat
+        if (typeof itemAny.toMessage === 'function') {
+          itemAny.toMessage(undefined, { create: true }).catch((err: Error) => {
+            console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
+          });
+        } else {
+          itemAny.toChat().catch((err: Error) => {
+            console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
+          });
+        }
+      } else if (typeof itemAny.roll === 'function') {
+        // Some items have a roll method
+        itemAny.roll().catch((err: Error) => {
+          console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
+        });
+      } else if (systemId === 'dsa5') {
+        // DSA5 specific handling
+        if (item.type === 'spell' || item.type === 'liturgy' || item.type === 'ceremony' || item.type === 'ritual') {
+          if (typeof itemAny.postItem === 'function') {
+            itemAny.postItem().catch((err: Error) => {
+              console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
+            });
+          } else if (typeof itemAny.setupEffect === 'function') {
+            itemAny.setupEffect().catch((err: Error) => {
+              console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
+            });
+          } else {
+            // Fallback: create a chat message describing the item
+            const chatData = {
+              user: game.user?.id,
+              speaker: ChatMessage.getSpeaker({ actor }),
+              content: `<h3>${item.name}</h3><p>${actor.name} uses ${item.name}.</p>`,
+            };
+            ChatMessage.create(chatData);
+          }
+        } else {
+          if (typeof itemAny.postItem === 'function') {
+            itemAny.postItem().catch((err: Error) => {
+              console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
+            });
+          }
+        }
+      } else {
+        // Generic fallback: create a chat message
+        const chatData = {
+          user: game.user?.id,
+          speaker: ChatMessage.getSpeaker({ actor }),
+          content: `<h3>${item.name}</h3><p>${actor.name} uses ${item.name}.</p>`,
+        };
+        ChatMessage.create(chatData);
+      }
+
+      this.auditLog('useItem', {
+        actorId: actor.id,
+        itemId: item.id,
+        itemName: item.name,
+        targets: resolvedTargetNames
+      }, 'success');
+
+      const targetInfo = resolvedTargetNames.length > 0
+        ? ` targeting ${resolvedTargetNames.join(', ')}`
+        : '';
+
+      const result: {
+        success: boolean;
+        status?: string;
+        message: string;
+        itemName?: string;
+        actorName?: string;
+        targets?: string[];
+        requiresGMInteraction?: boolean;
+      } = {
+        success: true,
+        status: 'initiated',
+        message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. If a dialog appeared in Foundry VTT, the GM should select options and confirm. The result will appear in chat.`,
+        itemName: item.name,
+        actorName: actor.name,
+        requiresGMInteraction: true,
+      };
+
+      if (resolvedTargetNames.length > 0) {
+        result.targets = resolvedTargetNames;
+      }
+
+      return result;
+
+    } catch (error) {
+      this.auditLog('useItem', {
+        actorId: actor.id,
+        itemId: item.id
+      }, 'failure', error instanceof Error ? error.message : 'Unknown error');
+
+      throw new Error(`Failed to use item "${item.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

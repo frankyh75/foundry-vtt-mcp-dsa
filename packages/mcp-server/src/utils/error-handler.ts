@@ -38,7 +38,13 @@ export class ErrorHandler {
     }
 
     // Connection errors
-    if (errorLower.includes('connection') || errorLower.includes('websocket') || errorLower.includes('timeout')) {
+    if (
+      errorLower.includes('connection') ||
+      errorLower.includes('websocket') ||
+      errorLower.includes('timeout') ||
+      errorLower.includes('not connected') ||
+      errorLower.includes('module not connected')
+    ) {
       return {
         type: 'connection',
         message: 'Connection to Foundry VTT failed',
@@ -140,9 +146,9 @@ export class ErrorHandler {
   }
 
   /**
-   * Format error for Claude response
+   * Format error for MCP client response
    */
-  formatErrorForClaude(mcpError: MCPError, toolName: string): string {
+  formatErrorMessage(mcpError: MCPError, toolName: string): string {
     const typeEmoji = this.getErrorEmoji(mcpError.type);
     const recoveryText = mcpError.recoverable ? '🔄 **This can be fixed**' : '⚠️ **System error**';
     
@@ -214,7 +220,7 @@ export class ErrorHandler {
     const mcpError = this.mapFoundryError(error, `${toolName} ${context}`.trim());
     this.logError(mcpError, toolName, error);
     
-    const formattedMessage = this.formatErrorForClaude(mcpError, toolName);
+    const formattedMessage = this.formatErrorMessage(mcpError, toolName);
     throw new Error(formattedMessage);
   }
 

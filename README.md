@@ -1,4 +1,4 @@
-# Foundry VTT MCP Bridge
+﻿# Foundry VTT MCP Bridge
 
 Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition and Pathfinder Second Edition. The majority of MCP tools are system agnostic but character creation and compendium tools are only able to work with D&D5e and PF2E. 
 
@@ -89,6 +89,50 @@ Add this to your Claude Desktop configuration (claude_desktop_config.json) file:
 
 Starting Claude Desktop will start the MCP Server.
 
+### Local LLM Setup (Ulisses-friendly)
+
+You can run this bridge with a fully local LLM client (for example LM Studio + Qwen), so campaign data stays local.
+
+- Step-by-step guide: [docs/LOCAL_LLM_MCP_SETUP.md](docs/LOCAL_LLM_MCP_SETUP.md)
+- Includes: tested baseline, MCP client config, context sizing, local-first `.env`, and troubleshooting.
+
+## ChatGPT Pro (Developer Mode) – 10 Minuten Setup
+
+Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP HTTP Endpoint öffentlich bereitzustellen (Foundry bleibt lokal). Der MCP Endpoint ist per Bearer Token geschützt.
+
+### Voraussetzungen
+
+- Docker Desktop (Windows/Mac)
+- Foundry VTT läuft lokal mit aktiviertem **Foundry MCP Bridge** Modul
+
+### Schritte
+
+1. Lege deine lokale `.env` an:
+   ```bash
+   cp .env.example .env
+   ```
+   - Setze **MCP_AUTH_TOKEN** auf einen starken Wert.
+   - **MCP_HTTP_PORT** steuert nur den Host-Port; der Container lauscht immer auf **3333**.
+   - Wenn Foundry auf deinem Host läuft, belasse `FOUNDRY_HOST=host.docker.internal`.
+2. Starte den MCP HTTP Endpoint + Tunnel:
+   ```bash
+   docker compose up
+   ```
+3. Warte auf die Cloudflare-Ausgabe und kopiere die **https://...trycloudflare.com** URL aus den Logs.
+4. Öffne ChatGPT → **Settings → Connectors → Developer Mode → Add MCP Server**:
+   - **Name:** Foundry MCP
+   - **URL:** `https://<deine-url>.trycloudflare.com/mcp`
+   - **Auth:** Bearer Token → Wert aus `MCP_AUTH_TOKEN`
+5. Fertig! Du kannst jetzt Tools aus deinem Foundry World in ChatGPT verwenden.
+
+> **Sicherheit:** Der Tunnel macht den MCP Endpoint öffentlich. Ohne gültiges Token gibt es **401**. Teile den Token nicht.
+
+### Smoke Test (optional)
+
+```bash
+./scripts/smoke-test-chatgpt.sh
+```
+
 ### Getting Started
 
 1. Start Foundry VTT and load your world
@@ -119,7 +163,7 @@ Once connected, ask Claude Desktop:
 - **GM-Only**: MCP Bridge only connects to Game Master users
 - **Map Generation**: A portable ComfyUI backend that generates battlemaps from prompts
 - **Remote Connections**: WebRTC connections initiated through browser (Tested with Google Chrome) to MCP server and ComfyUI
-- **Windows and Mac Installers** Automated installation of Foundry MCP Server for Claude Dekstop, Foundry MCP Bridge Foundry VTT Module, and ComfyUI backend with dependencies
+- **Windows and Mac Installers** Automated installation of Foundry MCP Server for Claude Desktop, Foundry MCP Bridge Foundry VTT Module, and ComfyUI backend with dependencies
 
 ## Settings
 
@@ -179,11 +223,20 @@ Claude Desktop ↔ MCP Protocol ↔ MCP Server ↔ WebSocket ↔ Foundry Module 
 - **Claude Pro/Max Plan**: Required to connect to MCP servers
 - **Operating System**: Windows 10/11 (installer), or other OSes/manual Windows install with Node.js 18+ (manual)
 - **GPU Requirements**: A GPU with at least 8GB of VRAM
+
+## Schema Smoke Test
+
+The MCP schema smoke test verifies that tool schemas load correctly and do not enforce overly strict `additionalProperties` defaults.
+
+```bash
+npm -w @foundry-mcp/server run build
+npm run test:mcp:schema
+```
   
 ## Support & Development
 
 - **Issues**: Report bugs on [GitHub Issues](https://github.com/adambdooley/foundry-vtt-mcp/issues)
 - **YouTube Channel**: [Subscribe for updates and tutorials](https://www.youtube.com/channel/UCVrSC-FzuAk5AgvfboJj0WA)
-- **Support Development**: [Support on Patreon](https://www.patreon.com/c/Adambdooley)
 - **Documentation**: Built with TypeScript, comprehensive documentation included
 - **License**: MIT License (Additional Third Party licenses are included for bundled components for the installers)
+

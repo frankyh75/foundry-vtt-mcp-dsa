@@ -115,6 +115,13 @@ class FoundryMCPBridge {
       // Only for GM users
       if (!this.isGMUser()) return;
 
+      // Enhanced creature index is only supported for D&D 5e and Pathfinder 2e
+      const gameSystem = game.system.id;
+      if (gameSystem !== 'dnd5e' && gameSystem !== 'pf2e') {
+        console.log(`[${MODULE_ID}] Enhanced creature index not supported for ${gameSystem}, skipping`);
+        return;
+      }
+
       // Check if enhanced index is enabled
       const enhancedIndexEnabled = this.settings.getSetting('enableEnhancedCreatureIndex');
       if (!enhancedIndexEnabled) return;

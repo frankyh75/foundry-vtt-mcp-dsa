@@ -3,6 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
+    "composite": true,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -16,5 +17,6 @@
     }
   },
   "include": ["src/**/*", "types/**/*"],
-  "exclude": ["dist", "**/*.test.*", "**/*.spec.*"]
+  "exclude": ["dist", "scripts", "scripts/**/*", "**/*.test.*", "**/*.spec.*"]
+
 }

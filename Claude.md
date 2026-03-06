@@ -1,208 +1,289 @@
-# DSA5 MCP Foundry Fork
+# CLAUDE.md
 
-## Projekt-Übersicht
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Fork von `foundry-vtt-mcp` mit DSA5 (Das Schwarze Auge 5) Support.
+## Arbeitsaufteilung: Claude plant, Codex führt aus
 
-**Repository:** https://github.com/frankyh75/foundry-vtt-mcp-dsa
-**Upstream:** https://github.com/adambdooley/foundry-vtt-mcp
+**Claude (claude-sonnet):** Analysiert, plant, schreibt Codex-Prompts. Kein direktes Editieren von Code-Dateien.
+**Codex:** Führt die eigentlichen Code-Änderungen aus, läuft im Auto-Approve-Modus.
 
-## Architektur-Prinzip
+### Workflow
+1. Claude liest Dateien, analysiert Architektur, erkennt Probleme
+2. Claude schreibt einen präzisen Codex-Prompt mit: betroffenen Dateien, exakten Änderungen, Constraints
+3. Codex führt aus, läuft Tests, committet
 
-> **“Adapter, nicht Integration”**
+### Session Start Kontext
+- Bei jeder neuen Session zuerst `ROADMAP.md` lesen.
+- `ROADMAP.md` ist die verbindliche Quelle fuer Roadmap und priorisiertes Feature-Backlog.
 
-DSA5-Support wird als externe Adapter-Schicht gebaut, NICHT durch Änderungen am Core.
+### Claude-Permissions in diesem Repo
+- **Erlaubt ohne Rückfrage:** Read, Grep, Glob, Bash (read-only: git log/diff/show/status), TodoWrite
+- **Nicht erlaubt:** Edit, Write, Bash (schreibend) — das ist Codex-Domäne
+- **Ausnahme:** CLAUDE.md und Memory-Dateien darf Claude direkt schreiben
 
-- `data-access.ts` bleibt möglichst nah an Upstream
-- DSA5-Logik lebt isoliert in `src/tools/dsa5/`
-- Ziel: Merge-Konflikt-freie Coexistenz mit Upstream
+## Project Overview
 
-## Aktuelle Phase
+Fork of `foundry-vtt-mcp` adding DSA5 (Das Schwarze Auge 5) support. An MCP (Model Context Protocol) bridge connecting Foundry VTT to AI assistants (Claude Desktop, ChatGPT Pro) for AI-powered campaign management.
 
-**Phase 2: DSA5 Adapter Layer aufbauen**
+- **Repository:** https://github.com/frankyh75/foundry-vtt-mcp-dsa
+- **Upstream:** https://github.com/adambdooley/foundry-vtt-mcp
+- **Supported Systems:** D&D 5e, Pathfinder 2e, DSA5
 
-- [x] Phase 1: Git-Cleanup, data-access.ts auf Upstream-Stand
-- [ ] Phase 2: DSA5 Import/Export Module erstellen
-- [ ] Phase 3: Integration in characters.ts
-- [ ] Phase 4: Später - character.ts DSA5-fähig machen
-
-### Aktueller Schritt
-
-Schritt 4: Dateien erstellen in `src/tools/dsa5/`
-
-## Dateistruktur
-
-```
-src/
-├── data-access.ts          # NICHT ÄNDERN - Upstream-kompatibel halten!
-├── tools/
-│   ├── characters.ts       # System-Router, minimale DSA5-Integration hier
-│   ├── character.ts        # SPÄTER - erst nach stabilem Import/Export
-│   └── dsa5/               # <<< DSA5 Adapter Layer
-│       ├── types.ts        # MCPCharacter, MCPCharacterUpdate, Dsa5Actor
-│       ├── character-import.ts   # fromDsa5Actor(), getDsa5CharacterSummary()
-│       ├── character-export.ts   # applyMcpUpdateToDsa5Actor()
-│       ├── field-mappings.ts     # Mapping-Konfiguration (optional)
-│       └── index.ts              # Public API exports
-```
-
-## DSA5 Feld-Mappings (KRITISCH)
-
-### Eigenschaften (8 Attribute)
-
-```
-system.characteristics.mu.value  → MU (Mut/Courage)
-system.characteristics.kl.value  → KL (Klugheit/Cleverness)
-system.characteristics.in.value  → IN (Intuition)
-system.characteristics.ch.value  → CH (Charisma)
-system.characteristics.ff.value  → FF (Fingerfertigkeit/Dexterity)
-system.characteristics.ge.value  → GE (Gewandtheit/Agility)
-system.characteristics.ko.value  → KO (Konstitution/Constitution)
-system.characteristics.kk.value  → KK (Körperkraft/Strength)
-```
-
-### Lebenspunkte (ACHTUNG: Invertierte Logik!)
-
-```
-system.status.wounds.value  → Aktuelle WUNDEN (nicht HP!)
-system.status.wounds.max    → Maximale Lebensenergie
-
-Umrechnung:
-  Aktuelle HP = wounds.max - wounds.value
-  Neue Wunden = wounds.max - neue_HP
-```
-
-### Ressourcen
-
-```
-system.status.astralenergy.value/max  → AsP (Astralenergie/Mana)
-system.status.karmaenergy.value/max   → KaP (Karmaenergie)
-```
-
-### Profil
-
-```
-system.details.species.value   → Spezies (Mensch, Elf, Zwerg...)
-system.details.culture.value   → Kultur
-system.details.career.value    → Profession
-system.details.experience.total → Abenteuerpunkte gesamt
-```
-
-### Physisch
-
-```
-system.status.size.value  → Größe in cm
-```
-
-### Skills/Talente
-
-```
-Items mit type: "skill" oder "talent"
-Wert: item.system.talentValue.value
-Probe: item.system.characteristic (z.B. "MU/IN/CH" für 3-Eigenschaften-Probe)
-```
-
-## Wichtige Interfaces
-
-### MCPCharacter (System-agnostisch)
-
-```typescript
-interface MCPCharacter {
-  id: string;
-  name: string;
-  system: 'dsa5' | 'dnd5e' | 'pf2e';
-  attributes: Record<string, number>;
-  health: { current: number; max: number; temp?: number };
-  resources?: Array<{ name: string; current: number; max: number; type: string }>;
-  skills: Array<{ id: string; name: string; value: number; metadata?: any }>;
-  profile: { species?: string; culture?: string; profession?: string; experience?: number };
-  physical?: { size?: number };
-  systemData?: { dsa5?: { /* DSA5-spezifisches */ } };
-}
-```
-
-### MCPCharacterUpdate (Für Änderungen)
-
-```typescript
-interface MCPCharacterUpdate {
-  id: string;
-  attributes?: Partial<Record<string, number>>;
-  health?: { current?: number; max?: number; delta?: number };
-  resources?: Array<{ name: string; current?: number; delta?: number }>;
-  skills?: Array<{ id: string; value?: number; delta?: number }>;
-}
-```
-
-## Befehle
+## Commands
 
 ```bash
-# Build
+# Build all packages
 npm run build
 
-# Lint
+# Build specific packages
+npm run build:server     # MCP server only
+npm run build:foundry    # Foundry module only
+npm run build:shared     # Shared types only
+
+# Development
+npm run dev              # Watch mode for MCP server
+
+# Testing
+npm run test             # Run all tests
+npm -w @foundry-mcp/server run test          # MCP server tests only
+npm -w @foundry-mcp/server run test:watch    # Watch mode
+npm run test:mcp:schema  # MCP schema smoke test
+npm run test:ops         # Ops smoke test (requires running stack)
+
+# Linting & Formatting
 npm run lint
+npm run lint:fix
+npm run format
+npm run typecheck        # TypeScript check across all workspaces
 
-# TypeScript Check ohne Build
-npx tsc --noEmit
+# ChatGPT HTTP Bridge
+npm run tunnel:localtunnel    # Start localtunnel for ChatGPT connector
+npm run cloudflare:url        # Get current Cloudflare tunnel URL
+docker compose up             # Start HTTP bridge container
 
-# Symlink für Foundry-Testing (bereits eingerichtet)
-# ~/.local/share/FoundryVTT/Data/modules/foundry-mcp -> ./dist
+# Auditing
+npm run audit:deps       # Security audit
+npm run audit:unused     # Find unused dependencies (knip)
+npm run audit:circular   # Detect circular imports (madge)
 ```
 
-## Git-Workflow
-
-### Branches
-
-- `main` - Upstream-kompatibel, DSA5 via Adapter
-- `archive/dsa5-monolith-integration` - Alte DSA5-in-Core Arbeit (Archiv)
-
-### Commits
+## Architecture
 
 ```
-feat(dsa5): add type definitions for adapter layer
-feat(dsa5): implement character import from Foundry actor
-fix(dsa5): correct wound/HP inversion logic
-refactor: align data-access.ts with upstream
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Claude/ChatGPT │────▶│   MCP Server    │────▶│  Foundry Module │────▶ Foundry VTT
+└─────────────────┘     │  (Node.js)      │     │  (Browser)      │
+                        │                 │     │                 │
+                        │  backend.ts     │◀───▶│  socket-bridge  │
+                        │  http-bridge.ts │     │  data-access.ts │
+                        └─────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌─────────────────┐
+                        │    ComfyUI      │ (Map generation, optional)
+                        └─────────────────┘
+```
+
+### Monorepo Structure
+
+- **`packages/mcp-server/`** - MCP server (Node.js, communicates with Claude/ChatGPT)
+- **`packages/foundry-module/`** - Foundry VTT module (browser, runs inside Foundry)
+- **`shared/`** - Shared TypeScript types and schemas
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `packages/mcp-server/src/backend.ts` | Main backend process, tool routing, ComfyUI management |
+| `packages/mcp-server/src/http-bridge.ts` | HTTP/OAuth bridge for ChatGPT Pro |
+| `packages/mcp-server/src/foundry-client.ts` | WebSocket/WebRTC connection to Foundry |
+| `packages/mcp-server/src/systems/` | System adapter registry (multi-system support) |
+| `packages/foundry-module/src/data-access.ts` | Foundry API queries (runs in browser) |
+| `packages/foundry-module/src/socket-bridge.ts` | WebSocket server for MCP communication |
+
+### System Adapter Pattern
+
+Multi-system support uses a Registry pattern in `packages/mcp-server/src/systems/`:
+
+```
+systems/
+├── types.ts              # SystemAdapter interface, CreatureIndex types
+├── system-registry.ts    # Central adapter registry
+├── index-builder-registry.ts  # Browser-side index builders
+├── dnd5e/adapter.ts      # D&D 5e implementation
+├── pf2e/adapter.ts       # Pathfinder 2e implementation
+└── dsa5/                 # DSA5 implementation
+    ├── adapter.ts        # Character stats extraction, filtering
+    ├── filters.ts        # DSA5-specific filter schemas (Zod)
+    ├── constants.ts      # Field paths, attribute names
+    └── index-builder.ts  # Creature index builder
+```
+
+To add a new system: implement `SystemAdapter` interface and register in `backend.ts`.
+
+## DSA5-Specific Development
+
+### Architecture Principle: "Adapter, not Integration"
+
+DSA5 support is built as an external adapter layer. Core files (`data-access.ts`) stay upstream-compatible for conflict-free merges.
+
+### DSA5 Field Mappings
+
+**Critical: Inverted Wound Logic**
+```typescript
+// DSA5 tracks wounds, not HP!
+system.status.wounds.value  // Current WOUNDS (damage taken)
+system.status.wounds.max    // Maximum LeP (life energy)
+
+// Conversion:
+currentHP = wounds.max - wounds.value
+newWounds = wounds.max - newHP
+```
+
+**Eigenschaften (8 Attributes)**
+```
+system.characteristics.[mu|kl|in|ch|ff|ge|ko|kk].value
+```
+
+**Resources**
+```
+system.status.astralenergy.value/max  // AsP (Astralenergie/Mana)
+system.status.karmaenergy.value/max   // KaP (Karmaenergie)
+```
+
+**Profile**
+```
+system.details.species.value   // Spezies
+system.details.culture.value   // Kultur
+system.details.career.value    // Profession (NOT "profession"!)
+system.details.experience.total // Abenteuerpunkte
 ```
 
 ### Upstream Sync
 
 ```bash
-# Remote hinzufügen (einmalig)
 git remote add upstream https://github.com/adambdooley/foundry-vtt-mcp.git
-
-# Sync
 git fetch upstream
-git merge upstream/main  # Sollte konfliktfrei sein!
+git merge upstream/main  # Should be conflict-free
 ```
 
-## Einschränkungen / Don’ts
+## Environment Configuration
 
-❌ **NICHT `data-access.ts` ändern** - außer für generische Bugfixes
-❌ **NICHT `character.ts` anfassen** - kommt in Phase 4
-❌ **KEINE DSA5-Logik außerhalb von `src/tools/dsa5/`**
-❌ **KEINE Breaking Changes für DnD5e/PF2e**
+Copy `.env.example` to `.env`. Key variables:
 
-## Kontext für AI-Assistenz
+| Variable | Purpose |
+|----------|---------|
+| `MCP_AUTH_TOKEN` | Bearer token for ChatGPT HTTP bridge |
+| `MCP_OAUTH_CLIENT_ID/SECRET` | OAuth credentials for ChatGPT connector |
+| `FOUNDRY_HOST` | Foundry connection (use `host.docker.internal` in Docker) |
+| `FOUNDRY_PORT` | Default 31415 |
+| `LOG_LEVEL` | `error`, `warn`, `info`, `debug` |
 
-Dieses Projekt ist Teil einer “Story Engine, not Rules Engine” Vision:
+## Git Conventions
 
-- KI-unterstützte Spielleiter-Tools für Narrative
-- NPC-Erstellung, Weltenbau, Story-Generierung
-- NICHT: Regelautomatisierung oder Würfelersatz
+- **Main branch:** `master`
+- **Commit style:** Conventional commits with scope
+  ```
+  feat(dsa5): add experience level calculation
+  fix(mcp-server): correct wound/HP inversion
+  refactor: align data-access.ts with upstream
+  ```
 
-DSA5 ist ein deutsches Pen&Paper-RPG mit komplexem Regelwerk.
-Die MCP-Integration soll Claude Zugriff auf Foundry-VTT-Daten geben.
+## Constraints
 
-## Nächste Schritte
+- Do not modify `data-access.ts` except for generic bugfixes (upstream compatibility)
+- DSA5 logic must stay isolated in `packages/mcp-server/src/systems/dsa5/`
+- No breaking changes for D&D 5e or PF2e functionality
 
-1. [ ] **Git-Sicherung:** Branch `archive/dsa5-monolith-integration` erstellen vom aktuellen Stand
-1. [ ] **Upstream Remote** hinzufügen falls noch nicht vorhanden
-1. [ ] **Diff analysieren:** `data-access.ts` gegen Upstream vergleichen, DSA5-Teile dokumentieren
-1. [ ] `data-access.ts` auf Upstream-Stand zurücksetzen (in neuem Feature-Branch)
-1. [ ] `src/tools/dsa5/types.ts` erstellen
-1. [ ] `src/tools/dsa5/character-import.ts` implementieren
-1. [ ] `src/tools/dsa5/character-export.ts` implementieren
-1. [ ] `src/tools/dsa5/index.ts` als Public API
-1. [ ] Integration in `characters.ts` (minimal)
-1. [ ] End-to-End Test mit echtem DSA5-Actor
+## ChatGPT Integration Status (WIP)
+
+**Branch:** `feature/chatgpt-desktop-mcp-http-bridge`
+
+### Was funktioniert
+- HTTP-Bridge (`http-bridge.ts`) mit StreamableHTTPServerTransport
+- OAuth Metadata Endpoints (alle Varianten für ChatGPT-Kompatibilität)
+- Token Exchange (`/oauth/token`)
+- MCP `initialize` + `tools/list` via POST
+- Docker + Cloudflare Quick-Tunnel Setup
+- No-Auth Modus (`MCP_NO_AUTH=true`)
+
+### Bekannte Probleme (Stand: 2026-01-15)
+
+1. **SSE-Streaming hängt:** ChatGPT erwartet SSE GET-Requests, aber unser Backend pusht keine Events → Timeout nach ~80s
+2. **Session-Handling:** ChatGPT sendet parallele Requests von verschiedenen IPs ohne Session-ID, nur der erste `initialize` klappt
+3. **OAuth nicht vollständig:** ChatGPT erwartet Authorization Code Flow + PKCE, nicht nur client_credentials
+
+### Kern-Erkenntnis: Zwei Transport-Patterns
+
+ChatGPT unterstützt zwei MCP Transport-Varianten:
+
+**Pattern 1: HTTP/SSE (älter, aber stabil)**
+```
+GET  /sse       → Etabliert SSE-Verbindung, gibt Response-Objekt an Transport
+POST /messages  → Empfängt Client-Nachrichten
+```
+Verwendet `SSEServerTransport` aus dem MCP SDK:
+```typescript
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+
+app.get("/sse", async (req, res) => {
+  const transport = new SSEServerTransport("/messages", res);
+  await server.connect(transport);
+});
+
+app.post("/messages", async (req, res) => {
+  await transport.handlePostMessage(req, res);
+});
+```
+
+**Pattern 2: Streamable HTTP (neuer)**
+```
+POST /mcp  → Alle MCP-Nachrichten (initialize, tools/list, tools/call)
+GET  /mcp  → SSE für Server-initiierte Nachrichten (optional)
+```
+Verwendet `StreamableHTTPServerTransport` (unser aktueller Ansatz).
+
+**Problem:** Wir verwenden Pattern 2, aber ChatGPT scheint Pattern 1 zu erwarten oder hat Probleme mit unserem SSE-Handling.
+
+### Nächste Schritte
+
+1. **Pattern 1 ausprobieren:** Auf `SSEServerTransport` mit `/sse` + `/messages` Endpoints umstellen
+2. **Referenz-Implementierungen studieren:**
+   - [openai/openai-apps-sdk-examples](https://github.com/openai/openai-apps-sdk-examples) - Offizielle Node.js Beispiele
+   - [nerding-io/mcp-sse-example](https://github.com/nerding-io/mcp-sse-example) - SSE Reference Implementation
+   - [jaw9c/awesome-remote-mcp-servers](https://github.com/jaw9c/awesome-remote-mcp-servers) - Kuratierte Liste
+3. **Alternative:** Vercel MCP Adapter mit Redis für SSE
+
+### Test-Befehle
+```bash
+# Container starten
+docker compose up -d
+
+# Tunnel URL holen
+docker compose logs cloudflared | grep trycloudflare.com
+
+# Logs beobachten
+docker compose logs -f mcp-http-bridge
+
+# Smoke Test
+MCP_PUBLIC_URL="https://YOUR-URL.trycloudflare.com" MCP_AUTH_TOKEN="testtoken" node scripts/ops-smoke-test.mjs
+```
+
+### ChatGPT Konfiguration (Developer Mode)
+- URL: `https://YOUR-URL.trycloudflare.com/mcp` (oder `/sse` wenn Pattern 1)
+- Authentication: `Keine Authentifizierung` (solange OAuth nicht vollständig)
+- Checkbox: "Ich vertraue dieser Anwendung" aktivieren
+
+## Session Notes & Lessons Learned
+
+### 2026-01-15
+- Verified MCP tool list via stdio (34 tools exposed).
+- Added backend routing for character tools in `packages/mcp-server/src/backend.ts` (get-character-entity, use-item, search-character-items).
+- `search-character-items` and `get-character` timing out via backend control channel; needs follow-up in Foundry logs or tool handler.
+- Foundry bridge requires MCP server running on localhost:31415 (`npm -w @foundry-mcp/server run start`).
+
+### 2026-02-17
+- `tools/list` success only proves MCP stdio server availability, not Foundry runtime connectivity.
+- Character/scene tool diagnostics must run a bridge preflight first (e.g. `list-characters`) and explicitly detect `Foundry VTT module not connected`.
+- Avoid hardcoded character names/IDs in diagnostics; select dynamically from `list-characters` to prevent false negatives across worlds.
+- Treat `Error:` text payloads from tool calls as functional failures, not transport hangs.

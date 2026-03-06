@@ -229,33 +229,94 @@ export class DSA5CharacterCreator {
       // Get archetypes from each pack
       for (const pack of characterPacks) {
         try {
+          this.logger.info(`Loading archetypes from pack ${pack.id}`, { packLabel: pack.label });
+          
           const packIndex = await this.foundryClient.query('foundry-mcp-bridge.getPackIndex', {
             packId: pack.id,
           });
 
-          // Filter archetypes
-          const packArchetypes = packIndex
-            .filter((entry: any) => entry.type === 'character')
-            .filter((entry: any) => {
-              if (filterBySpecies && entry.system?.details?.species?.value !== filterBySpecies) {
-                return false;
+          this.logger.info(`Pack index loaded for ${pack.id}`, {
+            totalEntries: packIndex?.length || 0,
+            firstEntry: packIndex?.[0] || null
+          });
+
+          // DSA5 Note: Don't filter by entry.type - DSA5 compendiums may use different types
+          // (npc, character, creature) or no type field at all.
+          // The pack-level filter (pack.type === 'Actor' && pack.system === 'dsa5') is sufficient.
+          const actorEntries = packIndex;
+
+          this.logger.info(`Actor entries found in ${pack.id}`, {
+            count: actorEntries.length,
+            sampleEntry: actorEntries[0] || null
+          });
+
+          // Apply optional filters and build archetype list
+          let filteredEntries = actorEntries;
+          
+          // If filters are specified, we need to fetch full data for entries
+          // since pack index doesn't contain system.details
+          if (filterBySpecies || filterByProfession) {
+            this.logger.info('Applying filters - loading full data for entries', {
+              filterBySpecies,
+              filterByProfession,
+              totalEntries: actorEntries.length
+            });
+            
+            const fullDataEntries: any[] = [];
+            
+            for (const entry of actorEntries) {
+              try {
+                const fullData = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
+                  packId: pack.id,
+                  documentId: entry._id || entry.id, // Pack index uses _id
+                });
+                
+                if (fullData) {
+                  // Check species filter (case-insensitive exact match)
+                  const speciesValue = fullData.system?.details?.species?.value || '';
+                  const speciesMatch = !filterBySpecies ||
+                    speciesValue.toLowerCase() === filterBySpecies.toLowerCase();
+
+                  // Check profession filter (case-insensitive partial match)
+                  const careerValue = fullData.system?.details?.career?.value || '';
+                  const professionMatch = !filterByProfession ||
+                    careerValue.toLowerCase().includes(filterByProfession.toLowerCase());
+                  
+                  if (speciesMatch && professionMatch) {
+                    fullDataEntries.push({
+                      id: entry._id || entry.id,
+                      name: entry.name,
+                      packId: pack.id,
+                      packLabel: pack.label,
+                      species: fullData.system?.details?.species?.value || 'Unknown',
+                      profession: fullData.system?.details?.career?.value || 'Unknown',
+                      img: entry.img,
+                    });
+                  }
+                }
+              } catch (entryError) {
+                this.logger.warn(`Failed to load full data for entry ${entry.id}`, { error: entryError });
+                // Skip this entry on error
               }
-              if (filterByProfession && !entry.system?.details?.career?.value?.includes(filterByProfession)) {
-                return false;
-              }
-              return true;
-            })
-            .map((entry: any) => ({
-              id: entry.id,
-              name: entry.name,
-              packId: pack.id,
-              packLabel: pack.label,
-              species: entry.system?.details?.species?.value || 'Unknown',
-              profession: entry.system?.details?.career?.value || 'Unknown',
-              img: entry.img,
-            }));
+            }
+            
+            filteredEntries = fullDataEntries;
+            this.logger.info(`Filtered entries: ${filteredEntries.length} out of ${actorEntries.length}`);
+          }
+          
+          // Map entries to archetype format
+          const packArchetypes = filteredEntries.map((entry: any) => ({
+            id: entry._id || entry.id, // Pack index uses _id, filtered entries use id
+            name: entry.name,
+            packId: pack.id,
+            packLabel: pack.label,
+            species: entry.species || entry.system?.details?.species?.value || 'Unknown',
+            profession: entry.profession || entry.system?.details?.career?.value || 'Unknown',
+            img: entry.img,
+          }));
 
           archetypes.push(...packArchetypes);
+          this.logger.info(`Added ${packArchetypes.length} archetypes from ${pack.id}`);
         } catch (packError) {
           this.logger.warn(`Failed to load archetypes from pack ${pack.id}`, { error: packError });
         }

@@ -22,6 +22,9 @@ import { SceneTools } from './tools/scene.js';
 
 import { ActorCreationTools } from './tools/actor-creation.js';
 
+import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
+import { DSA5JsonActorImporter } from './systems/dsa5/json-actor-importer.js';
+
 import { QuestCreationTools } from './tools/quest-creation.js';
 
 import { DiceRollTools } from './tools/dice-roll.js';
@@ -33,6 +36,81 @@ import { OwnershipTools } from './tools/ownership.js';
 import { MapGenerationTools } from './tools/map-generation.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
+
+type ToolDefinition = {
+  name: string;
+  description?: string;
+  inputSchema?: any;
+};
+
+type ToolDefinitionInput = ToolDefinition & Record<string, unknown>;
+
+
+
+
+type ToolResult = {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+};
+
+const normalizeJsonSchema = (schema: any): any => {
+  if (!schema || typeof schema !== 'object') return schema;
+  const normalized = { ...schema };
+
+  if (normalized.type === 'object') {
+    if (normalized.properties && typeof normalized.properties === 'object') {
+      const nextProps: Record<string, any> = {};
+      for (const [key, value] of Object.entries(normalized.properties)) {
+        nextProps[key] = normalizeJsonSchema(value);
+      }
+      normalized.properties = nextProps;
+    }
+  }
+
+  if (normalized.items) {
+    normalized.items = normalizeJsonSchema(normalized.items);
+  }
+
+  return normalized;
+};
+
+const normalizeToolDefinitions = (
+  tools: Array<Omit<ToolDefinition, "description"> & { description?: string | undefined } & Record<string, unknown>>
+): ToolDefinition[] =>
+
+
+  tools.map((tool) => {
+    const normalizedInputSchema = tool.inputSchema
+      ? normalizeJsonSchema(tool.inputSchema)
+      : tool.inputSchema;
+
+    // exactOptionalPropertyTypes: omit description when undefined
+    const { description, ...rest } = tool;
+
+return {
+  ...rest,
+  ...(description !== undefined ? { description } : {}),
+  inputSchema: normalizedInputSchema,
+};
+
+
+  });
+
+
+  
+const buildToolResult = (result: any, maxChars: number): ToolResult => {
+  if (result && typeof result === 'object' && Array.isArray(result.content)) {
+    return result as ToolResult;
+  }
+
+  let text = typeof result === 'string' ? result : JSON.stringify(result);
+  if (text.length > maxChars) {
+    const overflow = text.length - maxChars;
+    text = `${text.slice(0, maxChars)}\n\n[truncated ${overflow} chars; set TOOL_RESPONSE_MAX_CHARS to increase the limit]`;
+  }
+
+  return { content: [{ type: 'text', text }] };
+};
 
 const CONTROL_HOST = '127.0.0.1';
 
@@ -688,26 +766,32 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
   const path2 = await import('path');
   const os2 = await import('os');
   const processDebugLog = path2.join(os2.tmpdir(), 'process-mapgen-debug.log');
-  await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] processMapGenerationInBackend ENTERED - jobId: ${jobId}\n`);
+  const auditLogEnabled = process.env.AUDIT_LOG === 'true';
+  const appendProcessDebugLog = async (message: string) => {
+    if (auditLogEnabled) {
+      await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] ${message}\n`);
+    }
+  };
+  await appendProcessDebugLog(`processMapGenerationInBackend ENTERED - jobId: ${jobId}`);
 
   try {
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Getting job from queue...\n`);
+    await appendProcessDebugLog('Getting job from queue...');
     const job = await jobQueue.getJob(jobId);
     if (!job) {
-      await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] ERROR: Job not found!\n`);
+      await appendProcessDebugLog('ERROR: Job not found!');
       throw new Error(`Job ${jobId} not found`);
     }
 
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Job retrieved: ${JSON.stringify(job.params)}\n`);
+    await appendProcessDebugLog(`Job retrieved: ${JSON.stringify(job.params)}`);
     logger.info('Starting background map generation processing', { jobId, params: job.params });
 
     // Mark job as started (mapgen style)
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Marking job as started...\n`);
+    await appendProcessDebugLog('Marking job as started...');
     await jobQueue.markJobStarted(jobId);
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Job marked as started\n`);
+    await appendProcessDebugLog('Job marked as started');
 
     // Emit progress to Foundry module
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Sending initial progress...\n`);
+    await appendProcessDebugLog('Sending initial progress...');
     foundryClient.sendMessage({
       type: 'map-generation-progress',
       jobId: jobId,
@@ -716,9 +800,9 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
     });
 
     // Ensure ComfyUI is running
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Checking ComfyUI health...\n`);
+    await appendProcessDebugLog('Checking ComfyUI health...');
     const healthInfo = await comfyuiClient.checkHealth();
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Health check: ${JSON.stringify(healthInfo)}\n`);
+    await appendProcessDebugLog(`Health check: ${JSON.stringify(healthInfo)}`);
     if (!healthInfo.available) {
       await comfyuiClient.startService();
     }
@@ -732,9 +816,9 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
     });
 
     // Submit to ComfyUI (using mapgen's client)
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Submitting job to ComfyUI...\n`);
+    await appendProcessDebugLog('Submitting job to ComfyUI...');
     const sizePixels = comfyuiClient.getSizePixels(job.params.size as any);
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Size pixels: ${sizePixels}\n`);
+    await appendProcessDebugLog(`Size pixels: ${sizePixels}`);
 
     let comfyuiJob;
     try {
@@ -744,7 +828,7 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
         height: sizePixels,
         quality: job.params.quality
       });
-      await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] ComfyUI job submitted: ${comfyuiJob.prompt_id}\n`);
+      await appendProcessDebugLog(`ComfyUI job submitted: ${comfyuiJob.prompt_id}`);
 
       // Store ComfyUI prompt_id in job for cancellation support
       const currentJob = await jobQueue.getJob(jobId);
@@ -753,8 +837,8 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
       }
 
     } catch (submitError: any) {
-      await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] ERROR submitting to ComfyUI: ${submitError.message}\n`);
-      await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Error stack: ${submitError.stack}\n`);
+      await appendProcessDebugLog(`ERROR submitting to ComfyUI: ${submitError.message}`);
+      await appendProcessDebugLog(`Error stack: ${submitError.stack}`);
       throw submitError;
     }
 
@@ -767,7 +851,7 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
       stage: 'Generating battlemap...'
     });
 
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Starting status polling with WebSocket progress...\n`);
+    await appendProcessDebugLog('Starting status polling with WebSocket progress...');
 
     // Register WebSocket callback for real-time progress updates
     comfyuiClient.registerProgressCallback(comfyuiJob.prompt_id, (progress: { currentStep: number; totalSteps: number }) => {
@@ -800,7 +884,7 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
 
     let status = await comfyuiClient.getJobStatus(comfyuiJob.prompt_id);
     logger.info('Initial job status', { jobId, promptId: comfyuiJob.prompt_id, status });
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Initial status: ${status}\n`);
+    await appendProcessDebugLog(`Initial status: ${status}`);
 
     let pollCount = 0;
     while (status === 'queued' || status === 'running') {
@@ -817,44 +901,44 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
     comfyuiClient.unregisterProgressCallback(comfyuiJob.prompt_id);
 
     logger.info('Job polling completed', { jobId, promptId: comfyuiJob.prompt_id, finalStatus: status, totalPolls: pollCount });
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Polling complete, status: ${status}\n`);
+    await appendProcessDebugLog(`Polling complete, status: ${status}`);
 
     if (status === 'failed') {
       throw new Error('ComfyUI generation failed');
     }
 
     // Download and save the generated image (like mapgen does)
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Getting job images...\n`);
+    await appendProcessDebugLog('Getting job images...');
     await jobQueue.updateJobProgress(jobId, 85, 'Downloading image...');
 
     // Get the generated image filenames from ComfyUI history
     const imageFilenames = await comfyuiClient.getJobImages(comfyuiJob.prompt_id);
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Images: ${JSON.stringify(imageFilenames)}\n`);
+    await appendProcessDebugLog(`Images: ${JSON.stringify(imageFilenames)}`);
     if (!imageFilenames || imageFilenames.length === 0) {
       throw new Error('No images found in ComfyUI job output');
     }
 
     // Download the first generated image
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Downloading image: ${imageFilenames[0]}\n`);
+    await appendProcessDebugLog(`Downloading image: ${imageFilenames[0]}`);
     const firstImageFilename = imageFilenames[0];
     const imageBuffer = await comfyuiClient.downloadImage(firstImageFilename);
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Downloaded, buffer size: ${imageBuffer?.length || 0}\n`);
+    await appendProcessDebugLog(`Downloaded, buffer size: ${imageBuffer?.length || 0}`);
     if (!imageBuffer) {
       throw new Error(`Failed to download generated image: ${firstImageFilename}`);
     }
 
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Updating progress to 90%...\n`);
+    await appendProcessDebugLog('Updating progress to 90%...');
     await jobQueue.updateJobProgress(jobId, 90, 'Saving image...');
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Progress updated\n`);
+    await appendProcessDebugLog('Progress updated');
 
     // Save image to Foundry-accessible location
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] About to import fs/path/os for upload...\n`);
+    await appendProcessDebugLog('About to import fs/path/os for upload...');
     const fs = await import('fs').then(m => m.promises);
     const path = await import('path');
     const os = await import('os');
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Imports complete\n`);
+    await appendProcessDebugLog('Imports complete');
 
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Creating filename and checking connection type...\n`);
+    await appendProcessDebugLog('Creating filename and checking connection type...');
     const timestamp = Date.now();
     const filename = `map_${jobId}_${timestamp}.png`;
     let webPath: string;
@@ -862,23 +946,24 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
     // ALWAYS upload images via Foundry query instead of direct filesystem write
     // Reason: MCP server and Foundry may be on different machines or have different paths
     // The Foundry module's upload handler knows the correct local path
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] foundryClient exists: ${!!foundryClient}, type: ${typeof foundryClient}\n`);
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] About to call getConnectionType()...\n`);
+    await appendProcessDebugLog(`foundryClient exists: ${!!foundryClient}, type: ${typeof foundryClient}`);
+    await appendProcessDebugLog('About to call getConnectionType()...');
     let connectionType: 'websocket' | 'webrtc' | null = null;
     try {
       connectionType = foundryClient.getConnectionType();
-      await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] getConnectionType() returned: ${connectionType}\n`);
+      await appendProcessDebugLog(`getConnectionType() returned: ${connectionType}`);
     } catch (err) {
-      await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] getConnectionType() threw error: ${err}\n`);
+      await appendProcessDebugLog(`getConnectionType() threw error: ${err}`);
       connectionType = 'webrtc'; // Assume WebRTC since we're here
     }
 
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Using upload method for all connections\n`);
+    await appendProcessDebugLog('Using upload method for all connections');
 
-    // ALWAYS write debug log to trace execution
     const debugLog = async (msg: string) => {
-      const logPath = path.join(os.tmpdir(), 'foundry-mcp-upload-debug.log');
-      await fs.appendFile(logPath, `[${new Date().toISOString()}] ${msg}\n`);
+      if (auditLogEnabled) {
+        const logPath = path.join(os.tmpdir(), 'foundry-mcp-upload-debug.log');
+        await fs.appendFile(logPath, `[${new Date().toISOString()}] ${msg}\n`);
+      }
     };
 
     await debugLog(`=== MAP GENERATION DEBUG START ===`);
@@ -994,8 +1079,8 @@ async function processMapGenerationInBackend(jobId: string, jobQueue: any, comfy
 
   } catch (error: any) {
     // Log to debug file first
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] ERROR in processMapGenerationInBackend: ${error.message}\n`);
-    await fs2.appendFile(processDebugLog, `[${new Date().toISOString()}] Error stack: ${error.stack}\n`);
+    await appendProcessDebugLog(`ERROR in processMapGenerationInBackend: ${error.message}`);
+    await appendProcessDebugLog(`Error stack: ${error.stack}`);
 
     logger.error('Background map generation processing failed', { jobId, error });
     await jobQueue.markJobFailed(jobId, error.message);
@@ -1035,6 +1120,8 @@ async function startBackend(): Promise<void> {
 
     foundryPort: config.foundry.port,
 
+    toolResponseMaxChars: config.toolResponseMaxChars,
+
   });
 
   // Initialize Foundry client and tools
@@ -1063,6 +1150,10 @@ async function startBackend(): Promise<void> {
   const sceneTools = new SceneTools({ foundryClient, logger });
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
+
+  // DSA5-specific character creation tools
+  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
+  const dsa5JsonActorImporter = new DSA5JsonActorImporter({ foundryClient, logger });
 
   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
 
@@ -1124,7 +1215,10 @@ async function startBackend(): Promise<void> {
       const path = await import('path');
       const os = await import('os');
       const debugLog = path.join(os.tmpdir(), 'backend-handler-debug.log');
-      await fs.appendFile(debugLog, `[${new Date().toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}\n`);
+      const auditLogEnabled = process.env.AUDIT_LOG === 'true';
+      if (auditLogEnabled) {
+        await fs.appendFile(debugLog, `[${new Date().toISOString()}] handleMessage called - type: ${message?.type}, requestId: ${message?.requestId}\n`);
+      }
 
       logger.info('Handling ComfyUI message', {
 
@@ -1142,7 +1236,9 @@ async function startBackend(): Promise<void> {
         const path = await import('path');
         const os = await import('os');
         const debugLog = path.join(os.tmpdir(), 'backend-handler-debug.log');
-        await fs.appendFile(debugLog, `[${new Date().toISOString()}] About to switch on message.type: "${message.type}"\n`);
+        if (auditLogEnabled) {
+          await fs.appendFile(debugLog, `[${new Date().toISOString()}] About to switch on message.type: "${message.type}"\n`);
+        }
 
         let result: any;
 
@@ -1168,9 +1264,13 @@ async function startBackend(): Promise<void> {
 
           // Map generation handlers (following existing tool pattern)
           case 'generate-map-request':
-            await fs.appendFile(debugLog, `[${new Date().toISOString()}] Matched generate-map-request case, calling handler...\n`);
+            if (auditLogEnabled) {
+              await fs.appendFile(debugLog, `[${new Date().toISOString()}] Matched generate-map-request case, calling handler...\n`);
+            }
             result = await handleGenerateMapRequest(message, mapGenerationJobQueue, mapGenerationComfyUIClient, logger, foundryClient);
-            await fs.appendFile(debugLog, `[${new Date().toISOString()}] Handler returned: ${JSON.stringify(result)}\n`);
+            if (auditLogEnabled) {
+              await fs.appendFile(debugLog, `[${new Date().toISOString()}] Handler returned: ${JSON.stringify(result)}\n`);
+            }
             break;
 
           case 'check-map-status-request':
@@ -1283,7 +1383,7 @@ async function startBackend(): Promise<void> {
     backendComfyUIHandlers: (globalThis as any).backendComfyUIHandlers
   });
 
-  const allTools = [
+  const allTools = normalizeToolDefinitions([
 
     ...characterTools.getToolDefinitions(),
 
@@ -1292,6 +1392,9 @@ async function startBackend(): Promise<void> {
     ...sceneTools.getToolDefinitions(),
 
     ...actorCreationTools.getToolDefinitions(),
+
+    ...dsa5CharacterCreator.getToolDefinitions(),
+    ...dsa5JsonActorImporter.getToolDefinitions(),
 
     ...questCreationTools.getToolDefinitions(),
 
@@ -1305,7 +1408,7 @@ async function startBackend(): Promise<void> {
 
     ...mapGenerationTools.getToolDefinitions(),
 
-  ];
+  ]);
 
   // Start Foundry connector (owns app port 31415)
 
@@ -1346,6 +1449,17 @@ async function startBackend(): Promise<void> {
     socket.setEncoding('utf8');
 
     let buffer = '';
+
+    // Prevent unhandled ECONNRESET/pipe errors from crashing the backend
+    socket.on('error', (error) => {
+      logger.warn('Control socket error', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+
+    socket.on('close', (hadError) => {
+      logger.debug('Control socket closed', { hadError });
+    });
 
     socket.on('data', async (chunk: string) => {
 
@@ -1399,9 +1513,27 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'get-character-entity':
+
+                  result = await characterTools.handleGetCharacterEntity(args);
+
+                  break;
+
                 case 'list-characters':
 
                   result = await characterTools.handleListCharacters(args);
+
+                  break;
+
+                case 'use-item':
+
+                  result = await characterTools.handleUseItem(args);
+
+                  break;
+
+                case 'search-character-items':
+
+                  result = await characterTools.handleSearchCharacterItems(args);
 
                   break;
 
@@ -1456,6 +1588,25 @@ async function startBackend(): Promise<void> {
                 case 'get-compendium-entry-full':
 
                   result = await actorCreationTools.handleGetCompendiumEntryFull(args);
+
+                  break;
+
+                // DSA5 character creation tools
+                case 'create-dsa5-character-from-archetype':
+
+                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
+
+                  break;
+
+                case 'list-dsa5-archetypes':
+
+                  result = await dsa5CharacterCreator.handleListArchetypes(args);
+
+                  break;
+
+                case 'import-dsa5-actor-from-json':
+
+                  result = await dsa5JsonActorImporter.handleImportActorFromJson(args);
 
                   break;
 
@@ -1603,12 +1754,7 @@ async function startBackend(): Promise<void> {
 
               }
 
-              const payload = {
-
-                content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result) }],
-
-              };
-
+              const payload = buildToolResult(result, config.toolResponseMaxChars);
               socket.write(JSON.stringify({ id: msg.id, result: payload }) + '\n');
 
             } catch (e: any) {
@@ -1617,7 +1763,10 @@ async function startBackend(): Promise<void> {
 
               socket.write(
 
-                JSON.stringify({ id: msg.id, result: { content: [{ type: 'text', text: `Error: ${errorMessage}` }], isError: true } }) + '\n'
+                JSON.stringify({
+                  id: msg.id,
+                  result: { ...buildToolResult(`Error: ${errorMessage}`, config.toolResponseMaxChars), isError: true }
+                }) + '\n'
 
               );
 

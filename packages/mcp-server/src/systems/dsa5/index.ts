@@ -16,6 +16,7 @@ export { DSA5Adapter } from './adapter.js';
 
 // Character creator (runs in MCP server Node.js context)
 export { DSA5CharacterCreator } from './character-creator.js';
+export { DSA5JsonActorImporter } from './json-actor-importer.js';
 
 // Filter system
 export {

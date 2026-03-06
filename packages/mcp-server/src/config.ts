@@ -23,10 +23,7 @@ const ConfigSchema = z.object({
     rejectUnauthorized: z.boolean().default(true), // TLS certificate validation
     // WebRTC configuration
     webrtc: z.object({
-      stunServers: z.array(z.string()).default([
-        'stun:stun.l.google.com:19302',
-        'stun:stun1.l.google.com:19302'
-      ]),
+      stunServers: z.array(z.string()).default([]),
       // Future: TURN servers support
       // turnServers: z.array(z.object({
       //   urls: z.string(),
@@ -34,7 +31,7 @@ const ConfigSchema = z.object({
       //   credential: z.string().optional()
       // })).optional()
     }).default({
-      stunServers: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']
+      stunServers: []
     })
   }),
   comfyui: z.object({
@@ -44,6 +41,7 @@ const ConfigSchema = z.object({
     host: z.string().default('127.0.0.1'),
     pythonCommand: z.string().default('python/python.exe'), // Will be platform-specific
   }),
+  toolResponseMaxChars: z.number().min(256).max(500000).default(20000),
   server: z.object({
     name: z.string().default('foundry-mcp-server'),
     version: z.string().default('0.4.17'),
@@ -72,7 +70,7 @@ const rawConfig = {
     webrtc: {
       stunServers: process.env.FOUNDRY_STUN_SERVERS
         ? process.env.FOUNDRY_STUN_SERVERS.split(',')
-        : ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']
+        : []
     }
   },
   comfyui: {
@@ -82,6 +80,7 @@ const rawConfig = {
     host: process.env.COMFYUI_HOST || '127.0.0.1',
     pythonCommand: process.env.COMFYUI_PYTHON_COMMAND || 'python/python.exe'
   },
+  toolResponseMaxChars: parseInt(process.env.TOOL_RESPONSE_MAX_CHARS || '20000', 10),
   server: {
     name: process.env.SERVER_NAME || 'foundry-mcp-server',
     version: process.env.SERVER_VERSION || '1.0.0',

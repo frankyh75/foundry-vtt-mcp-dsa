@@ -36,6 +36,7 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.searchCompendium`] = this.handleSearchCompendium.bind(this);
     CONFIG.queries[`${modulePrefix}.listCreaturesByCriteria`] = this.handleListCreaturesByCriteria.bind(this);
     CONFIG.queries[`${modulePrefix}.getAvailablePacks`] = this.handleGetAvailablePacks.bind(this);
+    CONFIG.queries[`${modulePrefix}.getPackIndex`] = this.handleGetPackIndex.bind(this);
 
     // Scene queries
     CONFIG.queries[`${modulePrefix}.getActiveScene`] = this.handleGetActiveScene.bind(this);
@@ -50,6 +51,7 @@ export class QueryHandlers {
 
     // Phase 2 & 3: Write operation queries
     CONFIG.queries[`${modulePrefix}.createActorFromCompendium`] = this.handleCreateActorFromCompendium.bind(this);
+    CONFIG.queries[`${modulePrefix}.createActorFromData`] = this.handleCreateActorFromData.bind(this);
     CONFIG.queries[`${modulePrefix}.getCompendiumDocumentFull`] = this.handleGetCompendiumDocumentFull.bind(this);
     CONFIG.queries[`${modulePrefix}.addActorsToScene`] = this.handleAddActorsToScene.bind(this);
     CONFIG.queries[`${modulePrefix}.validateWritePermissions`] = this.handleValidateWritePermissions.bind(this);
@@ -77,11 +79,25 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.findPlayers`] = this.handleFindPlayers.bind(this);
     CONFIG.queries[`${modulePrefix}.findActor`] = this.handleFindActor.bind(this);
 
+    // Token manipulation queries
+    CONFIG.queries[`${modulePrefix}.moveToken`] = this.handleMoveToken.bind(this);
+    CONFIG.queries[`${modulePrefix}.updateToken`] = this.handleUpdateToken.bind(this);
+    CONFIG.queries[`${modulePrefix}.deleteTokens`] = this.handleDeleteTokens.bind(this);
+    CONFIG.queries[`${modulePrefix}.getTokenDetails`] = this.handleGetTokenDetails.bind(this);
+    CONFIG.queries[`${modulePrefix}.toggleTokenCondition`] = this.handleToggleTokenCondition.bind(this);
+    CONFIG.queries[`${modulePrefix}.getAvailableConditions`] = this.handleGetAvailableConditions.bind(this);
+
     // Map generation queries (hybrid architecture)
     CONFIG.queries[`${modulePrefix}.generate-map`] = this.handleGenerateMap.bind(this);
     CONFIG.queries[`${modulePrefix}.check-map-status`] = this.handleCheckMapStatus.bind(this);
     CONFIG.queries[`${modulePrefix}.cancel-map-job`] = this.handleCancelMapJob.bind(this);
     CONFIG.queries[`${modulePrefix}.upload-generated-map`] = this.handleUploadGeneratedMap.bind(this);
+
+    // Item usage queries
+    CONFIG.queries[`${modulePrefix}.useItem`] = this.handleUseItem.bind(this);
+
+    // Character search queries
+    CONFIG.queries[`${modulePrefix}.searchCharacterItems`] = this.handleSearchCharacterItems.bind(this);
 
     // Phase 7: Token manipulation queries
     CONFIG.queries[`${modulePrefix}.move-token`] = this.handleMoveToken.bind(this);
@@ -267,6 +283,29 @@ export class QueryHandlers {
   }
 
   /**
+   * Handle get pack index request
+   */
+  private async handleGetPackIndex(data: { packId: string }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.packId) {
+        throw new Error('packId is required');
+      }
+
+      return await this.dataAccess.getPackIndex(data.packId);
+    } catch (error) {
+      throw new Error(`Failed to get pack index: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Handle get active scene request
    */
   private async handleGetActiveScene(): Promise<any> {
@@ -375,6 +414,64 @@ export class QueryHandlers {
       return await this.dataAccess.createActorFromCompendiumEntry(requestData);
     } catch (error) {
       throw new Error(`Failed to create actor from compendium: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle actor creation from raw actor data payload
+   */
+  private async handleCreateActorFromData(data: {
+    actorData: Record<string, unknown>;
+    addToScene?: boolean;
+    updateExisting?: boolean;
+    existingActorIdentifier?: string;
+    preserveItemTypes?: string[];
+    placement?: {
+      type: 'random' | 'grid' | 'center' | 'coordinates';
+      coordinates?: { x: number; y: number }[];
+    };
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data?.actorData || typeof data.actorData !== 'object') {
+        throw new Error('actorData object is required');
+      }
+
+      const requestData: {
+        actorData: Record<string, unknown>;
+        addToScene?: boolean;
+        updateExisting?: boolean;
+        existingActorIdentifier?: string;
+        preserveItemTypes?: string[];
+        placement?: {
+          type: 'random' | 'grid' | 'center' | 'coordinates';
+          coordinates?: { x: number; y: number }[];
+        };
+      } = {
+        actorData: data.actorData,
+        addToScene: data.addToScene ?? false,
+        updateExisting: data.updateExisting ?? false,
+      };
+      if (data.existingActorIdentifier) {
+        requestData.existingActorIdentifier = data.existingActorIdentifier;
+      }
+      if (data.preserveItemTypes?.length) {
+        requestData.preserveItemTypes = data.preserveItemTypes;
+      }
+      if (data.placement) {
+        requestData.placement = data.placement;
+      }
+
+      return await this.dataAccess.createActorFromData(requestData);
+    } catch (error) {
+      throw new Error(`Failed to create actor from data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -1235,6 +1332,82 @@ export class QueryHandlers {
       return await this.dataAccess.getAvailableConditions();
     } catch (error) {
       throw new Error(`Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle use item request (cast spell, use ability, consume item, etc.)
+   */
+  private async handleUseItem(data: {
+    actorIdentifier: string;
+    itemIdentifier: string;
+    targets?: string[];
+    options?: {
+      consume?: boolean;
+      configureDialog?: boolean;
+      spellLevel?: number;
+      versatile?: boolean;
+    };
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      if (!data.itemIdentifier) {
+        throw new Error('itemIdentifier is required');
+      }
+
+      return await this.dataAccess.useItem({
+        actorIdentifier: data.actorIdentifier,
+        itemIdentifier: data.itemIdentifier,
+        targets: data.targets,
+        options: data.options,
+      });
+    } catch (error) {
+      throw new Error(`Failed to use item: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Handle search character items request
+   */
+  private async handleSearchCharacterItems(data: {
+    characterIdentifier: string;
+    query?: string;
+    type?: string;
+    category?: string;
+    limit?: number;
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.characterIdentifier) {
+        throw new Error('characterIdentifier is required');
+      }
+
+      return await this.dataAccess.searchCharacterItems({
+        characterIdentifier: data.characterIdentifier,
+        query: data.query,
+        type: data.type,
+        category: data.category,
+        limit: data.limit,
+      });
+    } catch (error) {
+      throw new Error(`Failed to search character items: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
