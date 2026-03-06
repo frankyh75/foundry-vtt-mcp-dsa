@@ -284,7 +284,7 @@ export class DSA5CharacterCreator {
                   
                   if (speciesMatch && professionMatch) {
                     fullDataEntries.push({
-                      id: entry.id,
+                      id: entry._id || entry.id,
                       name: entry.name,
                       packId: pack.id,
                       packLabel: pack.label,

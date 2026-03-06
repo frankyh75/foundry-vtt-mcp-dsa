@@ -861,7 +861,11 @@ export class DSA5JsonActorImporter {
       const payload = await extractPayload(jsonPayload, filePath);
       const normalizedPayload = normalizeInputKeys(payload);
       const validation = validateImportPayload(normalizedPayload);
-      if (validation.errors.length > 0) {
+
+      const detectedFormat = validation.detectedFormat;
+      const selectedFormat = strategy === 'auto' ? detectedFormat : strategy;
+
+      if (strategy === 'auto' && validation.errors.length > 0) {
         return {
           success: false,
           error: validation.errors.join(' | '),
@@ -869,9 +873,6 @@ export class DSA5JsonActorImporter {
           availableTopLevelKeys: validation.availableTopLevelKeys,
         };
       }
-
-      const detectedFormat = validation.detectedFormat;
-      const selectedFormat = strategy === 'auto' ? detectedFormat : strategy;
 
       let mappingResult: MappingResult;
       switch (selectedFormat) {
