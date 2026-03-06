@@ -12,6 +12,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. Claude schreibt einen präzisen Codex-Prompt mit: betroffenen Dateien, exakten Änderungen, Constraints
 3. Codex führt aus, läuft Tests, committet
 
+### Session Start Kontext
+- Bei jeder neuen Session zuerst `ROADMAP.md` lesen.
+- `ROADMAP.md` ist die verbindliche Quelle fuer Roadmap und priorisiertes Feature-Backlog.
+
 ### Claude-Permissions in diesem Repo
 - **Erlaubt ohne Rückfrage:** Read, Grep, Glob, Bash (read-only: git log/diff/show/status), TodoWrite
 - **Nicht erlaubt:** Edit, Write, Bash (schreibend) — das ist Codex-Domäne

@@ -12,6 +12,10 @@
 - Committen mit Conventional Commits (siehe unten)
 - Bei Unklarheiten: Architektur-Constraints aus diesem File priorisieren
 
+### Session Start Kontext (Claude und Codex)
+- Bei jeder neuen Session zuerst `ROADMAP.md` lesen.
+- `ROADMAP.md` ist die verbindliche Quelle fuer Roadmap und priorisiertes Feature-Backlog.
+
 ---
 
 ## Project Structure & Module Organization
