@@ -69,7 +69,7 @@ log('');
 const INSTALL_BASE = '/Applications/FoundryMCPServer.app/Contents/Resources';
 const PYTHON_VERSION = '3.11.8';
 const PYTHON_PKG_URL = `https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-macos11.pkg`;
-const COMFYUI_ZIP_URL = 'https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip';
+const COMFYUI_ZIP_URL = 'https://github.com/Comfy-Org/ComfyUI/archive/refs/heads/master.zip';
 // Use system Python installation location - this way no path fixes are needed
 const PYTHON_INSTALL_PATH = '/Library/Frameworks/Python.framework/Versions/3.11';
 const COMFYUI_PATH = path.join(INSTALL_BASE, 'ComfyUI');

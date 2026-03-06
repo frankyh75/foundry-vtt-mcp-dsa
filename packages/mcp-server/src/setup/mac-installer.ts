@@ -9,7 +9,12 @@ import axios from 'axios';
 import { Logger } from '../logger.js';
 import { isAppleSilicon, isIntelMac } from '../utils/platform.js';
 
-const COMFYUI_DOWNLOAD_URL = 'https://download.comfy.org/mac/dmg/arm64';
+// ComfyUI Desktop download URLs
+// Primary: Official download URL (DMG format)
+const COMFYUI_OFFICIAL_DMG_URL = 'https://download.comfy.org/mac/dmg/arm64';
+// Fallback: Homebrew cask API provides versioned URLs that are more stable
+const HOMEBREW_CASK_API = 'https://formulae.brew.sh/api/cask/comfyui.json';
+const COMFYUI_MANUAL_DOWNLOAD_URL = 'https://www.comfy.org/download';
 const COMFYUI_APP_PATH = '/Applications/ComfyUI.app';
 const COMFYUI_RESOURCES_PATH = `${COMFYUI_APP_PATH}/Contents/Resources/ComfyUI`;
 
@@ -255,19 +260,74 @@ export class MacInstaller {
   }
 
   /**
-   * Download ComfyUI Desktop DMG
+   * Get the ComfyUI download URL
+   * Tries official DMG first, falls back to Homebrew cask API if that fails
    */
-  async downloadComfyUI(downloadPath: string): Promise<void> {
+  private async getComfyUIDownloadUrl(): Promise<{ url: string; isDmg: boolean }> {
+    // Try official DMG URL first
+    try {
+      this.logger.info('Checking official ComfyUI download URL...');
+      const headResponse = await axios.head(COMFYUI_OFFICIAL_DMG_URL, {
+        timeout: 10000,
+        maxRedirects: 5
+      });
+      if (headResponse.status === 200) {
+        this.logger.info('Official DMG URL is available', { url: COMFYUI_OFFICIAL_DMG_URL });
+        return { url: COMFYUI_OFFICIAL_DMG_URL, isDmg: true };
+      }
+    } catch (error) {
+      this.logger.warn('Official DMG URL not available, trying Homebrew API', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+
+    // Fallback to Homebrew cask API for versioned URL
+    try {
+      this.logger.info('Fetching ComfyUI download URL from Homebrew cask API...');
+      const response = await axios.get(HOMEBREW_CASK_API, { timeout: 10000 });
+      const url = response.data?.url;
+      if (url && typeof url === 'string') {
+        this.logger.info('Got ComfyUI download URL from Homebrew', { url });
+        const isDmg = url.toLowerCase().endsWith('.dmg');
+        return { url, isDmg };
+      }
+    } catch (error) {
+      this.logger.error('Failed to fetch from Homebrew API', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+
+    // Both methods failed
+    throw new Error('Failed to get ComfyUI download URL');
+  }
+
+  /**
+   * Download ComfyUI Desktop (DMG or ZIP)
+   * Returns whether the downloaded file is a DMG
+   */
+  async downloadComfyUI(downloadPath: string): Promise<boolean> {
     this.updateProgress({
       stage: 'downloading_comfyui',
       progress: 0,
-      message: 'Downloading ComfyUI Desktop (200MB)...'
+      message: 'Checking download sources...'
+    });
+
+    const { url: downloadUrl, isDmg } = await this.getComfyUIDownloadUrl();
+
+    // Ensure correct extension on download path
+    const extension = isDmg ? '.dmg' : '.zip';
+    const actualPath = downloadPath.replace(/\.(dmg|zip)$/, '') + extension;
+
+    this.updateProgress({
+      stage: 'downloading_comfyui',
+      progress: 0,
+      message: `Downloading ComfyUI Desktop (~160MB)...`
     });
 
     try {
       const response = await axios({
         method: 'GET',
-        url: COMFYUI_DOWNLOAD_URL,
+        url: downloadUrl,
         responseType: 'stream',
         maxRedirects: 5
       });
@@ -275,7 +335,7 @@ export class MacInstaller {
       const totalSize = parseInt(response.headers['content-length'] || '0', 10);
       let downloadedSize = 0;
 
-      const writer = fs.createWriteStream(downloadPath);
+      const writer = fs.createWriteStream(actualPath);
 
       response.data.on('data', (chunk: Buffer) => {
         downloadedSize += chunk.length;
@@ -295,75 +355,155 @@ export class MacInstaller {
         writer.on('error', reject);
       });
 
-      this.logger.info('ComfyUI Desktop downloaded successfully');
+      this.logger.info('ComfyUI Desktop downloaded successfully', { path: actualPath, isDmg });
+      return isDmg;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error('Failed to download ComfyUI', { error: message });
-      throw new Error(`Failed to download ComfyUI: ${message}`);
+
+      // Provide helpful error message with manual download instructions
+      throw new Error(
+        `Failed to download ComfyUI Desktop: ${message}\n\n` +
+        `The automatic download may be temporarily unavailable.\n` +
+        `Please try one of these alternatives:\n` +
+        `1. Visit ${COMFYUI_MANUAL_DOWNLOAD_URL} and download manually\n` +
+        `2. Install via Homebrew: brew install comfyui\n` +
+        `3. Clone from GitHub: git clone https://github.com/comfyanonymous/ComfyUI.git`
+      );
     }
   }
 
   /**
-   * Install ComfyUI from DMG
+   * Install ComfyUI from ZIP or DMG
    */
-  async installComfyUI(dmgPath: string): Promise<void> {
+  async installComfyUI(archivePath: string): Promise<void> {
     this.updateProgress({
       stage: 'installing_comfyui',
       progress: 0,
       message: 'Installing ComfyUI Desktop...'
     });
 
-    try {
-      // Mount the DMG
-      this.logger.info('Mounting DMG', { path: dmgPath });
-      const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noverify`, { encoding: 'utf8' });
+    const isZip = archivePath.endsWith('.zip');
 
-      // Parse mount output to find volume path
-      const lines = mountOutput.split('\n');
-      let volumePath = '';
-      for (const line of lines) {
-        if (line.includes('/Volumes/')) {
-          const match = line.match(/\/Volumes\/[^\s]+/);
-          if (match) {
-            volumePath = match[0];
-            break;
+    try {
+      if (isZip) {
+        // Handle ZIP format (from Homebrew cask / ToDesktop)
+        this.logger.info('Extracting ZIP', { path: archivePath });
+
+        // Create temp directory for extraction
+        const tmpDir = process.env.TMPDIR || '/tmp';
+        const extractDir = path.join(tmpDir, 'comfyui-extract');
+
+        // Clean up any previous extraction
+        if (fs.existsSync(extractDir)) {
+          execSync(`rm -rf "${extractDir}"`, { encoding: 'utf8' });
+        }
+        fs.mkdirSync(extractDir, { recursive: true });
+
+        this.updateProgress({
+          stage: 'installing_comfyui',
+          progress: 30,
+          message: 'Extracting ComfyUI...'
+        });
+
+        // Extract ZIP
+        execSync(`unzip -q "${archivePath}" -d "${extractDir}"`, { encoding: 'utf8' });
+
+        this.updateProgress({
+          stage: 'installing_comfyui',
+          progress: 50,
+          message: 'Copying ComfyUI to Applications...'
+        });
+
+        // Find ComfyUI.app in extracted contents
+        const appPath = path.join(extractDir, 'ComfyUI.app');
+        if (!fs.existsSync(appPath)) {
+          // Sometimes the app is nested in a folder
+          const files = fs.readdirSync(extractDir);
+          let foundApp = false;
+          for (const file of files) {
+            const nestedApp = path.join(extractDir, file, 'ComfyUI.app');
+            if (fs.existsSync(nestedApp)) {
+              execSync(`cp -R "${nestedApp}" /Applications/`, { encoding: 'utf8' });
+              foundApp = true;
+              break;
+            }
+            // Check if the file itself is the app
+            if (file === 'ComfyUI.app') {
+              execSync(`cp -R "${path.join(extractDir, file)}" /Applications/`, { encoding: 'utf8' });
+              foundApp = true;
+              break;
+            }
+          }
+          if (!foundApp) {
+            throw new Error(`ComfyUI.app not found in extracted archive. Contents: ${files.join(', ')}`);
+          }
+        } else {
+          execSync(`cp -R "${appPath}" /Applications/`, { encoding: 'utf8' });
+        }
+
+        this.logger.info('ComfyUI copied to Applications');
+
+        this.updateProgress({
+          stage: 'installing_comfyui',
+          progress: 90,
+          message: 'Cleaning up...'
+        });
+
+        // Clean up extraction directory
+        execSync(`rm -rf "${extractDir}"`, { encoding: 'utf8' });
+      } else {
+        // Handle DMG format (legacy)
+        this.logger.info('Mounting DMG', { path: archivePath });
+        const mountOutput = execSync(`hdiutil attach "${archivePath}" -nobrowse -noverify`, { encoding: 'utf8' });
+
+        // Parse mount output to find volume path
+        const lines = mountOutput.split('\n');
+        let volumePath = '';
+        for (const line of lines) {
+          if (line.includes('/Volumes/')) {
+            const match = line.match(/\/Volumes\/[^\s]+/);
+            if (match) {
+              volumePath = match[0];
+              break;
+            }
           }
         }
+
+        if (!volumePath) {
+          throw new Error('Failed to find mounted volume path');
+        }
+
+        this.logger.info('DMG mounted', { volume: volumePath });
+
+        this.updateProgress({
+          stage: 'installing_comfyui',
+          progress: 50,
+          message: 'Copying ComfyUI to Applications...'
+        });
+
+        // Find ComfyUI.app in mounted volume
+        const appPath = `${volumePath}/ComfyUI.app`;
+        if (!fs.existsSync(appPath)) {
+          throw new Error(`ComfyUI.app not found in mounted volume: ${volumePath}`);
+        }
+
+        // Copy to /Applications
+        execSync(`cp -R "${appPath}" /Applications/`, { encoding: 'utf8' });
+
+        this.logger.info('ComfyUI copied to Applications');
+
+        this.updateProgress({
+          stage: 'installing_comfyui',
+          progress: 90,
+          message: 'Cleaning up...'
+        });
+
+        // Unmount DMG
+        execSync(`hdiutil detach "${volumePath}"`, { encoding: 'utf8' });
+
+        this.logger.info('DMG unmounted');
       }
-
-      if (!volumePath) {
-        throw new Error('Failed to find mounted volume path');
-      }
-
-      this.logger.info('DMG mounted', { volume: volumePath });
-
-      this.updateProgress({
-        stage: 'installing_comfyui',
-        progress: 50,
-        message: 'Copying ComfyUI to Applications...'
-      });
-
-      // Find ComfyUI.app in mounted volume
-      const appPath = `${volumePath}/ComfyUI.app`;
-      if (!fs.existsSync(appPath)) {
-        throw new Error(`ComfyUI.app not found in mounted volume: ${volumePath}`);
-      }
-
-      // Copy to /Applications
-      execSync(`cp -R "${appPath}" /Applications/`, { encoding: 'utf8' });
-
-      this.logger.info('ComfyUI copied to Applications');
-
-      this.updateProgress({
-        stage: 'installing_comfyui',
-        progress: 90,
-        message: 'Cleaning up...'
-      });
-
-      // Unmount DMG
-      execSync(`hdiutil detach "${volumePath}"`, { encoding: 'utf8' });
-
-      this.logger.info('DMG unmounted');
 
       this.updateProgress({
         stage: 'installing_comfyui',
@@ -491,14 +631,17 @@ export class MacInstaller {
       // Install ComfyUI if needed
       if (!comfyUIInstalled && !options.skipComfyUI) {
         const tmpDir = process.env.TMPDIR || '/tmp';
-        const dmgPath = path.join(tmpDir, 'ComfyUI.dmg');
+        // Download will determine format (DMG or ZIP) based on what's available
+        const basePath = path.join(tmpDir, 'ComfyUI');
 
-        await this.downloadComfyUI(dmgPath);
-        await this.installComfyUI(dmgPath);
+        const isDmg = await this.downloadComfyUI(basePath);
+        const archivePath = isDmg ? `${basePath}.dmg` : `${basePath}.zip`;
 
-        // Clean up DMG
-        if (fs.existsSync(dmgPath)) {
-          fs.unlinkSync(dmgPath);
+        await this.installComfyUI(archivePath);
+
+        // Clean up archive
+        if (fs.existsSync(archivePath)) {
+          fs.unlinkSync(archivePath);
         }
       } else if (comfyUIInstalled) {
         this.logger.info('ComfyUI already installed, skipping');
