@@ -89,112 +89,21 @@ Add this to your Claude Desktop configuration (claude_desktop_config.json) file:
 
 Starting Claude Desktop will start the MCP Server.
 
-### Local LLM Setup (Ulisses-konform)
+### Local LLM Setup (Ulisses-friendly)
 
-Für den Betrieb mit DSA5-Kompendiumsdaten empfehlen wir einen lokalen LLM-Client.
-Die KI verarbeitet alles lokal — keine Daten gehen an externe Server.
+You can run this bridge with a fully local LLM client (for example LM Studio + Qwen), so campaign data stays local.
 
-**Getestetes Setup:** LM Studio 0.4.6 + Qwen 2.5 7B + Foundry MCP
+- Step-by-step guide: [docs/LOCAL_LLM_MCP_SETUP.md](docs/LOCAL_LLM_MCP_SETUP.md)
+- Includes: tested baseline, MCP client config, context sizing, local-first `.env`, and troubleshooting.
 
----
+## ChatGPT Pro (Developer Mode) – 10 Minuten Setup
 
-#### Schritt 1: LM Studio installieren
-
-[LM Studio herunterladen](https://lmstudio.ai/) und installieren.
-
----
-
-#### Schritt 2: Modell laden
-
-Empfehlungen nach VRAM:
-
-| VRAM | Modell | Quantisierung |
-|------|--------|---------------|
-| 6 GB | Qwen2.5 7B Instruct | Q4_K_M |
-| 8 GB | Qwen2.5 7B Instruct | Q5_K_M (empfohlen) |
-| 12 GB+ | Qwen2.5 14B Instruct | Q4_K_M |
-
-In LM Studio: Suchfeld → `qwen2.5 7b instruct` → Anbieter `lmstudio-community` → Q5_K_M → Download.
-
-**Wichtig — Kontextlänge erhöhen:**
-
-1. Modell-Auswahl öffnen (oben auf Modellname klicken)
-2. Toggle **"Manually choose model load parameters"** einschalten (oder `Alt` gedrückt halten beim Laden)
-3. **Context Length** auf `16384` setzen
-4. Modell laden
-
-> Ohne diese Einstellung lädt das Modell mit 4096 Tokens — zu wenig für die Foundry-Tool-Definitionen.
-
----
-
-#### Schritt 3: MCP-Server konfigurieren
-
-1. Im Chat-Fenster: rechte Seitenleiste → Tab mit Werkzeug-Icon (Tools)
-2. **+ Install → Edit mcp.json**
-3. Folgendes eintragen und speichern (`Ctrl+S`):
-
-```json
-{
-  "mcpServers": {
-    "foundry-mcp": {
-      "command": "node",
-      "args": ["PFAD/ZU/packages/mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-`PFAD/ZU/` durch den absoluten Pfad zur Installation ersetzen, z. B.:
-
-Windows: `C:\\Users\\DEINNAME\\Documents\\foundry-vtt-mcp-dsa\\packages\\mcp-server\\dist\\index.js`
-Mac/Linux: `/home/DEINNAME/foundry-vtt-mcp-dsa/packages/mcp-server/dist/index.js`
-
-In der rechten Seitenleiste den Toggle bei `mcp/foundry-mcp` einschalten.
-
-Schritt 4: System-Prompt auf Deutsch setzen
-
-In der rechten Seitenleiste → System Prompt:
-
-```text
-Du bist ein hilfreicher Assistent für Foundry VTT und DSA5. Antworte immer auf Deutsch.
-```
-
-Als Preset speichern: + Save Preset As… → "Foundry DSA5"
-
-Schritt 5: MCP-Server starten
-
-```bash
-npm run build:server
-npm -w @foundry-mcp/server run start
-```
-
-Foundry VTT muss ebenfalls laufen (lokal oder Forge VTT).
-
-Schritt 6: Testen
-
-Im Chat:
-
-„Lade die Szenen-Infos"
-
-LM Studio ruft automatisch list-scenes auf und zeigt die Foundry-Szenen an.
-
-STUN-Server deaktivieren (LAN-Betrieb)
-In .env:
-
-```env
-FOUNDRY_STUN_SERVERS=
-AUDIT_LOG=false
-```
-
----
-## ChatGPT Pro (Developer Mode) â€“ 10 Minuten Setup
-
-Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP HTTP Endpoint Ã¶ffentlich bereitzustellen (Foundry bleibt lokal). Der MCP Endpoint ist per Bearer Token geschÃ¼tzt.
+Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP HTTP Endpoint öffentlich bereitzustellen (Foundry bleibt lokal). Der MCP Endpoint ist per Bearer Token geschützt.
 
 ### Voraussetzungen
 
 - Docker Desktop (Windows/Mac)
-- Foundry VTT lÃ¤uft lokal mit aktiviertem **Foundry MCP Bridge** Modul
+- Foundry VTT läuft lokal mit aktiviertem **Foundry MCP Bridge** Modul
 
 ### Schritte
 
@@ -204,19 +113,19 @@ Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP H
    ```
    - Setze **MCP_AUTH_TOKEN** auf einen starken Wert.
    - **MCP_HTTP_PORT** steuert nur den Host-Port; der Container lauscht immer auf **3333**.
-   - Wenn Foundry auf deinem Host lÃ¤uft, belasse `FOUNDRY_HOST=host.docker.internal`.
+   - Wenn Foundry auf deinem Host läuft, belasse `FOUNDRY_HOST=host.docker.internal`.
 2. Starte den MCP HTTP Endpoint + Tunnel:
    ```bash
    docker compose up
    ```
 3. Warte auf die Cloudflare-Ausgabe und kopiere die **https://...trycloudflare.com** URL aus den Logs.
-4. Ã–ffne ChatGPT â†’ **Settings â†’ Connectors â†’ Developer Mode â†’ Add MCP Server**:
+4. Öffne ChatGPT → **Settings → Connectors → Developer Mode → Add MCP Server**:
    - **Name:** Foundry MCP
    - **URL:** `https://<deine-url>.trycloudflare.com/mcp`
-   - **Auth:** Bearer Token â†’ Wert aus `MCP_AUTH_TOKEN`
+   - **Auth:** Bearer Token → Wert aus `MCP_AUTH_TOKEN`
 5. Fertig! Du kannst jetzt Tools aus deinem Foundry World in ChatGPT verwenden.
 
-> **Sicherheit:** Der Tunnel macht den MCP Endpoint Ã¶ffentlich. Ohne gÃ¼ltiges Token gibt es **401**. Teile den Token nicht.
+> **Sicherheit:** Der Tunnel macht den MCP Endpoint öffentlich. Ohne gültiges Token gibt es **401**. Teile den Token nicht.
 
 ### Smoke Test (optional)
 
@@ -254,7 +163,7 @@ Once connected, ask Claude Desktop:
 - **GM-Only**: MCP Bridge only connects to Game Master users
 - **Map Generation**: A portable ComfyUI backend that generates battlemaps from prompts
 - **Remote Connections**: WebRTC connections initiated through browser (Tested with Google Chrome) to MCP server and ComfyUI
-- **Windows and Mac Installers** Automated installation of Foundry MCP Server for Claude Dekstop, Foundry MCP Bridge Foundry VTT Module, and ComfyUI backend with dependencies
+- **Windows and Mac Installers** Automated installation of Foundry MCP Server for Claude Desktop, Foundry MCP Bridge Foundry VTT Module, and ComfyUI backend with dependencies
 
 ## Settings
 
@@ -290,8 +199,8 @@ Once connected, ask Claude Desktop:
 ## Architecture
 
 ```
-Claude Desktop â†” MCP Protocol â†” MCP Server â†” WebSocket â†” Foundry Module â†” Foundry VTT
-                                     â†“
+Claude Desktop ↔ MCP Protocol ↔ MCP Server ↔ WebSocket ↔ Foundry Module ↔ Foundry VTT
+                                     ↓
                               ComfyUI Service
                               (AI Map Generation)
 ```
