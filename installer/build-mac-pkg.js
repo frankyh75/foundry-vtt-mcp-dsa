@@ -365,6 +365,73 @@ execSync(`pkgbuild \\
 console.log('✅ ComfyUI component package built');
 
 // ============================================================================
+// Create Installer Resource Files (welcome, conclusion, license)
+// ============================================================================
+console.log('\n📝 Creating installer resource files...');
+
+const welcomeHTML = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<h1>Welcome to Foundry MCP Server ${VERSION}</h1>
+<p>This installer will set up the Foundry MCP Bridge to connect Claude Desktop with your Foundry VTT game.</p>
+<h2>Components:</h2>
+<ul>
+<li><strong>MCP Server</strong> (Required) - Core server and Claude Desktop integration</li>
+<li><strong>Foundry Module</strong> (Recommended) - Auto-install to your Foundry VTT</li>
+<li><strong>ComfyUI Map Generation</strong> (Optional) - Headless AI-powered battlemap generation (~15GB)</li>
+</ul>
+<p><strong>Requirements:</strong> Node.js 18+, macOS 11+ (Apple Silicon recommended)</p>
+</body>
+</html>
+`;
+
+const conclusionHTML = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<h1>Installation Complete!</h1>
+<h2>Next Steps:</h2>
+<ol>
+<li>Restart Claude Desktop</li>
+<li>Launch Foundry VTT and enable "Foundry MCP Bridge" in Module Management</li>
+<li>Start chatting with Claude about your Foundry world!</li>
+</ol>
+<p>Documentation: <a href="https://github.com/adambdooley/foundry-vtt-mcp">github.com/adambdooley/foundry-vtt-mcp</a></p>
+</body>
+</html>
+`;
+
+const licenseTxt = `MIT License
+
+Copyright (c) 2024-2026 Adam Dooley
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+`;
+
+fs.writeFileSync(path.join(BUILD_DIR, 'welcome.html'), welcomeHTML);
+fs.writeFileSync(path.join(BUILD_DIR, 'conclusion.html'), conclusionHTML);
+fs.writeFileSync(path.join(BUILD_DIR, 'license.txt'), licenseTxt);
+
+console.log('✅ Resource files created');
+
+// ============================================================================
 // Create Distribution XML for Component Selection
 // ============================================================================
 console.log('\n📝 Creating distribution XML...');
@@ -424,8 +491,16 @@ console.log('✅ Final package built');
 
 // Clean up
 console.log('\n🧹 Cleaning up build artifacts...');
-[CORE_ROOT, FOUNDRY_ROOT, COMFYUI_ROOT, coreScripts, foundryScripts, comfyuiScripts,
- CORE_PKG, FOUNDRY_PKG, COMFYUI_PKG, distXMLPath].forEach(item => {
+const cleanupItems = [
+  CORE_ROOT, FOUNDRY_ROOT, COMFYUI_ROOT,
+  coreScripts, foundryScripts, comfyuiScripts,
+  CORE_PKG, FOUNDRY_PKG, COMFYUI_PKG,
+  distXMLPath,
+  path.join(BUILD_DIR, 'welcome.html'),
+  path.join(BUILD_DIR, 'conclusion.html'),
+  path.join(BUILD_DIR, 'license.txt')
+];
+cleanupItems.forEach(item => {
   if (fs.existsSync(item)) {
     fs.rmSync(item, { recursive: true, force: true });
   }

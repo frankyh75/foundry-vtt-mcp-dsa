@@ -579,7 +579,7 @@ Function ResolveComfyUIDownload
   FileWrite $2 "$$ProgressPreference = 'SilentlyContinue'`r`n"
   FileWrite $2 "$$headers = @{ 'User-Agent' = 'FoundryMCPInstaller' }`r`n"
   FileWrite $2 "try {`r`n"
-  FileWrite $2 "  $$release = Invoke-RestMethod -Uri 'https://api.github.com/repos/comfyanonymous/ComfyUI/releases/latest' -Headers $$headers`r`n"
+  FileWrite $2 "  $$release = Invoke-RestMethod -Uri 'https://api.github.com/repos/Comfy-Org/ComfyUI/releases/latest' -Headers $$headers`r`n"
   FileWrite $2 "  $$asset = $$release.assets | Where-Object { $$_.name -like 'ComfyUI_windows_portable*.7z' } | Sort-Object -Property name | Select-Object -First 1`r`n"
   FileWrite $2 "  if (-not $$asset) { throw 'No suitable asset found'; }`r`n"
   FileWrite $2 "  [IO.File]::WriteAllLines($$outPath, @($$asset.browser_download_url, $$asset.name))`r`n"
@@ -648,7 +648,7 @@ Function ResolveComfyUIDownload
     DetailPrint "Failed to resolve ComfyUI release automatically"
     DetailPrint "PowerShell output: $4"
     DetailPrint "Using fallback to known working ComfyUI v0.3.60 release..."
-    StrCpy $ComfyUIDownloadURL "https://github.com/comfyanonymous/ComfyUI/releases/download/v0.3.60/ComfyUI_windows_portable_nvidia.7z"
+    StrCpy $ComfyUIDownloadURL "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.11.1/ComfyUI_windows_portable_nvidia.7z"
     StrCpy $ComfyUIDownloadName "ComfyUI_windows_portable_nvidia.7z"
     DetailPrint "Fallback ComfyUI asset: $ComfyUIDownloadName"
     Return
@@ -984,7 +984,7 @@ Section "ComfyUI Map Generation" SecComfyUI
     FileWrite $6 '    throw "File not created"$\r$\n'
     FileWrite $6 '  }$\r$\n'
     FileWrite $6 '} catch {$\r$\n'
-    FileWrite $6 '  Write-Host "PowerShell download failed: $$($_.Exception.Message)"$\r$\n'
+    FileWrite $6 '  Write-Host "PowerShell download failed: $$($$_.Exception.Message)"$\r$\n'
     FileWrite $6 '  exit 1$\r$\n'
     FileWrite $6 '}$\r$\n'
     FileClose $6

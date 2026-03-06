@@ -116,9 +116,18 @@ export class FoundryConnector {
     this.wss.on('connection', (ws) => {
       this.logger.info('Client connected via WebSocket');
 
+      // Register the connection immediately on connect, not on first message
+      // This fixes Issue #19: WebSocket handshake deadlock where both sides
+      // waited for the other to send a message first
+      if (!this.foundrySocket) {
+        this.foundrySocket = ws;
+        this.activeConnectionType = 'websocket';
+        this.logger.info('Foundry module registered via WebSocket');
+      }
+
       ws.on('close', () => {
         this.logger.info('Client disconnected');
-        if (this.activeConnectionType === 'websocket') {
+        if (this.activeConnectionType === 'websocket' && this.foundrySocket === ws) {
           this.foundrySocket = null;
           this.activeConnectionType = null;
           // Reject all pending queries
@@ -138,12 +147,7 @@ export class FoundryConnector {
           if (message.type === 'webrtc-offer') {
             await this.handleWebRTCOffer(message.offer, ws);
           } else {
-            // Regular WebSocket message
-            if (!this.foundrySocket) {
-              this.foundrySocket = ws;
-              this.activeConnectionType = 'websocket';
-              this.logger.info('Foundry module connected via WebSocket (direct)');
-            }
+            // Regular WebSocket message - process it directly
             await this.handleMessage(message);
           }
         } catch (error) {
