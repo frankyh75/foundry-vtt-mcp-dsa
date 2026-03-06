@@ -1,6 +1,6 @@
 ﻿# Foundry VTT MCP Bridge
 
-Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition and Pathfinder Second Edition. The majority of MCP tools are system agnostic but character creation and compendium tools are only able to work with D&D5e and PF2E. 
+Connect Foundry VTT to MCP-capable AI clients for campaign management through the Model Context Protocol (MCP). This fork focuses on DSA5 support and local-first workflows, while retaining broad system-agnostic MCP tooling. 
 
 ## Overview
 
@@ -22,7 +22,7 @@ This project was built with the assistance of Claude Code. If you like this proj
 ### Prerequisites
 
 - **Foundry VTT v13** 
-- **Claude Desktop** with MCP support
+- **MCP-capable client** (Claude Desktop, Codex/OpenAI Agents, or local clients like LM Studio)
 - **Windows** (for automated installer) or **Node.js 18+** for manual installation
 
 ### Option 1: Windows Installer 
@@ -96,42 +96,15 @@ You can run this bridge with a fully local LLM client (for example LM Studio + Q
 - Step-by-step guide: [docs/LOCAL_LLM_MCP_SETUP.md](docs/LOCAL_LLM_MCP_SETUP.md)
 - Includes: tested baseline, MCP client config, context sizing, local-first `.env`, and troubleshooting.
 
-## ChatGPT Pro (Developer Mode) – 10 Minuten Setup
+## Client Support (real-world status)
 
-Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP HTTP Endpoint öffentlich bereitzustellen (Foundry bleibt lokal). Der MCP Endpoint ist per Bearer Token geschützt.
+- **Claude Desktop**: stable and fully supported
+- **Codex / OpenAI Agents**: supported and tested
+- **Local LLM clients (LM Studio + Qwen)**: supported and tested
+- **ChatGPT Connector (SSE/OAuth path)**: currently unreliable in practice; not recommended as primary setup
 
-### Voraussetzungen
-
-- Docker Desktop (Windows/Mac)
-- Foundry VTT läuft lokal mit aktiviertem **Foundry MCP Bridge** Modul
-
-### Schritte
-
-1. Lege deine lokale `.env` an:
-   ```bash
-   cp .env.example .env
-   ```
-   - Setze **MCP_AUTH_TOKEN** auf einen starken Wert.
-   - **MCP_HTTP_PORT** steuert nur den Host-Port; der Container lauscht immer auf **3333**.
-   - Wenn Foundry auf deinem Host läuft, belasse `FOUNDRY_HOST=host.docker.internal`.
-2. Starte den MCP HTTP Endpoint + Tunnel:
-   ```bash
-   docker compose up
-   ```
-3. Warte auf die Cloudflare-Ausgabe und kopiere die **https://...trycloudflare.com** URL aus den Logs.
-4. Öffne ChatGPT → **Settings → Connectors → Developer Mode → Add MCP Server**:
-   - **Name:** Foundry MCP
-   - **URL:** `https://<deine-url>.trycloudflare.com/mcp`
-   - **Auth:** Bearer Token → Wert aus `MCP_AUTH_TOKEN`
-5. Fertig! Du kannst jetzt Tools aus deinem Foundry World in ChatGPT verwenden.
-
-> **Sicherheit:** Der Tunnel macht den MCP Endpoint öffentlich. Ohne gültiges Token gibt es **401**. Teile den Token nicht.
-
-### Smoke Test (optional)
-
-```bash
-./scripts/smoke-test-chatgpt.sh
-```
+For local-first usage (including a free local model path), see:
+- [docs/LOCAL_LLM_MCP_SETUP.md](docs/LOCAL_LLM_MCP_SETUP.md)
 
 ### Getting Started
 
@@ -141,7 +114,7 @@ Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP H
 
 ## Example Usage
 
-Once connected, ask Claude Desktop:
+Once connected, ask your MCP client:
 
 - *"Show me my character Clark's stats"*
 - *"Find all CR 12 humanoid creatures for an encounter"*  
@@ -150,9 +123,22 @@ Once connected, ask Claude Desktop:
 - *"What's in the current Foundry scene?"*
 - *"Create me a small map of a Riverside Cottage in Foundry"*
 
+## DSA5 Capabilities (this fork)
+
+This fork adds DSA5-focused workflows on top of the base bridge:
+
+- **Custom JSON actor import** with multi-format mapping:
+  - `raw_foundry`
+  - `optolith_like`
+  - `custom_dsa5`
+- **Input normalization** for common encoding/mojibake key issues
+- **Validation + clearer import errors** for malformed payloads
+- **DSA5 filter tests** converted to proper Vitest suites
+- **Local-first DSA5 operation** documented for LM Studio + Qwen workflows
+
 ## Features
 
-- **33 MCP Tools** that allow Claude to interact with Foundry
+- **33 MCP Tools** for MCP clients (Claude, Codex/OpenAI Agents, local LLM clients)
 - **Character Management**: Access stats, abilities, inventory, and detailed entity information
 - **Token Manipulation**: Move, update, delete tokens and manage status conditions
 - **Enhanced Compendium Search**: Instant filtering by CR, type, abilities, and more
@@ -199,16 +185,16 @@ Once connected, ask Claude Desktop:
 ## Architecture
 
 ```
-Claude Desktop ↔ MCP Protocol ↔ MCP Server ↔ WebSocket ↔ Foundry Module ↔ Foundry VTT
+MCP Client (Claude/Codex/Local LLM) ↔ MCP Protocol ↔ MCP Server ↔ WebSocket ↔ Foundry Module ↔ Foundry VTT
                                      ↓
                               ComfyUI Service
                               (AI Map Generation)
 ```
 
 - **Foundry Module**: Provides secure data access within Foundry VTT
-- **MCP Server**: External Node.js server handling Claude Desktop communication
-- **Map Generation Service**: A headless ComfyUI backend that is spawned by Claude Desktop
-- **No API Keys Required**: Uses your existing Claude Desktop subscription
+- **MCP Server**: External Node.js server handling MCP client communication
+- **Map Generation Service**: A headless ComfyUI backend started by the MCP server toolchain
+- **No mandatory cloud API keys**: can run with local model setups
 
 ## Security & Permissions
 
@@ -219,8 +205,8 @@ Claude Desktop ↔ MCP Protocol ↔ MCP Server ↔ WebSocket ↔ Foundry Module 
 ## System Requirements
 
 - **Foundry VTT**: Version 13
-- **Claude Desktop**: Latest version with MCP support
-- **Claude Pro/Max Plan**: Required to connect to MCP servers
+- **MCP Client**: Claude Desktop, Codex/OpenAI Agents, or local MCP-capable clients
+- **Model access**: local model runtime or cloud plan depending on chosen client
 - **Operating System**: Windows 10/11 (installer), or other OSes/manual Windows install with Node.js 18+ (manual)
 - **GPU Requirements**: A GPU with at least 8GB of VRAM
 
