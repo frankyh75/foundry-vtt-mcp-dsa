@@ -57,7 +57,7 @@ describe('DSA5 filters', () => {
     expect(matchesDSA5Filters(testSpellcaster, filter)).toBe(false);
   });
 
-  it('matches has-spells filter', () => {
+  it('matches hasSpells filter', () => {
     const filter: DSA5Filters = { hasSpells: true };
     expect(describeDSA5Filters(filter)).toBe('Zauberer');
     expect(matchesDSA5Filters(testCreature, filter)).toBe(false);
@@ -70,6 +70,7 @@ describe('DSA5 filters', () => {
       size: 'small',
       hasSpells: false,
     };
+
     expect(describeDSA5Filters(filter)).toBe('Stufe 1-3, small');
     expect(matchesDSA5Filters(testCreature, filter)).toBe(true);
     expect(matchesDSA5Filters(testSpellcaster, filter)).toBe(false);
@@ -77,14 +78,16 @@ describe('DSA5 filters', () => {
 
   it('matches experience points range filter', () => {
     const filter: DSA5Filters = { experiencePoints: { min: 1000, max: 2000 } };
+
     expect(describeDSA5Filters(filter)).toBe('1000-2000 AP');
     expect(matchesDSA5Filters(testCreature, filter)).toBe(true);
     expect(matchesDSA5Filters(testSpellcaster, filter)).toBe(false);
   });
 
-  it('validates helper functions', () => {
+  it('validates species and experience level helpers', () => {
     expect(isValidDSA5Species('goblin')).toBe(true);
     expect(isValidDSA5Species('unicorn')).toBe(false);
+
     expect(isValidExperienceLevel(3)).toBe(true);
     expect(isValidExperienceLevel(0)).toBe(false);
     expect(isValidExperienceLevel(8)).toBe(false);
