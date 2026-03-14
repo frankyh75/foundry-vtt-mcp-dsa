@@ -116,13 +116,19 @@ export class FoundryConnector {
     this.wss.on('connection', (ws) => {
       this.logger.info('Client connected via WebSocket');
 
-      // Register the connection immediately on connect, not on first message
-      // This fixes Issue #19: WebSocket handshake deadlock where both sides
-      // waited for the other to send a message first
-      if (!this.foundrySocket) {
+      // Only register as foundrySocket if this is a direct WebSocket connection (not WebRTC signaling)
+      // WebRTC signaling comes in via handleWebRTCOffer which sets activeConnectionType='webrtc'
+      // The signaling WebSocket should NOT be stored as foundrySocket
+      // Only direct WebSocket connections (with MCP messages) should become foundrySocket
+      if (this.activeConnectionType === null) {
+        // First connection - register as WebSocket
         this.foundrySocket = ws;
         this.activeConnectionType = 'websocket';
         this.logger.info('Foundry module registered via WebSocket');
+      } else if (this.activeConnectionType === 'webrtc') {
+        // WebRTC is active - this is likely a separate signaling or reconnect WebSocket
+        // Don't overwrite foundrySocket, just log it
+        this.logger.info('Received WebSocket connection while WebRTC is active (might be reconnect or parallel signaling)');
       }
 
       ws.on('close', () => {
@@ -278,8 +284,9 @@ export class FoundryConnector {
         answer: answer
       }));
 
+      // WebRTC is active - foundrySocket remains null (use webrtcPeer instead)
       this.activeConnectionType = 'webrtc';
-      this.logger.info('WebRTC connection established');
+      this.logger.info('WebRTC connection established via signaling');
 
       // Close signaling WebSocket after handshake
       setTimeout(() => {
