@@ -108,7 +108,7 @@ Once connected, ask Claude Desktop:
 
 ## Features
 
-- **33 MCP Tools** that allow Claude to interact with Foundry
+- **36 MCP Tools** that allow Claude to interact with Foundry
 - **Character Management**: Access stats, abilities, inventory, and detailed entity information
 - **Token Manipulation**: Move, update, delete tokens and manage status conditions
 - **Enhanced Compendium Search**: Instant filtering by CR, type, abilities, and more
@@ -120,6 +120,45 @@ Once connected, ask Claude Desktop:
 - **Map Generation**: A portable ComfyUI backend that generates battlemaps from prompts
 - **Remote Connections**: WebRTC connections initiated through browser (Tested with Google Chrome) to MCP server and ComfyUI
 - **Windows and Mac Installers** Automated installation of Foundry MCP Server for Claude Dekstop, Foundry MCP Bridge Foundry VTT Module, and ComfyUI backend with dependencies
+
+## MCP Tools
+# | Tool 
+1 | get-world-info 
+2 | list-scenes 
+3 | get-current-scene 
+4 | get-available-conditions  
+5 | list-compendium-packs 
+6 | list-characters 
+7 | get-character  
+8 | search-character-items  
+9 | get-character-entity 
+10 | get-token-details
+11 | toggle-token-condition (add)  
+12 | toggle-token-condition (remove) 
+13 | update-token 
+14 | search-compendium 
+15 | get-compendium-item 
+16 | get-compendium-entry-full 
+17 | list-creatures-by-criteria  
+18 | list-journals  
+19 | create-quest-journal 
+20 | update-quest-journal 
+21 | search-journals 
+22 | link-quest-to-npc 
+23 | list-actor-ownership 
+24 | assign-actor-ownership
+25 | remove-actor-ownership 
+26 | move-token 
+27 | use-item 
+28 | request-player-rolls 
+29 | generate-map 
+30 | check-map-status 
+31 | cancel-map-job 
+32 | switch-scene  
+33 | create-actor-from-compendium 
+34 | list-dsa5-archetypes 
+35 | create-dsa5-character-from-archetype 
+36 | create-campaign-dashboard
 
 ## Settings
 
