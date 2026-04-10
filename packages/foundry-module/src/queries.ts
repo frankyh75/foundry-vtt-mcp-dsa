@@ -58,6 +58,7 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.createJournalEntry`] = this.handleCreateJournalEntry.bind(this);
     CONFIG.queries[`${modulePrefix}.listJournals`] = this.handleListJournals.bind(this);
     CONFIG.queries[`${modulePrefix}.getJournalContent`] = this.handleGetJournalContent.bind(this);
+    CONFIG.queries[`${modulePrefix}.getJournalPageContent`] = this.handleGetJournalPageContent.bind(this);
     CONFIG.queries[`${modulePrefix}.updateJournalContent`] = this.handleUpdateJournalContent.bind(this);
 
     // Phase 4: Dice roll queries
@@ -582,6 +583,7 @@ export class QueryHandlers {
       return await this.dataAccess.createJournalEntry({
         name: data.name,
         content: data.content,
+        additionalPages: data.additionalPages,
       });
     } catch (error) {
       throw new Error(`Failed to create journal entry: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -630,9 +632,35 @@ export class QueryHandlers {
   }
 
   /**
+   * Handle get specific journal page content request
+   */
+  async handleGetJournalPageContent(data: { journalId: string; pageId: string }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.journalId) {
+        throw new Error('journalId is required');
+      }
+      if (!data.pageId) {
+        throw new Error('pageId is required');
+      }
+
+      return await this.dataAccess.getJournalPageContent(data.journalId, data.pageId);
+    } catch (error) {
+      throw new Error(`Failed to get journal page content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Handle update journal content request
    */
-  async handleUpdateJournalContent(data: { journalId: string; content: string }): Promise<any> {
+  async handleUpdateJournalContent(data: { journalId: string; content: string; pageId?: string; newPageName?: string }): Promise<any> {
     try {
       // SECURITY: Silent GM validation
       const gmCheck = this.validateGMAccess();
@@ -649,10 +677,14 @@ export class QueryHandlers {
         throw new Error('content is required');
       }
 
-      return await this.dataAccess.updateJournalContent({
+      const updateRequest: { journalId: string; content: string; pageId?: string | undefined; newPageName?: string | undefined } = {
         journalId: data.journalId,
         content: data.content,
-      });
+      };
+      if (data.pageId) updateRequest.pageId = data.pageId;
+      if (data.newPageName) updateRequest.newPageName = data.newPageName;
+
+      return await this.dataAccess.updateJournalContent(updateRequest);
     } catch (error) {
       throw new Error(`Failed to update journal content: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

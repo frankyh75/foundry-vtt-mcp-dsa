@@ -27,10 +27,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20.12.2'
         
@@ -220,7 +220,7 @@ jobs:
         }
         
     - name: Upload installer as artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: foundry-mcp-server-installer-${{ env.PACKAGE_VERSION }}
         path: installer/build/FoundryMCPServer-Setup-${{ env.PACKAGE_VERSION }}.exe
@@ -231,10 +231,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20.12.2'
 
@@ -334,7 +334,7 @@ jobs:
         fi
 
     - name: Upload Mac DMG as artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: foundry-mcp-server-dmg-${{ env.PACKAGE_VERSION }}
         path: installer/build/FoundryMCPServer-${{ env.PACKAGE_VERSION }}.dmg
@@ -347,10 +347,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20.12.2'
 
@@ -376,13 +376,13 @@ jobs:
       run: npm run build --workspace=packages/foundry-module
 
     - name: Download Windows installer artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       with:
         name: foundry-mcp-server-installer-${{ env.PACKAGE_VERSION }}
         path: installer/build/
 
     - name: Download Mac DMG artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       with:
         name: foundry-mcp-server-dmg-${{ env.PACKAGE_VERSION }}
         path: installer/build/

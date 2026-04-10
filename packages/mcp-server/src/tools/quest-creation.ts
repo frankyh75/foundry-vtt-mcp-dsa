@@ -82,6 +82,18 @@ export class QuestCreationTools {
             rewards: {
               type: 'string',
               description: 'Quest rewards description (optional)'
+            },
+            additionalPages: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', description: 'Page name (e.g. "Player Handout", "GM Notes")' },
+                  content: { type: 'string', description: 'HTML content for this page' }
+                },
+                required: ['name', 'content']
+              },
+              description: 'Optional additional pages to create alongside the main quest page. Use for multi-page journals with separate sections like Player Handout, GM Notes, etc.'
             }
           },
           required: ['questTitle', 'questDescription']
@@ -112,7 +124,7 @@ export class QuestCreationTools {
       },
       {
         name: 'update-quest-journal',
-        description: 'Update an existing quest journal with new progress information. For Foundry VTT v13 ProseMirror editor compatibility:\n\n✅ USE QUEST-STYLE HTML: Match create-quest-journal formatting\n✅ OR USE PLAIN TEXT: Will be wrapped in <p> tags with line breaks as <br>\n❌ DO NOT USE MARKDOWN: **bold**, *italic*, # headers will be stripped to plain text\n\nQuest-style HTML examples:\n• Sections: "<h2 class=\\"spaced\\">New Discovery</h2>"\n• GM Notes: "<div class=\\"gmnote\\"><p>GM info here</p></div>"\n• Player Info: "<div class=\\"readaloud\\"><p>Player-facing content</p></div>"\n• Plain text: "The party discovered the secret chamber"\n• Avoid: "**The party** discovered the *secret chamber*" (Markdown will be stripped)',
+        description: 'Update an existing quest journal with new progress information. By default updates the FIRST text page. Use pageId to target a specific page, or newPageName to create a new page.\n\nFor Foundry VTT v13 ProseMirror editor compatibility:\n\n✅ USE QUEST-STYLE HTML: Match create-quest-journal formatting\n✅ OR USE PLAIN TEXT: Will be wrapped in <p> tags with line breaks as <br>\n❌ DO NOT USE MARKDOWN: **bold**, *italic*, # headers will be stripped to plain text\n\nQuest-style HTML examples:\n• Sections: "<h2 class=\\"spaced\\">New Discovery</h2>"\n• GM Notes: "<div class=\\"gmnote\\"><p>GM info here</p></div>"\n• Player Info: "<div class=\\"readaloud\\"><p>Player-facing content</p></div>"\n• Plain text: "The party discovered the secret chamber"\n• Avoid: "**The party** discovered the *secret chamber*" (Markdown will be stripped)',
         inputSchema: {
           type: 'object',
           properties: {
@@ -128,6 +140,14 @@ export class QuestCreationTools {
               type: 'string',
               enum: ['progress', 'completion', 'failure', 'modification'],
               description: 'Type of update being made'
+            },
+            pageId: {
+              type: 'string',
+              description: 'ID of a specific page to update. If omitted, updates the first text page. Get page IDs from list-journals.'
+            },
+            newPageName: {
+              type: 'string',
+              description: 'If provided (without pageId), creates a new page with this name instead of updating an existing one.'
             }
           },
           required: ['journalId', 'newContent', 'updateType']
@@ -135,7 +155,7 @@ export class QuestCreationTools {
       },
       {
         name: 'list-journals',
-        description: 'List all journal entries in the world, with optional filtering for quest-related journals',
+        description: 'List all journal entries, or read a specific journal/page. Without parameters: lists all journals with their pages (id, name, type). With journalId: reads the journal\'s first text page content and shows all available pages. With journalId + pageId: reads a specific page\'s full content.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -146,13 +166,21 @@ export class QuestCreationTools {
             includeContent: {
               type: 'boolean',
               description: 'Include journal content preview (default: false)'
+            },
+            journalId: {
+              type: 'string',
+              description: 'If provided, read this journal\'s content instead of listing all journals. Returns full page content and a list of all pages in the journal.'
+            },
+            pageId: {
+              type: 'string',
+              description: 'If provided with journalId, read this specific page\'s content. Get page IDs from the pages array returned when listing journals or reading a journal.'
             }
           }
         }
       },
       {
         name: 'search-journals',
-        description: 'Search through journal entries for specific content or keywords',
+        description: 'Search through all pages of all journal entries for specific content or keywords. Returns which specific page matched, so you can read it with list-journals using journalId + pageId.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -186,18 +214,23 @@ export class QuestCreationTools {
         location: z.string().optional(),
         questGiver: z.string().optional(),
         npcName: z.string().optional(),
-        rewards: z.string().optional()
+        rewards: z.string().optional(),
+        additionalPages: z.array(z.object({
+          name: z.string().min(1),
+          content: z.string().min(1),
+        })).optional()
       });
 
       const request = requestSchema.parse(args);
-      
+
       // Generate formatted quest content
       const questContent = this.generateQuestContent(request);
 
       // Create journal entry via Foundry client
       const result = await this.foundryClient.query('foundry-mcp-bridge.createJournalEntry', {
         name: request.questTitle,
-        content: questContent
+        content: questContent,
+        additionalPages: request.additionalPages,
       });
 
       if (!result || result.error) {
@@ -208,8 +241,9 @@ export class QuestCreationTools {
         success: true,
         journalId: result.id,
         journalName: result.name,
+        pageCount: result.pageCount || 1,
         content: questContent,
-        message: `Quest "${request.questTitle}" created successfully`
+        message: `Quest "${request.questTitle}" created successfully with ${result.pageCount || 1} page(s)`
       };
 
     } catch (error) {
@@ -273,7 +307,9 @@ export class QuestCreationTools {
       const requestSchema = z.object({
         journalId: z.string().min(1, 'Journal ID is required'),
         newContent: z.string().min(1, 'New content is required'),
-        updateType: z.enum(['progress', 'completion', 'failure', 'modification'])
+        updateType: z.enum(['progress', 'completion', 'failure', 'modification']),
+        pageId: z.string().optional(),
+        newPageName: z.string().optional()
       });
 
       const request = requestSchema.parse(args);
@@ -281,76 +317,125 @@ export class QuestCreationTools {
       // Auto-convert Markdown to plain text with warning (don't block)
       request.newContent = this.convertMarkdownToPlainText(request.newContent);
 
-      // Get current journal content
-      const currentJournal = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
-        journalId: request.journalId
-      });
+      // If creating a new page, skip the read-modify-write cycle
+      if (request.newPageName) {
+        const formattedContent = this.formatNewPageContent(request.newContent, request.updateType);
+        const result = await this.foundryClient.query('foundry-mcp-bridge.updateJournalContent', {
+          journalId: request.journalId,
+          content: formattedContent,
+          newPageName: request.newPageName,
+        });
 
-      if (!currentJournal || currentJournal.error) {
-        throw new Error(`Journal not found: ${currentJournal?.error || 'Journal ID may be invalid'}`);
+        if (!result || result.error || !result.success) {
+          throw new Error(result?.error || 'Failed to create new journal page');
+        }
+
+        return {
+          success: true,
+          updateType: request.updateType,
+          message: `New page "${request.newPageName}" created in journal`,
+          pageId: result.pageId,
+          pageName: result.pageName,
+          verified: true,
+        };
       }
 
-      if (!currentJournal.content) {
-        throw new Error('Journal exists but has no content to update');
+      // Get current journal content (for the target page)
+      let currentContent: string;
+      if (request.pageId) {
+        const pageResult = await this.foundryClient.query('foundry-mcp-bridge.getJournalPageContent', {
+          journalId: request.journalId,
+          pageId: request.pageId,
+        });
+        if (!pageResult || pageResult.error) {
+          throw new Error(`Page not found: ${request.pageId}`);
+        }
+        currentContent = pageResult.content;
+      } else {
+        const currentJournal = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
+          journalId: request.journalId
+        });
+        if (!currentJournal || currentJournal.error) {
+          throw new Error(`Journal not found: ${currentJournal?.error || 'Journal ID may be invalid'}`);
+        }
+        currentContent = currentJournal.content;
+      }
+
+      if (!currentContent) {
+        throw new Error('Journal/page exists but has no content to update');
       }
 
       // Format the update based on type
-      const updatedContent = this.formatQuestUpdate(
-        currentJournal.content,
-        request.newContent,
-        request.updateType
-      );
-
+      // For specific page updates, use append-style since the page may not have quest HTML structure
+      let updatedContent: string;
+      if (request.pageId) {
+        const formattedNew = this.formatUpdateContentForFoundry(request.newContent);
+        updatedContent = currentContent + formattedNew;
+      } else {
+        updatedContent = this.formatQuestUpdate(
+          currentContent,
+          request.newContent,
+          request.updateType
+        );
+      }
 
       // Update the journal
       const result = await this.foundryClient.query('foundry-mcp-bridge.updateJournalContent', {
         journalId: request.journalId,
-        content: updatedContent
+        content: updatedContent,
+        pageId: request.pageId,
       });
 
       if (!result) {
         throw new Error('Failed to update quest journal: No response from Foundry');
       }
-      
+
       if (result.error) {
         throw new Error(`Failed to update quest journal: ${result.error}`);
       }
-      
+
       if (!result.success) {
         throw new Error('Failed to update quest journal: Update operation returned failure');
       }
 
       // Verify the update by reading the content back
-      const verifyResult = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
-        journalId: request.journalId
-      });
-
-      if (!verifyResult) {
-        throw new Error('Failed to verify journal update: Could not retrieve updated content');
+      let verifyContent: string;
+      if (request.pageId) {
+        const verifyResult = await this.foundryClient.query('foundry-mcp-bridge.getJournalPageContent', {
+          journalId: request.journalId,
+          pageId: request.pageId,
+        });
+        verifyContent = verifyResult?.content || '';
+      } else {
+        const verifyResult = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
+          journalId: request.journalId
+        });
+        verifyContent = verifyResult?.content || '';
       }
 
       // Check if verification content contains the formatted update rather than raw content
-      // Look for timestamp or update section indicators instead of raw text
-      const verificationPassed = verifyResult.content && (
-        verifyResult.content.length > currentJournal.content.length || // Content grew
-        verifyResult.content !== currentJournal.content || // Content changed
-        verifyResult.content.includes(request.newContent) || // Raw content found
-        verifyResult.content.includes('Progress Update') || // Progress update section found
-        verifyResult.content.includes('Quest Complete') || // Completion section found
-        verifyResult.content.includes('Quest Failed') // Failure section found
+      const verificationPassed = verifyContent && (
+        verifyContent.length > currentContent.length || // Content grew
+        verifyContent !== currentContent || // Content changed
+        verifyContent.includes(request.newContent) || // Raw content found
+        verifyContent.includes('Progress Update') || // Progress update section found
+        verifyContent.includes('Quest Complete') || // Completion section found
+        verifyContent.includes('Quest Failed') // Failure section found
       );
 
       if (!verificationPassed) {
-        throw new Error(`Journal update verification failed: Content was not updated as expected. Original length: ${currentJournal.content.length}, New length: ${verifyResult.content?.length || 0}`);
+        throw new Error(`Journal update verification failed: Content was not updated as expected. Original length: ${currentContent.length}, New length: ${verifyContent?.length || 0}`);
       }
 
       return {
         success: true,
         updateType: request.updateType,
         message: `Quest journal updated with ${request.updateType}`,
+        pageId: result.pageId,
+        pageName: result.pageName,
         verified: true,
-        details: `Content successfully updated and verified. Content length changed from ${currentJournal.content.length} to ${verifyResult.content.length} characters.`,
-        updatedContent: verifyResult.content
+        details: `Content successfully updated and verified. Content length changed from ${currentContent.length} to ${verifyContent.length} characters.`,
+        updatedContent: verifyContent
       };
 
     } catch (error) {
@@ -365,12 +450,55 @@ export class QuestCreationTools {
     try {
       const requestSchema = z.object({
         filterQuests: z.boolean().optional().default(false),
-        includeContent: z.boolean().optional().default(false)
+        includeContent: z.boolean().optional().default(false),
+        journalId: z.string().optional(),
+        pageId: z.string().optional()
       });
 
       const request = requestSchema.parse(args);
 
-      // Get all journals
+      // Mode: Read a specific page
+      if (request.journalId && request.pageId) {
+        const pageResult = await this.foundryClient.query('foundry-mcp-bridge.getJournalPageContent', {
+          journalId: request.journalId,
+          pageId: request.pageId,
+        });
+
+        if (!pageResult || pageResult.error) {
+          throw new Error(pageResult?.error || 'Page not found');
+        }
+
+        return {
+          success: true,
+          mode: 'page',
+          journalId: request.journalId,
+          page: pageResult,
+        };
+      }
+
+      // Mode: Read a specific journal (first page + page manifest)
+      if (request.journalId) {
+        const journalContent = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
+          journalId: request.journalId,
+        });
+
+        if (!journalContent || journalContent.error) {
+          throw new Error(journalContent?.error || 'Journal not found');
+        }
+
+        return {
+          success: true,
+          mode: 'journal',
+          journalId: request.journalId,
+          content: journalContent.content,
+          currentPage: journalContent.currentPage,
+          allPages: journalContent.allPages,
+          pageCount: journalContent.pageCount,
+          note: journalContent.note,
+        };
+      }
+
+      // Mode: List all journals
       const journals = await this.foundryClient.query('foundry-mcp-bridge.listJournals', {});
 
       if (!journals || journals.error) {
@@ -402,6 +530,7 @@ export class QuestCreationTools {
 
       return {
         success: true,
+        mode: 'list',
         journals: filteredJournals,
         total: filteredJournals.length,
         filtered: request.filterQuests
@@ -424,7 +553,7 @@ export class QuestCreationTools {
 
       const request = requestSchema.parse(args);
 
-      // Get all journals
+      // Get all journals (now includes page metadata)
       const journals = await this.foundryClient.query('foundry-mcp-bridge.listJournals', {});
 
       if (!journals || journals.error) {
@@ -439,7 +568,9 @@ export class QuestCreationTools {
         const matchInfo: any = {
           id: journal.id,
           name: journal.name,
-          matchType: []
+          pageCount: journal.pageCount || 0,
+          matchType: [],
+          matchedPages: []
         };
 
         // Search title
@@ -450,20 +581,31 @@ export class QuestCreationTools {
           }
         }
 
-        // Search content
+        // Search content across ALL pages
         if (request.searchType === 'content' || request.searchType === 'both') {
-          try {
-            const content = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
-              journalId: journal.id
-            });
-            
-            if (content?.content?.toLowerCase().includes(query)) {
-              matches = true;
-              matchInfo.matchType.push('content');
-              matchInfo.contentSnippet = this.extractSnippet(content.content, request.searchQuery);
+          const pages = journal.pages || [];
+          for (const page of pages) {
+            if (page.type !== 'text') continue;
+            try {
+              const pageContent = await this.foundryClient.query('foundry-mcp-bridge.getJournalPageContent', {
+                journalId: journal.id,
+                pageId: page.id,
+              });
+
+              if (pageContent?.content?.toLowerCase().includes(query)) {
+                matches = true;
+                if (!matchInfo.matchType.includes('content')) {
+                  matchInfo.matchType.push('content');
+                }
+                matchInfo.matchedPages.push({
+                  pageId: page.id,
+                  pageName: page.name,
+                  contentSnippet: this.extractSnippet(pageContent.content, request.searchQuery),
+                });
+              }
+            } catch (error) {
+              // Skip pages with content errors
             }
-          } catch (error) {
-            // Skip journals with content errors
           }
         }
 
@@ -682,6 +824,37 @@ export class QuestCreationTools {
    * Format quest update based on type (HTML for Foundry v13 ProseMirror)
    * Maintains professional styling by adding updates with proper section headings
    */
+  /**
+   * Format content for a brand new page (no existing content to append to)
+   */
+  private formatNewPageContent(newContent: string, updateType: string): string {
+    const timestamp = new Date().toLocaleDateString();
+    const formattedContent = this.formatUpdateContentForFoundry(newContent);
+    const hasCustomHeading = /<h[1-6][^>]*>.*<\/h[1-6]>/i.test(newContent);
+
+    if (hasCustomHeading) {
+      return `<section class="mcp-journal">${formattedContent}</section>`;
+    }
+
+    let heading = '';
+    switch (updateType) {
+      case 'progress':
+        heading = `<h2 class="spaced">Progress Update - ${timestamp}</h2>`;
+        break;
+      case 'completion':
+        heading = `<h2 class="spaced">Quest Completed - ${timestamp}</h2>`;
+        break;
+      case 'failure':
+        heading = `<h2 class="spaced">Quest Failed - ${timestamp}</h2>`;
+        break;
+      case 'modification':
+        heading = `<h2 class="spaced">Quest Modified - ${timestamp}</h2>`;
+        break;
+    }
+
+    return `<section class="mcp-journal">${heading}<div class="gmnote">${formattedContent}</div></section>`;
+  }
+
   private formatQuestUpdate(currentContent: string, newContent: string, updateType: string): string {
     const timestamp = new Date().toLocaleDateString();
     const formattedContent = this.formatUpdateContentForFoundry(newContent);
