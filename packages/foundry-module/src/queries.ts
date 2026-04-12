@@ -42,6 +42,7 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.getActiveScene`] = this.handleGetActiveScene.bind(this);
     CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
     CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
+    CONFIG.queries[`${modulePrefix}.createScenePlaceholder`] = this.handleCreateScenePlaceholder.bind(this);
 
     // World queries
     CONFIG.queries[`${modulePrefix}.getWorldInfo`] = this.handleGetWorldInfo.bind(this);
@@ -954,6 +955,29 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(`Failed to switch scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  private async handleCreateScenePlaceholder(data: {
+    name: string;
+    description?: string;
+    backgroundImageUrl?: string;
+    gridSize?: number;
+    width?: number;
+    height?: number;
+  }): Promise<any> {
+    // SECURITY: Silent GM validation
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) {
+      return { error: 'Access denied', success: false };
+    }
+
+    this.dataAccess.validateFoundryState();
+
+    if (!data.name || typeof data.name !== 'string') {
+      throw new Error('name is required');
+    }
+
+    return await this.dataAccess.createScenePlaceholder(data);
   }
 
   /**

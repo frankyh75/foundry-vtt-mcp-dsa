@@ -5360,6 +5360,40 @@ export class FoundryDataAccess {
     }
   }
 
+  async createScenePlaceholder(data: {
+    name: string;
+    description?: string;
+    backgroundImageUrl?: string;
+    gridSize?: number;
+    width?: number;
+    height?: number;
+  }): Promise<{ sceneId: string; name: string; success: boolean }> {
+    const sceneData: Record<string, unknown> = {
+      name: data.name,
+      active: false,
+      navigation: true,
+    };
+
+    if (data.backgroundImageUrl) {
+      sceneData.background = { src: data.backgroundImageUrl };
+    }
+
+    if (data.description) {
+      sceneData.description = data.description;
+    }
+
+    sceneData.grid = { size: data.gridSize ?? 100 };
+    sceneData.width = data.width ?? 4000;
+    sceneData.height = data.height ?? 3000;
+
+    const scene = await Scene.create(sceneData as any);
+    if (!scene) {
+      throw new Error(`Failed to create scene "${data.name}"`);
+    }
+
+    return { sceneId: scene.id as string, name: scene.name as string, success: true };
+  }
+
   // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
 
   /**

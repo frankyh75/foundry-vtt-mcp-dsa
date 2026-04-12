@@ -48,6 +48,43 @@ export class SceneTools {
           properties: {},
         },
       },
+      {
+        name: 'create-scene-placeholder',
+        description: 'Create a new empty scene without a map image. Use for text-based adventure import when no battlemap is needed yet.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Scene name (required)',
+            },
+            description: {
+              type: 'string',
+              description: 'Optional scene description shown in scene notes',
+            },
+            backgroundImageUrl: {
+              type: 'string',
+              description: 'Optional URL of a background image',
+            },
+            gridSize: {
+              type: 'number',
+              description: 'Grid size in pixels (default: 100)',
+              default: 100,
+            },
+            width: {
+              type: 'number',
+              description: 'Scene width in pixels (default: 4000)',
+              default: 4000,
+            },
+            height: {
+              type: 'number',
+              description: 'Scene height in pixels (default: 3000)',
+              default: 3000,
+            },
+          },
+          required: ['name'],
+        },
+      },
     ];
   }
 
@@ -95,6 +132,27 @@ export class SceneTools {
       this.logger.error('Failed to get world information', error);
       throw new Error(`Failed to get world information: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  async handleCreateScenePlaceholder(args: unknown): Promise<any> {
+    const schema = z.object({
+      name: z.string().min(1),
+      description: z.string().optional(),
+      backgroundImageUrl: z.string().url().optional(),
+      gridSize: z.number().int().positive().default(100),
+      width: z.number().int().positive().default(4000),
+      height: z.number().int().positive().default(3000),
+    });
+
+    const params = schema.parse(args);
+    this.logger.info('Creating scene placeholder', { name: params.name });
+
+    const result = await this.foundryClient.query(
+      'foundry-mcp-bridge.createScenePlaceholder',
+      params
+    );
+
+    return { success: true, ...result };
   }
 
   private formatSceneResponse(sceneData: any, includeTokens: boolean, includeHidden: boolean): any {

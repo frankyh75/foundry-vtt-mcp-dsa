@@ -1760,6 +1760,12 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'create-scene-placeholder':
+
+                  result = await sceneTools.handleCreateScenePlaceholder(args);
+
+                  break;
+
                 default:
 
                   throw new Error(`Unknown tool: ${name}`);
