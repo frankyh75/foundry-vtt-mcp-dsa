@@ -3,6 +3,10 @@ CLAUDE.md
 DISTRIBUTION.md  
 RELEASE-PROCESS.md
 
+# Copyrighted example adventure source files - keep out of repo
+adventures/deicherbe-1-preprocessed.json
+adventures/deicherbe-2-preprocessed.json
+
 # Dependencies
 node_modules/
 .pnpm-debug.log*

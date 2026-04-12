@@ -13,11 +13,15 @@
 - Unterstützt DSA5 (Adapter + Filter/Indexing im MCP-Server). Quelle: `packages/mcp-server/src/systems/dsa5/README.md`.
 - MCP-Server startet per **STDIO-Transport** (Claude Desktop startet den Server und kommuniziert via STDIO). Quelle: `packages/mcp-server/src/index.ts` (StdioServerTransport).
 
-**Was das Repo nicht macht (Unklar/Fehlt im Repo):**
+**Was das Repo nicht macht:**
 - **Kein PDF-Parsing, keine OCR, kein Bild-Extraktor für Heldenwerk-PDFs.**
   - Erwartete Dateien/Configs: z. B. `src/import/pdf/*`, `docs/pdf-import.md`, oder CLI-Tool in `package.json` (nicht vorhanden).
-- **Kein dedizierter DSA5-Abenteuer-Importer** (z. B. JSON-Schema für Abenteuer, Kapitel, Szenen, Handouts).
-  - Erwartete Dateien: z. B. `schemas/adventure.json`, `examples/adventure/*`.
+- **Kein Direkt-Import aus PDF-Bildern.**
+  - Die neue Abenteuer-Pipeline arbeitet mit bereits extrahiertem Text.
+
+**Was das Repo inzwischen macht:**
+- Es gibt eine strukturierte **Adventure-Import-Pipeline** mit Schema, Text-Normalizer, LLM-Worker, Foundry-Importer und MCP-Tool.
+  - Siehe: `docs/ADVENTURE_IMPORT_WORKFLOW.md`.
 
 ---
 
