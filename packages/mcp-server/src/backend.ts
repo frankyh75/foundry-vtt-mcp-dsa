@@ -1624,6 +1624,12 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'create-journal-entry':
+
+                  result = await questCreationTools.handleCreateJournalEntry(args);
+
+                  break;
+
                 case 'link-quest-to-npc':
 
                   result = await questCreationTools.handleLinkQuestToNPC(args);

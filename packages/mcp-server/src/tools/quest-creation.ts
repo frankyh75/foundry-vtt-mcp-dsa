@@ -44,6 +44,36 @@ export class QuestCreationTools {
   getToolDefinitions() {
     return [
       {
+        name: 'create-journal-entry',
+        description: 'Create a general journal entry in Foundry VTT. Use for location descriptions, lore, adventure chapters, GM notes — anything that is not a structured quest. For quests use create-quest-journal instead.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Journal entry title (required)',
+            },
+            content: {
+              type: 'string',
+              description: 'HTML or plain text content for the main page (required)',
+            },
+            additionalPages: {
+              type: 'array',
+              description: 'Optional additional pages',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  content: { type: 'string' },
+                },
+                required: ['name', 'content'],
+              },
+            },
+          },
+          required: ['name', 'content'],
+        },
+      },
+      {
         name: 'create-quest-journal',
         description: 'Create a new quest journal entry with AI-generated content based on natural language description',
         inputSchema: {
@@ -198,6 +228,27 @@ export class QuestCreationTools {
         }
       }
     ];
+  }
+
+  /**
+   * Handle create journal entry request
+   */
+  async handleCreateJournalEntry(args: unknown): Promise<any> {
+    const schema = z.object({
+      name: z.string().min(1),
+      content: z.string().min(1),
+      additionalPages: z.array(z.object({
+        name: z.string().min(1),
+        content: z.string(),
+      })).optional(),
+    });
+    const params = schema.parse(args);
+    this.logger.info('Creating journal entry', { name: params.name });
+    const result = await this.foundryClient.query(
+      'foundry-mcp-bridge.createJournalEntry',
+      params
+    );
+    return { success: true, ...result };
   }
 
   /**
