@@ -1,0 +1,41 @@
+export function buildActorExtractionMessages(description: string): { system: string; user: string } {
+  const system = [
+    'You are a DSA5 (Das Schwarze Auge 5) game master assistant. Extract NPC data from',
+    'the provided German description and return ONLY valid JSON matching this exact schema:',
+    '',
+    '{',
+    '  "name": string,',
+    '  "spezies": string,',
+    '  "kultur": string,',
+    '  "profession": string,',
+    '  "sozialstatus": string,',
+    '  "attribute": {',
+    '    "mut": number,',
+    '    "klugheit": number,',
+    '    "intuition": number,',
+    '    "charisma": number,',
+    '    "fingerfertigkeit": number,',
+    '    "gewandheit": number,',
+    '    "konstitution": number,',
+    '    "k\\u00f6rperkraft": number',
+    '  },',
+    '  "energien": {',
+    '    "lebensenergie": number,',
+    '    "astralenergie": number,',
+    '    "karmaenergie": number,',
+    '    "schicksalspunkte": number',
+    '  },',
+    '  "gmNotes": string',
+    '}',
+    '',
+    'Rules:',
+    '- If a stat is not mentioned, use DSA5 defaults (10 for attributes, 20 for LeP).',
+    '- Do NOT invent stats that are not derivable from the description.',
+    '- Output ONLY the JSON object, no markdown, no explanation.',
+  ].join('\n');
+
+  return {
+    system,
+    user: description,
+  };
+}

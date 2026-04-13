@@ -1,5 +1,6 @@
 import { adventureImportSchema, type AdventureImportPayload } from './schema.js';
 import { buildAdventureExtractionMessages, type AdventureExtractionInput } from './prompt.js';
+import { buildActorExtractionMessages } from './actor-extraction-prompt.js';
 
 export interface AdventureImportWorkerOptions {
   baseUrl?: string;
@@ -18,6 +19,8 @@ export interface AdventureImportResult {
   payload: AdventureImportPayload;
   rawText: string;
 }
+
+type JsonRecord = Record<string, unknown>;
 
 const DEFAULT_BASE_URLS = [
   process.env.ADVENTURE_IMPORT_LLM_BASE_URL,
@@ -120,6 +123,25 @@ export class AdventureImportWorker {
 
     const payload = adventureImportSchema.parse(parsed);
     return { payload, rawText };
+  }
+
+  async extractActor(description: string): Promise<{ payload: JsonRecord; rawText: string }> {
+    const messages = buildActorExtractionMessages(description);
+    const rawText = await this.callModel(messages);
+    const jsonText = extractJsonCandidate(rawText);
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (error) {
+      throw new Error(`LLM response is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('LLM response must be a JSON object');
+    }
+
+    return { payload: parsed as JsonRecord, rawText };
   }
 
   private async callModel(messages: { system: string; user: string }): Promise<string> {

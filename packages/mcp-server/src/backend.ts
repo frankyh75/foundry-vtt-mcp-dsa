@@ -28,6 +28,7 @@ import { DSA5JsonActorImporter } from './systems/dsa5/json-actor-importer.js';
 import { QuestCreationTools } from './tools/quest-creation.js';
 
 import { AdventureImportTools } from './tools/adventure-import.js';
+import { ActorFromDescriptionTools } from './tools/actor-from-description.js';
 
 import { DiceRollTools } from './tools/dice-roll.js';
 
@@ -1160,6 +1161,7 @@ async function startBackend(): Promise<void> {
   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
 
   const adventureImportTools = new AdventureImportTools({ foundryClient, logger });
+  const actorFromDescriptionTools = new ActorFromDescriptionTools({ foundryClient, logger });
 
   const diceRollTools = new DiceRollTools({ foundryClient, logger });
 
@@ -1403,6 +1405,7 @@ async function startBackend(): Promise<void> {
     ...questCreationTools.getToolDefinitions(),
 
     ...adventureImportTools.getToolDefinitions(),
+    ...actorFromDescriptionTools.getToolDefinitions(),
 
     ...diceRollTools.getToolDefinitions(),
 
@@ -1657,6 +1660,12 @@ async function startBackend(): Promise<void> {
                 case 'import-dsa5-adventure-from-text':
 
                   result = await adventureImportTools.handleImportAdventureFromText(args);
+
+                  break;
+
+                case 'create-actor-from-description':
+
+                  result = await actorFromDescriptionTools.handleCreateActorFromDescription(args);
 
                   break;
 
