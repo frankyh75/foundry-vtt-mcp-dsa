@@ -1,6 +1,8 @@
-# Session Notes
+# Inactive Feature Notes: ChatGPT Desktop SSE/HTTP Bridge
 
-## 2026-01-15: ChatGPT Desktop Integration via HTTP Bridge
+> Status: derzeit nicht benoetigt (archiviert)
+
+## 2026-01-15: ChatGPT Desktop Integration via HTTP Bridge (Testlauf)
 
 ### Problemstellung
 ChatGPT Desktop konnte sich nicht erfolgreich mit dem MCP Server via HTTP Bridge verbinden. Verbindung wurde sofort nach `connection_established` wieder geschlossen.
