@@ -20,20 +20,20 @@ OpenClaw/WhatsApp is an optional interface, not a product requirement.
 
 ## Delivery Plan (12 Weeks)
 
-### Phase 1 (Weeks 1-4) - MVP Foundation
+### Phase 1 (Weeks 1-4) - MVP Foundation ✅ Done
 
-- Review-first write pipeline (preview + diff + explicit apply)
-- Local ingestion flow for text/PDF/image inputs
-- Baseline error model for actionable recovery
+- ✅ `import-dsa5-adventure-from-text` — text/JSON to structured adventure (Jarvis, 2026-04-12)
+- ✅ `create-scene-placeholder` — empty scene without ComfyUI (Codex, 2026-04-12)
+- ✅ Local LLM stack validated: LM Studio + Qwen 2.5 7B + MCP bridge working end-to-end
+- ⏳ Review-first write pipeline (preview/dry-run exists, explicit apply gate pending)
 
 Release 1 (end of week 4):
-- No direct writes without review gate
-- Stable local import/review loop
+- Stable local import/review loop via dry-run mode ✅
 
 ### Phase 2 (Weeks 5-8) - Core Import + Rewrite MVP
 
-- `create-journal-entry` for non-quest text import
-- `create-scene-placeholder` for text-first scene setup
+- ⏳ `create-journal-entry` — general journal for locations, lore, chapters (in progress)
+- ✅ `create-actor-from-description` — free text NPC to DSA5 actor via LLM
 - Adventure rewrite workflow (variant generation + GM-selected apply)
 
 Release 2 (end of week 8):
@@ -41,9 +41,9 @@ Release 2 (end of week 8):
 
 ### Phase 3 (Weeks 9-12) - Rich Content MVP
 
-- `create-actor-from-description` (free text to DSA5 actor)
+- `create-actor-from-description` (if not done in Phase 2)
 - ComfyUI-driven battlemaps/tokens integrated in import flow
-- Optional `create-custom-item` and encounter helper improvements
+- Optional `create-custom-item`
 
 Release 3 (end of week 12):
 - End-to-end local-first adventure import MVP with rewrite + images
@@ -54,21 +54,26 @@ Release 3 (end of week 12):
 - Value: prevents accidental world corruption and enforces GM control.
 - DoD: all write-capable tools support `preview` mode and require explicit apply/confirm step.
 
-2. Adventure Rewrite MVP (`M`)
+2. `create-actor-from-description` (`L`)
+- Value: converts free-text NPC descriptions to DSA5 actors without requiring structured JSON.
+- DoD: accepts natural language, maps to DSA5 actor via LLM, falls back to compendium lookup.
+
+3. Adventure Rewrite MVP (`M`)
 - Value: allows GMs to adapt imported adventures with new ideas immediately.
 - DoD: workflow can generate alternatives and apply selected changes after review.
 
-3. `create-journal-entry` (`M`)
-- Value: imports most book content without forcing quest schema.
-- DoD: supports `name`, `content`, optional category/tags.
-
-4. `create-scene-placeholder` (`M`)
-- Value: enables scene-first adventure setup without mandatory map generation.
-- DoD: creates named scene with optional description/background metadata.
-
-5. ComfyUI Image Generation in MVP (`M`)
+4. ComfyUI Image Generation in MVP (`M`)
 - Value: battlemaps/tokens generated as part of import flow.
 - DoD: generation can be requested from import/rewrite workflow and attached to scene/token pipeline.
+
+## Completed
+
+- ✅ `create-actor-from-description` — `feat(dsa5): add create-actor-from-description tool` (d36b7b4)
+- ✅ `create-journal-entry` — `feat(journal): add create-journal-entry tool` (67c3fd2)
+- ✅ `create-scene-placeholder` — `feat(scene): add create-scene-placeholder tool` (a154698)
+- ✅ `import-dsa5-adventure-from-text` — local DSA5 adventure pipeline (0166176)
+- ✅ `import-dsa5-actor-from-json` — Optolith + custom DSA5 + raw Foundry formats
+- ✅ Local LLM setup: LM Studio + Qwen 2.5 7B, STUN default leer, AUDIT_LOG opt-in
 
 ## Optional Interface Track (Not Required)
 
