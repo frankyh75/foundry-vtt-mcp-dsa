@@ -11,12 +11,12 @@ import { applyAnnotationsToIr, createEmptyAnnotationStore, saveAnnotationStore, 
 import { adventureLayoutIrV1Schema, annotationSchema, type AdventurePdfAnnotationV1, type AdventurePdfIrV1 } from './ir.js';
 
 const DEFAULT_PORT = Number.parseInt(process.env.PDF_REVIEW_BACKEND_PORT ?? '4174', 10);
-const DEFAULT_HOST = process.env.PDF_REVIEW_BACKEND_HOST ?? '127.0.0.1';
+const DEFAULT_HOST = process.env.PDF_REVIEW_BACKEND_HOST ?? '0.0.0.0';
 const DATA_DIR = resolve(process.env.PDF_REVIEW_DATA_DIR ?? join(os.homedir(), '.foundry-mcp', 'pdf-review'));
 const JSON_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Filename',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
 };
 
@@ -87,6 +87,35 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === 'GET' && segments.length === 2) {
     const state = await loadSessionState(sessionId);
     sendJson(res, 200, state);
+    return;
+  }
+
+  if (req.method === 'GET' && segments[2] === 'pdf') {
+    const pdfPath = join(sessionDir, 'source.pdf');
+    if (!existsSync(pdfPath)) {
+      sendJson(res, 404, { error: 'No PDF uploaded yet for this session.' });
+      return;
+    }
+    sendCors(res);
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.end(await readFile(pdfPath));
+    return;
+  }
+
+  if (req.method === 'GET' && segments[2] === 'ir') {
+    const ir = await loadSourceIr(sessionDir);
+    if (!ir) {
+      sendJson(res, 404, { error: 'No IR uploaded yet for this session.' });
+      return;
+    }
+    sendJson(res, 200, ir);
+    return;
+  }
+
+  if (req.method === 'GET' && segments[2] === 'annotations') {
+    const annotations = await loadAnnotations(sessionDir);
+    sendJson(res, 200, { annotations });
     return;
   }
 

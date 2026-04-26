@@ -71,6 +71,7 @@ type DraftSelection = {
 };
 
 type ViewMode = 'projected' | 'source';
+type BackendHealth = 'unknown' | 'online' | 'offline';
 type DraftMode = 'split' | 'relabel' | 'mark_stub' | 'ignore';
 
 type BlockChange = {
@@ -120,9 +121,14 @@ const emptyIr: PdfIr = {
   entityStubs: [],
 };
 
+const API_BASE_STORAGE_KEY = 'foundry-pdf-review-ui:api-base';
+const SESSION_ID_STORAGE_KEY = 'foundry-pdf-review-ui:session-id';
+const DEFAULT_BACKEND_PORT = 4174;
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+  const pdfBytesRef = useRef<ArrayBuffer | null>(null);
   const irRef = useRef<PdfIr>(emptyIr);
 
   const [ir, setIr] = useState<PdfIr>(emptyIr);
@@ -140,6 +146,9 @@ export default function App() {
   const [selectedStubType, setSelectedStubType] = useState<(typeof stubTypeOptions)[number]>('npc_stub');
   const [readingOrder, setReadingOrder] = useState('1');
   const [comment, setComment] = useState('');
+  const [apiBase, setApiBase] = useState(() => localStorage.getItem(API_BASE_STORAGE_KEY) ?? defaultBackendBase());
+  const [sessionId, setSessionId] = useState(() => normalizeSessionId(localStorage.getItem(SESSION_ID_STORAGE_KEY) ?? ''));
+  const [backendStatus, setBackendStatus] = useState<BackendHealth>('unknown');
 
   const projectedIr = useMemo(() => applyUiAnnotationsToIr(ir, annotations), [ir, annotations]);
   const displayIr = viewMode === 'projected' ? projectedIr : ir;
@@ -179,6 +188,18 @@ export default function App() {
   }, [ir]);
 
   useEffect(() => {
+    window.localStorage.setItem(API_BASE_STORAGE_KEY, apiBase);
+  }, [apiBase]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SESSION_ID_STORAGE_KEY, sessionId);
+  }, [sessionId]);
+
+  useEffect(() => {
+    void checkBackendHealth();
+  }, []);
+
+  useEffect(() => {
     void renderCurrentPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageNumber, displayIr.document.id, pdfName]);
@@ -206,15 +227,14 @@ export default function App() {
     if (!file) return;
     setError(null);
     setPdfName(file.name);
-    setStatus(`Lade PDF ${file.name}...`);
-    const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-    const doc = await loadingTask.promise;
-    pdfDocRef.current = doc;
-    setStatus(`PDF geladen: ${file.name} (${doc.numPages} Seiten)`);
-    if (pageNumber > doc.numPages) {
-      setPageNumber(1);
+    pdfBytesRef.current = await file.arrayBuffer();
+    const targetSessionId = resolveSessionId(file.name.replace(/\.[^.]+$/, ''));
+    if (!sessionId) {
+      setSessionId(targetSessionId);
     }
+    setStatus(`Lade PDF ${file.name}...`);
+    await loadPdfFromBytes(pdfBytesRef.current, file.name);
+    await saveCurrentSession(targetSessionId);
   }
 
   async function handleIrFile(file: File | null) {
@@ -227,12 +247,18 @@ export default function App() {
     setPageNumber(parsed.pages?.[0]?.pageNumber ?? 1);
     setSelectedBlockId(null);
     setSelectedBlockIds([]);
+    const targetSessionId = resolveSessionId(parsed.document?.id ?? file.name.replace(/\.[^.]+$/, ''));
+    if (!sessionId) {
+      setSessionId(targetSessionId);
+    }
     setStatus(`IR geladen: ${parsed.document?.id ?? file.name}`);
+    await saveCurrentSession(targetSessionId);
   }
 
   function persistAnnotations(next: UiAnnotation[]) {
     setAnnotations(next);
     window.localStorage.setItem(storageKey(irRef.current.document.id), JSON.stringify(next, null, 2));
+    void saveCurrentSession(undefined, next);
   }
 
   function appendAnnotation(annotation: UiAnnotation) {
@@ -411,6 +437,168 @@ export default function App() {
     setSelectedBlockIds([]);
   }
 
+  function defaultBackendBase(): string {
+    if (typeof window === 'undefined') {
+      return `http://127.0.0.1:${DEFAULT_BACKEND_PORT}`;
+    }
+    return `${window.location.protocol}//${window.location.hostname}:${DEFAULT_BACKEND_PORT}`;
+  }
+
+  function normalizeApiBase(value: string): string {
+    const trimmed = value.trim();
+    return trimmed.replace(/\/+$/, '');
+  }
+
+  function normalizeSessionId(value: string): string {
+    return value.trim().replace(/[^a-zA-Z0-9._-]+/g, '_');
+  }
+
+  function resolveSessionId(preferred?: string): string {
+    const fromState = normalizeSessionId(preferred ?? sessionId);
+    if (fromState) return fromState;
+    const fromIr = normalizeSessionId(irRef.current.document.id);
+    if (fromIr) return fromIr;
+    const fromPdf = normalizeSessionId(pdfName.replace(/\.[^.]+$/, ''));
+    if (fromPdf) return fromPdf;
+    return 'review-session';
+  }
+
+  function backendUrl(pathname: string, base = apiBase): string {
+    return `${normalizeApiBase(base)}${pathname}`;
+  }
+
+  async function requestJson<T>(pathname: string, init?: RequestInit, base = apiBase): Promise<T> {
+    const response = await fetch(backendUrl(pathname, base), init);
+    const contentType = response.headers.get('content-type') ?? '';
+    const payload = contentType.includes('application/json') ? (await response.json()) as T : (await response.text()) as unknown as T;
+    if (!response.ok) {
+      const message = typeof payload === 'string' ? payload : (payload as { error?: string }).error ?? response.statusText;
+      throw new Error(message || response.statusText);
+    }
+    return payload;
+  }
+
+  async function requestBuffer(pathname: string, base = apiBase): Promise<ArrayBuffer> {
+    const response = await fetch(backendUrl(pathname, base));
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
+    return response.arrayBuffer();
+  }
+
+  async function loadPdfFromBytes(arrayBuffer: ArrayBuffer, name: string): Promise<void> {
+    pdfBytesRef.current = arrayBuffer.slice(0);
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const doc = await loadingTask.promise;
+    pdfDocRef.current = doc;
+    setPdfName(name);
+    setStatus(`PDF geladen: ${name} (${doc.numPages} Seiten)`);
+    if (pageNumber > doc.numPages) {
+      setPageNumber(1);
+    }
+  }
+
+  async function checkBackendHealth(): Promise<void> {
+    try {
+      const payload = await requestJson<{ status: string; dataDir?: string }>('/health', undefined, apiBase);
+      setBackendStatus(payload.status === 'ok' ? 'online' : 'offline');
+      setStatus(`Backend online · ${payload.dataDir ?? ''}`.trim());
+    } catch (error) {
+      setBackendStatus('offline');
+      setStatus('Backend offline · Local-only Modus aktiv.');
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function saveCurrentSession(sessionOverride?: string, annotationsOverride?: UiAnnotation[]): Promise<void> {
+    const targetSessionId = resolveSessionId(sessionOverride);
+    const base = normalizeApiBase(apiBase);
+    setSessionId(targetSessionId);
+    if (!targetSessionId) return;
+
+    try {
+      if (pdfBytesRef.current) {
+        await requestJson(
+          `/sessions/${encodeURIComponent(targetSessionId)}/pdf`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/pdf',
+              'X-Filename': pdfName,
+            },
+            body: pdfBytesRef.current,
+          },
+          base
+        );
+      }
+
+      if (irRef.current.document.id !== 'unloaded') {
+        await requestJson(
+          `/sessions/${encodeURIComponent(targetSessionId)}/ir`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'X-Filename': `${irRef.current.document.id}.ir.json`,
+            },
+            body: JSON.stringify(irRef.current),
+          },
+          base
+        );
+
+        await requestJson(
+          `/sessions/${encodeURIComponent(targetSessionId)}/annotations`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=utf-8' },
+            body: JSON.stringify({ annotations: annotationsOverride ?? annotations }),
+          },
+          base
+        );
+      }
+
+      setStatus(`Session ${targetSessionId} gespeichert.`);
+    } catch (error) {
+      setBackendStatus('offline');
+      setStatus('Session lokal gespeichert, Backend-Sync fehlgeschlagen.');
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function loadSessionFromBackend(sessionOverride?: string): Promise<void> {
+    const targetSessionId = resolveSessionId(sessionOverride);
+    const base = normalizeApiBase(apiBase);
+    setSessionId(targetSessionId);
+    if (!targetSessionId) return;
+
+    try {
+      const state = await requestJson<{ annotations?: UiAnnotation[]; projectedIr?: PdfIr; hasPdf?: boolean; hasIr?: boolean }>(
+        `/sessions/${encodeURIComponent(targetSessionId)}`,
+        undefined,
+        base
+      );
+
+      let loadedIr = ir;
+      if (state.hasPdf) {
+        const pdfBytes = await requestBuffer(`/sessions/${encodeURIComponent(targetSessionId)}/pdf`, base);
+        await loadPdfFromBytes(pdfBytes, `${targetSessionId}.pdf`);
+      }
+
+      if (state.hasIr) {
+        loadedIr = await requestJson<PdfIr>(`/sessions/${encodeURIComponent(targetSessionId)}/ir`, undefined, base);
+        setIr(loadedIr);
+      }
+
+      const remoteAnnotations = state.annotations ?? [];
+      const sourceAnnotations = loadedIr.annotations ?? [];
+      setAnnotations(mergeAnnotations(sourceAnnotations, remoteAnnotations));
+      setStatus(`Session ${targetSessionId} geladen.`);
+    } catch (error) {
+      setStatus('Session konnte nicht geladen werden.');
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   const pageWidth = currentPage?.width ?? canvasRef.current?.width ?? 0;
   const pageHeight = currentPage?.height ?? canvasRef.current?.height ?? 0;
 
@@ -422,6 +610,14 @@ export default function App() {
           <p>Lokale 2-Spalten-Ansicht mit PDF, Overlays, JSON und Annotationen.</p>
         </div>
         <div className="topbar-actions">
+          <label className="inline-field">
+            API
+            <input type="text" value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
+          </label>
+          <label className="inline-field">
+            Session
+            <input type="text" value={sessionId} onChange={(e) => setSessionId(normalizeSessionId(e.target.value))} />
+          </label>
           <label className="file-button">
             PDF laden
             <input type="file" accept="application/pdf" onChange={(e) => void handlePdfFile(e.target.files?.[0] ?? null)} />
@@ -430,6 +626,15 @@ export default function App() {
             IR laden
             <input type="file" accept="application/json" onChange={(e) => void handleIrFile(e.target.files?.[0] ?? null)} />
           </label>
+          <button type="button" onClick={() => void checkBackendHealth()}>
+            Backend prüfen
+          </button>
+          <button type="button" onClick={() => void loadSessionFromBackend()}>
+            Session laden
+          </button>
+          <button type="button" onClick={() => void saveCurrentSession()}>
+            Session speichern
+          </button>
           <button type="button" onClick={exportAnnotations}>
             Annotationen exportieren
           </button>
@@ -441,6 +646,7 @@ export default function App() {
 
       <div className="statusbar">
         <span>{status}</span>
+        <span>{backendStatus === 'online' ? 'Backend online' : backendStatus === 'offline' ? 'Backend offline' : 'Backend unbekannt'}</span>
         <span>{error ?? ''}</span>
       </div>
 
