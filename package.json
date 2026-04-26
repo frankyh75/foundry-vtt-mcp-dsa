@@ -25,6 +25,7 @@
     "setup-comfyui": "node scripts/setup-comfyui.js",
     "pdf:import": "node scripts/pdf-import.mjs",
     "pdf:review": "npm run dev --workspace=packages/pdf-review-ui",
+    "pdf:review-backend": "npm run build --workspace=packages/mcp-server && node packages/mcp-server/dist/adventure-import/pdf/review_backend.js",
     "test:mcp:schema": "node scripts/mcp-schema-smoke-test.mjs",
     "audit:deps": "npm audit && npm run audit --workspaces --if-present",
     "audit:unused": "npx knip",
