@@ -6,13 +6,17 @@ import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import * as os from 'node:os';
 
+import { buildPdfImportIr } from './pipeline.js';
+import { createDefaultPdfToolRunner } from './tooling.js';
 import { buildFoundryImportPlan } from './foundry_mapping.js';
 import { applyAnnotationsToIr, createEmptyAnnotationStore, saveAnnotationStore, loadAnnotationStore } from './annotation_store.js';
 import { adventureLayoutIrV1Schema, annotationSchema, type AdventurePdfAnnotationV1, type AdventurePdfIrV1 } from './ir.js';
+import { defaultReviewConfig, loadReviewConfig, normalizeReviewConfig, resolveReviewConfigPath, saveReviewConfig, type ReviewConfig } from './review_config.js';
 
 const DEFAULT_PORT = Number.parseInt(process.env.PDF_REVIEW_BACKEND_PORT ?? '4174', 10);
 const DEFAULT_HOST = process.env.PDF_REVIEW_BACKEND_HOST ?? '0.0.0.0';
 const DATA_DIR = resolve(process.env.PDF_REVIEW_DATA_DIR ?? join(os.homedir(), '.foundry-mcp', 'pdf-review'));
+const CONFIG_PATH = resolveReviewConfigPath(process.cwd());
 const JSON_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +34,7 @@ type SessionMeta = {
   annotationCount: number;
   hasPdf: boolean;
   hasIr: boolean;
+  reviewConfig?: ReviewConfig;
 };
 
 type SessionState = SessionMeta & {
@@ -72,6 +77,20 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (req.method === 'GET' && url.pathname === '/health') {
     sendJson(res, 200, { status: 'ok', dataDir: DATA_DIR });
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/config') {
+    const config = await loadReviewConfig(CONFIG_PATH);
+    sendJson(res, 200, config);
+    return;
+  }
+
+  if (req.method === 'PUT' && url.pathname === '/config') {
+    const body = await readBody(req);
+    const parsed = normalizeReviewConfig(JSON.parse(body.toString('utf8')) as unknown);
+    await saveReviewConfig(parsed, CONFIG_PATH);
+    sendJson(res, 200, { ok: true, config: parsed });
     return;
   }
 
@@ -195,6 +214,55 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === 'POST' && segments[2] === 'analyze') {
+    const meta = await loadMeta(sessionId);
+    const pdfPath = join(sessionDir, 'source.pdf');
+    if (!existsSync(pdfPath)) {
+      sendJson(res, 400, { error: 'No PDF uploaded yet for this session.' });
+      return;
+    }
+
+    const body = await readBody(req);
+    const maybeConfig = body.length ? JSON.parse(body.toString('utf8')) as { config?: unknown } | unknown : {};
+    const config = normalizeReviewConfig(
+      typeof maybeConfig === 'object' && maybeConfig !== null && 'config' in maybeConfig
+        ? (maybeConfig as { config?: unknown }).config
+        : maybeConfig
+    );
+    await saveReviewConfig(config, CONFIG_PATH);
+
+    const result = await buildPdfImportIr({
+      pdfPath,
+      outPath: sessionDir,
+      runner: createDefaultPdfToolRunner(),
+    });
+
+    const sourceIrPath = join(sessionDir, 'source.ir.json');
+    await writeFile(sourceIrPath, `${JSON.stringify(result.ir, null, 2)}\n`, 'utf8');
+    const annotationsPath = join(sessionDir, 'annotations.json');
+    await saveAnnotationStore(annotationsPath, result.annotationStore);
+    await saveProjectedIr(sessionDir, result.ir);
+
+    meta.documentId = result.ir.document.id;
+    meta.annotationCount = result.annotationStore.annotations.length;
+    meta.hasPdf = true;
+    meta.hasIr = true;
+    meta.irName = `${result.ir.document.id}.ir.json`;
+    meta.reviewConfig = config;
+    meta.updatedAt = new Date().toISOString();
+    await saveMeta(sessionDir, meta);
+
+    sendJson(res, 200, {
+      ok: true,
+      sessionId,
+      documentId: result.ir.document.id,
+      pageCount: result.ir.document.pageCount,
+      reviewConfig: config,
+      projectedIr: result.ir,
+    });
+    return;
+  }
+
   if (req.method === 'GET' && segments[2] === 'export') {
     const state = await loadSessionState(sessionId);
     if (!state.projectedIr) {
@@ -218,6 +286,7 @@ async function loadSessionState(sessionId: string): Promise<SessionState> {
 
   return {
     ...meta,
+    reviewConfig: meta.reviewConfig ?? defaultReviewConfig,
     annotations,
     projectedIr: projectedIr ?? null,
   };
@@ -277,6 +346,7 @@ async function loadMeta(sessionId: string): Promise<SessionMeta> {
     annotationCount: 0,
     hasPdf: false,
     hasIr: false,
+    reviewConfig: defaultReviewConfig,
   };
 }
 

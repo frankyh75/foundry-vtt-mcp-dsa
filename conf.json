@@ -1,0 +1,9 @@
+{
+  "providerPreset": "openai-compatible",
+  "baseUrl": "",
+  "apiPath": "/v1",
+  "model": "",
+  "apiKey": "",
+  "showExpertView": true,
+  "rememberLastSettings": true
+}

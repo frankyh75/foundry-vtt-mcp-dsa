@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { applyPresetDefaults, defaultReviewConfig, normalizeReviewConfig, reviewConfigLabel, type ReviewBackendPreset, type ReviewConfig } from './review_config';
 
 type PdfBBox = { x: number; y: number; w: number; h: number };
 
@@ -149,6 +150,10 @@ export default function App() {
   const [apiBase, setApiBase] = useState(() => localStorage.getItem(API_BASE_STORAGE_KEY) ?? defaultBackendBase());
   const [sessionId, setSessionId] = useState(() => normalizeSessionId(localStorage.getItem(SESSION_ID_STORAGE_KEY) ?? ''));
   const [backendStatus, setBackendStatus] = useState<BackendHealth>('unknown');
+  const [reviewConfig, setReviewConfig] = useState<ReviewConfig>(defaultReviewConfig);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [analysisRunning, setAnalysisRunning] = useState(false);
+  const [configStatus, setConfigStatus] = useState('Konfiguration nicht geladen.');
 
   const projectedIr = useMemo(() => applyUiAnnotationsToIr(ir, annotations), [ir, annotations]);
   const displayIr = viewMode === 'projected' ? projectedIr : ir;
@@ -197,6 +202,7 @@ export default function App() {
 
   useEffect(() => {
     void checkBackendHealth();
+    void loadReviewConfigFromBackend();
   }, []);
 
   useEffect(() => {
@@ -221,11 +227,15 @@ export default function App() {
     if (!ctx) return;
 
     await page.render({ canvasContext: ctx, viewport }).promise;
+    if (pageNumber === 1 || !previewImageUrl) {
+      setPreviewImageUrl(canvas.toDataURL('image/png'));
+    }
   }
 
   async function handlePdfFile(file: File | null) {
     if (!file) return;
     setError(null);
+    setPreviewImageUrl(null);
     setPdfName(file.name);
     pdfBytesRef.current = await file.arrayBuffer();
     const targetSessionId = resolveSessionId(file.name.replace(/\.[^.]+$/, ''));
@@ -510,6 +520,75 @@ export default function App() {
     }
   }
 
+  async function loadReviewConfigFromBackend(): Promise<void> {
+    try {
+      const payload = await requestJson<ReviewConfig>('/config', undefined, apiBase);
+      const normalized = normalizeReviewConfig(payload);
+      setReviewConfig(normalized);
+      setConfigStatus(`Konfiguration geladen: ${reviewConfigLabel(normalized.providerPreset)}.`);
+    } catch (error) {
+      setReviewConfig(defaultReviewConfig);
+      setConfigStatus('Konfiguration lokal zurückgesetzt.');
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function saveReviewConfigToBackend(nextConfig = reviewConfig): Promise<ReviewConfig> {
+    const normalized = normalizeReviewConfig(nextConfig);
+    setReviewConfig(normalized);
+    try {
+      await requestJson(
+        '/config',
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify(normalized),
+        },
+        apiBase
+      );
+      setConfigStatus(`Konfiguration gespeichert: ${reviewConfigLabel(normalized.providerPreset)}.`);
+    } catch (error) {
+      setConfigStatus('Konfiguration nur lokal gehalten; Backend-Sync fehlgeschlagen.');
+      setError(error instanceof Error ? error.message : String(error));
+    }
+    return normalized;
+  }
+
+  async function handleAnalyzePdf(): Promise<void> {
+    const targetSessionId = resolveSessionId();
+    if (!pdfBytesRef.current) {
+      setError('Zuerst ein PDF laden.');
+      return;
+    }
+
+    setAnalysisRunning(true);
+    setError(null);
+    try {
+      await saveCurrentSession(targetSessionId);
+      const normalized = await saveReviewConfigToBackend(reviewConfig);
+      await requestJson(
+        `/sessions/${encodeURIComponent(targetSessionId)}/analyze`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ config: normalized }),
+        },
+        apiBase
+      );
+      const loadedIr = await requestJson<PdfIr>(`/sessions/${encodeURIComponent(targetSessionId)}/ir`, undefined, apiBase);
+      setIr(loadedIr);
+      setAnnotations(loadedIr.annotations ?? []);
+      setSessionId(targetSessionId);
+      setPageNumber(loadedIr.pages?.[0]?.pageNumber ?? 1);
+      setStatus(`Analyse fertig: ${loadedIr.document.id} (${loadedIr.document.pageCount} Seiten)`);
+    } catch (error) {
+      setStatus('Analyse fehlgeschlagen.');
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAnalysisRunning(false);
+    }
+  }
+
   async function saveCurrentSession(sessionOverride?: string, annotationsOverride?: UiAnnotation[]): Promise<void> {
     const targetSessionId = resolveSessionId(sessionOverride);
     const base = normalizeApiBase(apiBase);
@@ -572,7 +651,7 @@ export default function App() {
     if (!targetSessionId) return;
 
     try {
-      const state = await requestJson<{ annotations?: UiAnnotation[]; projectedIr?: PdfIr; hasPdf?: boolean; hasIr?: boolean }>(
+      const state = await requestJson<{ annotations?: UiAnnotation[]; projectedIr?: PdfIr; hasPdf?: boolean; hasIr?: boolean; reviewConfig?: ReviewConfig }>(
         `/sessions/${encodeURIComponent(targetSessionId)}`,
         undefined,
         base
@@ -592,6 +671,10 @@ export default function App() {
       const remoteAnnotations = state.annotations ?? [];
       const sourceAnnotations = loadedIr.annotations ?? [];
       setAnnotations(mergeAnnotations(sourceAnnotations, remoteAnnotations));
+      if (state.reviewConfig) {
+        setReviewConfig(normalizeReviewConfig(state.reviewConfig));
+        setConfigStatus(`Konfiguration aus Session geladen: ${reviewConfigLabel(normalizeReviewConfig(state.reviewConfig).providerPreset)}.`);
+      }
       setStatus(`Session ${targetSessionId} geladen.`);
     } catch (error) {
       setStatus('Session konnte nicht geladen werden.');
@@ -635,6 +718,9 @@ export default function App() {
           <button type="button" onClick={() => void saveCurrentSession()}>
             Session speichern
           </button>
+          <button type="button" onClick={() => void handleAnalyzePdf()} disabled={analysisRunning}>
+            {analysisRunning ? 'Analysiere…' : 'Analysieren'}
+          </button>
           <button type="button" onClick={exportAnnotations}>
             Annotationen exportieren
           </button>
@@ -649,6 +735,95 @@ export default function App() {
         <span>{backendStatus === 'online' ? 'Backend online' : backendStatus === 'offline' ? 'Backend offline' : 'Backend unbekannt'}</span>
         <span>{error ?? ''}</span>
       </div>
+
+      <section className="config-strip">
+        <div className="panel config-panel">
+          <div className="panel-header">
+            <h2>Import-Wizard</h2>
+            <span className="pill">{configStatus}</span>
+          </div>
+          <div className="detail-grid config-grid">
+            <label>
+              Backend-Preset
+              <select
+                value={reviewConfig.providerPreset}
+                onChange={(e) => setReviewConfig((current) => applyPresetDefaults(current, e.target.value as ReviewBackendPreset))}
+              >
+                <option value="openai-compatible">OpenAI-compatible</option>
+                <option value="ollama">Ollama</option>
+                <option value="lmstudio">LM Studio</option>
+                <option value="lemonade">Lemonade</option>
+              </select>
+            </label>
+            <label>
+              Base URL
+              <input type="text" value={reviewConfig.baseUrl} onChange={(e) => setReviewConfig((current) => ({ ...current, baseUrl: e.target.value }))} />
+            </label>
+            <label>
+              API-Pfad
+              <input type="text" value={reviewConfig.apiPath} onChange={(e) => setReviewConfig((current) => ({ ...current, apiPath: e.target.value }))} />
+            </label>
+            <label>
+              Modell
+              <input type="text" value={reviewConfig.model} onChange={(e) => setReviewConfig((current) => ({ ...current, model: e.target.value }))} />
+            </label>
+            <label>
+              API-Key
+              <input type="password" value={reviewConfig.apiKey} onChange={(e) => setReviewConfig((current) => ({ ...current, apiKey: e.target.value }))} />
+            </label>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={reviewConfig.rememberLastSettings}
+                onChange={(e) => setReviewConfig((current) => ({ ...current, rememberLastSettings: e.target.checked }))}
+              />
+              Einstellungen merken
+            </label>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={reviewConfig.showExpertView}
+                onChange={(e) => setReviewConfig((current) => ({ ...current, showExpertView: e.target.checked }))}
+              />
+              Expertenansicht sichtbar
+            </label>
+          </div>
+          <div className="action-row">
+            <button type="button" onClick={() => void loadReviewConfigFromBackend()}>
+              Konfig laden
+            </button>
+            <button type="button" onClick={() => void saveReviewConfigToBackend()}>
+              Konfig speichern
+            </button>
+            <button type="button" onClick={() => void handleAnalyzePdf()} disabled={analysisRunning}>
+              {analysisRunning ? 'Analysiere…' : 'PDF analysieren'}
+            </button>
+          </div>
+          {reviewConfig.showExpertView ? (
+            <details open>
+              <summary>Expertenansicht: conf.json</summary>
+              <pre className="json-block">{JSON.stringify(reviewConfig, null, 2)}</pre>
+            </details>
+          ) : null}
+        </div>
+
+        <div className="panel preview-panel">
+          <div className="panel-header">
+            <h2>Dokumentvorschau</h2>
+            <span className="pill">{pdfDocRef.current ? `${pdfDocRef.current.numPages} Seiten` : 'kein PDF'}</span>
+          </div>
+          {previewImageUrl ? (
+            <img className="preview-image" src={previewImageUrl} alt={`Vorschau von ${pdfName}`} />
+          ) : (
+            <p>Nach dem Laden wird hier eine kleine Vorschau angezeigt.</p>
+          )}
+          <ul className="preview-meta">
+            <li><strong>Datei:</strong> {pdfName}</li>
+            <li><strong>Seite:</strong> {pageNumber}</li>
+            <li><strong>Session:</strong> {sessionId || '–'}</li>
+          </ul>
+        </div>
+      </section>
 
       <main className="workspace">
         <section className="viewer-column">
