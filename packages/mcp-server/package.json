@@ -16,7 +16,8 @@
     "test:coverage": "vitest --coverage",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint:fix": "eslint src --ext .ts --fix",
+    "pdf:import": "node dist/adventure-import/pdf/cli.js"
   },
   "dependencies": {
     "@foundry-mcp/shared": "*",
