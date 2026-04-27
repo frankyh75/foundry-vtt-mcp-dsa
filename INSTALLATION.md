@@ -24,7 +24,16 @@ This guide covers the complete installation of the Foundry VTT AI Model Integrat
 3. Restart Claude Desktop
 4. Enable "Foundry MCP Bridge" in your Foundry Module Management
 
-### Option 2: Manual Installation
+### PDF Review Toolchain
+
+The PDF review GUI stores its configuration outside the repository so private endpoints do not end up in GitHub:
+
+- Default config path: `~/.foundry-mcp/pdf-review/review-config.json`
+- Override path: `PDF_REVIEW_CONFIG_PATH`
+- Optional toolchain overrides: `PDF_TOOLCHAIN_DIR`, `PDFINFO_BIN`, `PDFTOTEXT_BIN`, `PDFTOPPM_BIN`, `TESSERACT_BIN`, `TESSDATA_PREFIX`
+
+When the Windows installer can find a local PDF toolchain, it will wire those paths into the backend automatically. Otherwise the backend still falls back to PATH.
+
 
 #### Install the Foundry Module
 1. Open Foundry VTT v13

@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { homedir } from 'node:os';
 import { z } from 'zod';
 
 export const reviewBackendPresetSchema = z.enum(['openai-compatible', 'ollama', 'lmstudio', 'lemonade']);
@@ -76,8 +77,9 @@ export function normalizeApiPath(value: string): string {
   return prefixed.replace(/\/+$/, '') || '/v1';
 }
 
-export function resolveReviewConfigPath(baseDir = process.cwd()): string {
-  return resolve(baseDir, 'conf.json');
+export function resolveReviewConfigPath(baseDir = homedir()): string {
+  const override = process.env.PDF_REVIEW_CONFIG_PATH?.trim();
+  return override ? resolve(override) : resolve(baseDir, '.foundry-mcp', 'pdf-review', 'review-config.json');
 }
 
 export async function loadReviewConfig(configPath = resolveReviewConfigPath()): Promise<ReviewConfig> {
@@ -94,5 +96,6 @@ export async function loadReviewConfig(configPath = resolveReviewConfigPath()): 
 }
 
 export async function saveReviewConfig(config: ReviewConfig, configPath = resolveReviewConfigPath()): Promise<void> {
+  await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, `${JSON.stringify(normalizeReviewConfig(config), null, 2)}\n`, 'utf8');
 }

@@ -16,7 +16,7 @@ import { defaultReviewConfig, loadReviewConfig, normalizeReviewConfig, resolveRe
 const DEFAULT_PORT = Number.parseInt(process.env.PDF_REVIEW_BACKEND_PORT ?? '4174', 10);
 const DEFAULT_HOST = process.env.PDF_REVIEW_BACKEND_HOST ?? '0.0.0.0';
 const DATA_DIR = resolve(process.env.PDF_REVIEW_DATA_DIR ?? join(os.homedir(), '.foundry-mcp', 'pdf-review'));
-const CONFIG_PATH = resolveReviewConfigPath(process.cwd());
+const CONFIG_PATH = resolveReviewConfigPath();
 const JSON_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
   'Access-Control-Allow-Origin': '*',

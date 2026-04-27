@@ -801,7 +801,7 @@ export default function App() {
           </div>
           {reviewConfig.showExpertView ? (
             <details open>
-              <summary>Expertenansicht: conf.json</summary>
+              <summary>Expertenansicht: lokale review-config.json</summary>
               <pre className="json-block">{JSON.stringify(reviewConfig, null, 2)}</pre>
             </details>
           ) : null}

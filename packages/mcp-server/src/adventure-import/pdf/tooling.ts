@@ -1,6 +1,7 @@
+import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 
@@ -42,34 +43,32 @@ export interface PdfToolRunner {
 
 let tesseractAvailablePromise: Promise<boolean> | undefined;
 
+const TOOL_ENV_VARS: Record<string, string> = {
+  pdfinfo: 'PDFINFO_BIN',
+  pdftotext: 'PDFTOTEXT_BIN',
+  pdftoppm: 'PDFTOPPM_BIN',
+  tesseract: 'TESSERACT_BIN',
+};
+
 export function createDefaultPdfToolRunner(): PdfToolRunner {
   return {
     async pdfInfo(pdfPath: string): Promise<string> {
-      const result = await execFileAsync('pdfinfo', [pdfPath], {
-        encoding: 'utf8',
-        maxBuffer: 10 * 1024 * 1024,
-      });
+      const result = await execPdfTool('pdfinfo', [pdfPath], 'Poppler pdfinfo');
       return String(result.stdout ?? '');
     },
     async pdfToText(pdfPath: string, pageNumber: number): Promise<string> {
       const args = ['-f', String(pageNumber), '-l', String(pageNumber), '-layout', '-enc', 'UTF-8', pdfPath, '-'];
-      const result = await execFileAsync('pdftotext', args, {
-        encoding: 'utf8',
-        maxBuffer: 10 * 1024 * 1024,
-      });
+      const result = await execPdfTool('pdftotext', args, 'Poppler pdftotext');
       return String(result.stdout ?? '');
     },
     async probeRender(pdfPath: string, pageNumber: number): Promise<boolean> {
       const tempDir = await mkdtemp(join(tmpdir(), 'foundry-pdf-probe-'));
       const outputPrefix = join(tempDir, 'page');
       try {
-        await execFileAsync(
+        await execPdfTool(
           'pdftoppm',
           ['-f', String(pageNumber), '-l', String(pageNumber), '-singlefile', '-png', pdfPath, outputPrefix],
-          {
-            encoding: 'utf8',
-            maxBuffer: 10 * 1024 * 1024,
-          },
+          'Poppler pdftoppm',
         );
         return true;
       } catch {
@@ -97,23 +96,17 @@ export function createDefaultPdfToolRunner(): PdfToolRunner {
       const imagePath = `${imagePrefix}.png`;
 
       try {
-        await execFileAsync(
+        await execPdfTool(
           'pdftoppm',
           ['-f', String(pageNumber), '-l', String(pageNumber), '-singlefile', '-png', '-r', '200', pdfPath, imagePrefix],
-          {
-            encoding: 'utf8',
-            maxBuffer: 10 * 1024 * 1024,
-          },
+          'Poppler pdftoppm',
         );
 
         const languages = resolveTesseractLanguages(options?.languageHint);
-        const tsvResult = await execFileAsync(
+        const tsvResult = await execPdfTool(
           'tesseract',
-          [imagePath, 'stdout', '--psm', '3', '-l', languages, 'tsv'],
-          {
-            encoding: 'utf8',
-            maxBuffer: 20 * 1024 * 1024,
-          },
+          addTesseractArgs([imagePath, 'stdout', '--psm', '3', '-l', languages, 'tsv']),
+          'Tesseract OCR',
         ).catch((error: any) => {
           if (typeof error?.stdout === 'string' && error.stdout.trim().length > 0) {
             return { stdout: error.stdout };
@@ -149,23 +142,63 @@ export function createDefaultPdfToolRunner(): PdfToolRunner {
   };
 }
 
-async function isCommandAvailable(command: string): Promise<boolean> {
-  if (command === 'tesseract') {
-    tesseractAvailablePromise ??= execFileAsync('tesseract', ['--version'], {
-      encoding: 'utf8',
-      maxBuffer: 1024 * 1024,
-    })
-      .then(() => true)
-      .catch(() => false);
-    return tesseractAvailablePromise;
+function execPdfTool(command: 'pdfinfo' | 'pdftotext' | 'pdftoppm' | 'tesseract', args: string[], friendlyName: string): Promise<{ stdout?: string }> {
+  const toolPath = resolvePdfToolPath(command);
+  if (!toolPath) {
+    throw new Error(buildMissingToolMessage(command, friendlyName));
+  }
+  return execFileAsync(toolPath, args, {
+    encoding: 'utf8',
+    maxBuffer: 20 * 1024 * 1024,
+  });
+}
+
+function resolvePdfToolPath(command: 'pdfinfo' | 'pdftotext' | 'pdftoppm' | 'tesseract'): string | null {
+  const envVar = TOOL_ENV_VARS[command];
+  const envValue = process.env[envVar]?.trim();
+  if (envValue && existsSync(envValue)) {
+    return resolve(envValue);
   }
 
+  const toolchainDir = process.env.PDF_TOOLCHAIN_DIR?.trim();
+  if (toolchainDir) {
+    const candidates = command === 'tesseract'
+      ? [join(toolchainDir, command), join(toolchainDir, `${command}.exe`), join(toolchainDir, 'bin', command), join(toolchainDir, 'bin', `${command}.exe`)]
+      : [join(toolchainDir, command), join(toolchainDir, `${command}.exe`), join(toolchainDir, 'bin', command), join(toolchainDir, 'bin', `${command}.exe`)];
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+
+  return process.platform === 'win32' ? `${command}.exe` : command;
+}
+
+function buildMissingToolMessage(command: string, friendlyName: string): string {
+  const hint = command === 'tesseract'
+    ? 'Installiere Tesseract oder setze TESSERACT_BIN/PDF_TOOLCHAIN_DIR.'
+    : 'Installiere Poppler oder setze PDFINFO_BIN/PDFTOTEXT_BIN/PDFTOPPM_BIN/PDF_TOOLCHAIN_DIR.';
+  return `${friendlyName} nicht gefunden (${command}). ${hint}`;
+}
+
+async function isCommandAvailable(command: string): Promise<boolean> {
+  const resolved = resolvePdfToolPath(command as 'pdfinfo' | 'pdftotext' | 'pdftoppm' | 'tesseract');
+  if (!resolved) {
+    return false;
+  }
   try {
-    await execFileAsync(command, ['--version'], { encoding: 'utf8', maxBuffer: 1024 * 1024 });
+    await execFileAsync(resolved, ['--version'], { encoding: 'utf8', maxBuffer: 1024 * 1024 });
     return true;
   } catch {
     return false;
   }
+}
+
+function addTesseractArgs(args: string[]): string[] {
+  const tesseractDataDir = process.env.TESSDATA_PREFIX?.trim();
+  if (!tesseractDataDir) {
+    return args;
+  }
+  return [...args, '--tessdata-dir', tesseractDataDir];
 }
 
 function resolveTesseractLanguages(languageHint?: string): string {
