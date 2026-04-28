@@ -176,6 +176,20 @@ export default function App() {
     [projectedIr.blocks, selectedBlockId]
   );
   const blockChanges = useMemo(() => computeBlockChanges(ir.blocks, projectedIr.blocks), [ir.blocks, projectedIr.blocks]);
+  const pageSummaries = useMemo(
+    () =>
+      displayIr.pages.map((page) => {
+        const pageBlocks = displayIr.blocks.filter((block) => block.pageNumber === page.pageNumber);
+        const selectedCount = selectedBlockIds.filter((blockId) => pageBlocks.some((block) => block.id === blockId)).length;
+        return {
+          pageNumber: page.pageNumber,
+          blockCount: pageBlocks.length,
+          selectedCount,
+          summary: summarizePageBlocks(pageBlocks),
+        };
+      }),
+    [displayIr.blocks, displayIr.pages, selectedBlockIds]
+  );
 
   useEffect(() => {
     irRef.current = ir;
@@ -689,8 +703,8 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div>
-          <h1>Foundry PDF Review UI</h1>
-          <p>Lokale 2-Spalten-Ansicht mit PDF, Overlays, JSON und Annotationen.</p>
+          <h1>Foundry PDF OCR Workbench</h1>
+          <p>Lokale 3-Spalten-Ansicht: Seiten, PDF-Preview und Korrektur mit sichtbarer Projektion.</p>
         </div>
         <div className="topbar-actions">
           <label className="inline-field">
@@ -826,6 +840,81 @@ export default function App() {
       </section>
 
       <main className="workspace">
+        <section className="navigator-column">
+          <div className="panel">
+            <div className="panel-header">
+              <h2>Arbeitsfolge</h2>
+              <span className="pill">{displayIr.document.pageCount || '–'} Seiten</span>
+            </div>
+            <ol className="workflow-list">
+              <li>
+                <strong>1. Laden</strong>
+                <span>PDF oder IR importieren</span>
+              </li>
+              <li>
+                <strong>2. Analysieren</strong>
+                <span>Seiten, Blöcke und Projektion aufbauen</span>
+              </li>
+              <li>
+                <strong>3. Prüfen</strong>
+                <span>Seiten nacheinander korrigieren</span>
+              </li>
+              <li>
+                <strong>4. Exportieren</strong>
+                <span>Annotationen oder Projektion sichern</span>
+              </li>
+            </ol>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <h2>Seiten</h2>
+              <span className="pill">{pageSummaries.length || '–'} geladen</span>
+            </div>
+            <div className="page-list">
+              {pageSummaries.map((page) => (
+                <button
+                  key={page.pageNumber}
+                  type="button"
+                  className={`page-card ${page.pageNumber === pageNumber ? 'active' : ''}`}
+                  onClick={() => setPageNumber(page.pageNumber)}
+                >
+                  <span className="page-card-title">Seite {page.pageNumber}</span>
+                  <span className="page-card-meta">
+                    {page.blockCount} Blöcke{page.selectedCount ? ` · ${page.selectedCount} markiert` : ''}
+                  </span>
+                  <span className="page-card-summary">{page.summary}</span>
+                </button>
+              ))}
+              {!pageSummaries.length ? <p className="muted">Noch keine Seiten geladen.</p> : null}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <h2>Dokument</h2>
+            </div>
+            <div className="summary-grid">
+              <div>
+                <span className="muted">Datei</span>
+                <strong>{pdfName}</strong>
+              </div>
+              <div>
+                <span className="muted">Session</span>
+                <strong>{sessionId || '–'}</strong>
+              </div>
+              <div>
+                <span className="muted">Ansicht</span>
+                <strong>{viewMode === 'projected' ? 'Projektion' : 'Quelle'}</strong>
+              </div>
+              <div>
+                <span className="muted">Blöcke</span>
+                <strong>{displayIr.blocks.length}</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="viewer-column">
           <div className="viewer-toolbar">
             <div className="viewer-toolbar-left">
@@ -899,7 +988,7 @@ export default function App() {
         <section className="detail-column">
           <div className="panel">
             <div className="panel-header">
-              <h2>Ausgewählter Block</h2>
+              <h2>Korrektur</h2>
               <button type="button" onClick={clearSelection} className="ghost-button">
                 Auswahl löschen
               </button>
@@ -1283,12 +1372,32 @@ function computeBlockChanges(before: PdfBlock[], after: PdfBlock[]): BlockChange
   return changes.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+function summarizePageBlocks(blocks: PdfBlock[]): string {
+  if (!blocks.length) {
+    return 'keine Blöcke';
+  }
+
+  const counts = new Map<string, number>();
+  for (const block of blocks) {
+    counts.set(block.blockType, (counts.get(block.blockType) ?? 0) + 1);
+  }
+
+  const summary = Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 2)
+    .map(([blockType, count]) => `${blockType} ${count}`)
+    .join(' · ');
+
+  return summary || 'keine Blöcke';
+}
+
 function mergeAnnotations(base: UiAnnotation[], extra: UiAnnotation[]): UiAnnotation[] {
   const map = new Map<string, UiAnnotation>();
   for (const item of base) map.set(item.id, item);
   for (const item of extra) map.set(item.id, item);
   return Array.from(map.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
+
 
 function storageKey(documentId: string): string {
   return `foundry-pdf-review-ui:${documentId || 'unloaded'}`;
