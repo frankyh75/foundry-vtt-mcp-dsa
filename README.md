@@ -95,6 +95,7 @@ You can run this bridge with a fully local LLM client (for example LM Studio + Q
 
 - Step-by-step guide: [docs/LOCAL_LLM_MCP_SETUP.md](docs/LOCAL_LLM_MCP_SETUP.md)
 - Includes: tested baseline, MCP client config, context sizing, local-first `.env`, and troubleshooting.
+- DSA lore skill pack for local LLMs: [docs/skills/dsa-aventurica-research.md](docs/skills/dsa-aventurica-research.md)
 
 ## Client Support (real-world status)
 

@@ -108,6 +108,24 @@ If tools return data, MCP wiring is working.
 - Start with local websocket/default settings.
 - Keep `FOUNDRY_STUN_SERVERS=` empty for local-first tests.
 
+## 6) DSA Aventurica research skill
+
+If you want the local model to do lore research for adventure writing, preload this repo file as custom instruction or pinned context:
+
+- [docs/skills/dsa-aventurica-research.md](docs/skills/dsa-aventurica-research.md)
+
+Use it when the model needs to research canon-relevant DSA information from Wiki Aventurica before building adventure content, NPCs, locations, or journal text.
+
+Recommended prompt shape:
+
+```text
+Benutze die DSA-Aventurica-Research-Regeln aus dem Projekt.
+Recherchiere die kanonisch relevanten Infos zu <Begriff> für ein DSA-Abenteuer.
+Gib nur eine kurze, quellengestützte Zusammenfassung zurück.
+```
+
+This is separate from the MCP server connection itself: the MCP bridge handles Foundry tools, while this skill gives the local model a consistent research workflow.
+
 ---
 
 ## Notes for maintainers and users
