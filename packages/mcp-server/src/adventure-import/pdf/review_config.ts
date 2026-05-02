@@ -8,6 +8,9 @@ export const reviewBackendPresetSchema = z.enum(['openai-compatible', 'ollama', 
 
 export type ReviewBackendPreset = z.infer<typeof reviewBackendPresetSchema>;
 
+export const ocrEngineSchema = z.enum(['auto', 'tesseract', 'marker']);
+export type OcrEngine = z.infer<typeof ocrEngineSchema>;
+
 export const reviewConfigSchema = z.object({
   providerPreset: reviewBackendPresetSchema,
   baseUrl: z.string(),
@@ -16,6 +19,7 @@ export const reviewConfigSchema = z.object({
   apiKey: z.string(),
   showExpertView: z.boolean(),
   rememberLastSettings: z.boolean(),
+  ocrEngine: ocrEngineSchema.default('auto'),
 });
 
 export type ReviewConfig = z.infer<typeof reviewConfigSchema>;
@@ -28,6 +32,7 @@ export const defaultReviewConfig: ReviewConfig = {
   apiKey: '',
   showExpertView: true,
   rememberLastSettings: true,
+  ocrEngine: 'auto',
 };
 
 const PRESET_DEFAULTS: Record<ReviewBackendPreset, Pick<ReviewConfig, 'baseUrl' | 'apiPath'>> = {
@@ -48,6 +53,9 @@ export function normalizeReviewConfig(input: Partial<ReviewConfig> | unknown): R
   const apiKey = typeof candidate.apiKey === 'string' ? candidate.apiKey : defaultReviewConfig.apiKey;
   const showExpertView = typeof candidate.showExpertView === 'boolean' ? candidate.showExpertView : defaultReviewConfig.showExpertView;
   const rememberLastSettings = typeof candidate.rememberLastSettings === 'boolean' ? candidate.rememberLastSettings : defaultReviewConfig.rememberLastSettings;
+  const ocrEngine = ocrEngineSchema.safeParse(candidate.ocrEngine).success
+    ? (candidate.ocrEngine as OcrEngine)
+    : defaultReviewConfig.ocrEngine;
 
   return {
     providerPreset,
@@ -57,6 +65,7 @@ export function normalizeReviewConfig(input: Partial<ReviewConfig> | unknown): R
     apiKey: apiKey.trim(),
     showExpertView,
     rememberLastSettings,
+    ocrEngine,
   };
 }
 

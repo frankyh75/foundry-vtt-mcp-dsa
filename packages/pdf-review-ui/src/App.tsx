@@ -833,21 +833,33 @@ export default function App() {
               API-Key
               <input type="password" value={reviewConfig.apiKey} onChange={(e) => setReviewConfig((current) => ({ ...current, apiKey: e.target.value }))} />
             </label>
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={reviewConfig.rememberLastSettings}
-                onChange={(e) => setReviewConfig((current) => ({ ...current, rememberLastSettings: e.target.checked }))}
-              />
-              Einstellungen merken
+            <label>
+              OCR-Engine
+              <select
+                value={reviewConfig.ocrEngine}
+                onChange={(e) => setReviewConfig((current) => ({ ...current, ocrEngine: e.target.value as ReviewConfig['ocrEngine'] }))}
+              >
+                <option value="auto">Auto (Marker bevorzugt, Fallback Tesseract)</option>
+                <option value="tesseract">Tesseract (klassisch, schnell)</option>
+                <option value="marker">Marker (ML-basiert, falls installiert)</option>
+              </select>
+              <small className="field-hint">Auto = Marker wenn verfügbar, sonst Tesseract. Marker braucht Python + PyTorch.</small>
             </label>
-            <label className="checkbox-field">
+            <label>
               <input
                 type="checkbox"
                 checked={reviewConfig.showExpertView}
                 onChange={(e) => setReviewConfig((current) => ({ ...current, showExpertView: e.target.checked }))}
               />
-              Expertenansicht sichtbar
+              Expertenansicht (JSON-Panel)
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={reviewConfig.rememberLastSettings}
+                onChange={(e) => setReviewConfig((current) => ({ ...current, rememberLastSettings: e.target.checked }))}
+              />
+              Letzte Einstellungen merken
             </label>
           </div>
           <div className="action-row">

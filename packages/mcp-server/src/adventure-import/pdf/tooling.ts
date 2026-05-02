@@ -25,7 +25,7 @@ export interface OcrBlock {
 
 export interface OcrPageResult {
   available: boolean;
-  engine: 'tesseract' | 'missing' | 'failed';
+  engine: 'tesseract' | 'marker' | 'missing' | 'failed';
   reason?: string;
   text: string;
   blocks: OcrBlock[];
@@ -50,7 +50,16 @@ const TOOL_ENV_VARS: Record<string, string> = {
   tesseract: 'TESSERACT_BIN',
 };
 
-export function createDefaultPdfToolRunner(): PdfToolRunner {
+export type OcrEnginePreference = 'auto' | 'tesseract' | 'marker';
+
+export interface PdfToolRunnerOptions {
+  preferOcrEngine?: OcrEnginePreference;
+}
+
+export function createDefaultPdfToolRunner(options?: PdfToolRunnerOptions): PdfToolRunner {
+  const preferOcrEngine = options?.preferOcrEngine ?? 'auto';
+  const markerCache = new Map<string, Map<number, OcrPageResult>>();
+
   return {
     async pdfInfo(pdfPath: string): Promise<string> {
       const result = await execPdfTool('pdfinfo', [pdfPath], 'Poppler pdfinfo');
@@ -77,13 +86,41 @@ export function createDefaultPdfToolRunner(): PdfToolRunner {
         await rm(tempDir, { recursive: true, force: true });
       }
     },
-    async ocrPage(pdfPath: string, pageNumber: number, options?: { languageHint?: string }): Promise<OcrPageResult> {
-      const tesseractAvailable = await isCommandAvailable('tesseract');
-      if (!tesseractAvailable) {
+    async ocrPage(pdfPath: string, pageNumber: number, ocrOptions?: { languageHint?: string }): Promise<OcrPageResult> {
+      const { isTesseractAvailable, isMarkerAvailable } = await resolveEngineAvailability(preferOcrEngine);
+
+      if (isMarkerAvailable) {
+        const cached = markerCache.get(pdfPath)?.get(pageNumber);
+        if (cached) {
+          return cached;
+        }
+
+        const { runMarkerOnPdf, convertMarkerResultToPageMap } = await import('./marker_adapter.js');
+        const markerResult = await runMarkerOnPdf(pdfPath);
+        const pageMap = convertMarkerResultToPageMap(markerResult);
+        markerCache.set(pdfPath, pageMap);
+
+        const result = pageMap.get(pageNumber);
+        if (result) {
+          return result;
+        }
+
+        return {
+          available: false,
+          engine: 'marker',
+          reason: `Marker processed ${pageMap.size} pages but page ${pageNumber} not found`,
+          text: '',
+          blocks: [],
+          pageWidth: 0,
+          pageHeight: 0,
+        };
+      }
+
+      if (!isTesseractAvailable) {
         return {
           available: false,
           engine: 'missing',
-          reason: 'tesseract binary is not available on this machine',
+          reason: 'Neither Marker nor Tesseract is available on this machine',
           text: '',
           blocks: [],
           pageWidth: 0,
@@ -102,7 +139,7 @@ export function createDefaultPdfToolRunner(): PdfToolRunner {
           'Poppler pdftoppm',
         );
 
-        const languages = resolveTesseractLanguages(options?.languageHint);
+        const languages = resolveTesseractLanguages(ocrOptions?.languageHint);
         const tsvResult = await execPdfTool(
           'tesseract',
           addTesseractArgs([imagePath, 'stdout', '--psm', '3', '-l', languages, 'tsv']),
@@ -191,6 +228,38 @@ async function isCommandAvailable(command: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function isTesseractAvailable(): Promise<boolean> {
+  if (!tesseractAvailablePromise) {
+    tesseractAvailablePromise = isCommandAvailable('tesseract');
+  }
+  return tesseractAvailablePromise;
+}
+
+async function resolveEngineAvailability(
+  prefer: OcrEnginePreference,
+): Promise<{ isTesseractAvailable: boolean; isMarkerAvailable: boolean }> {
+  if (prefer === 'tesseract') {
+    return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false };
+  }
+
+  if (prefer === 'marker') {
+    const { isMarkerAvailable } = await import('./marker_adapter.js');
+    const markerAvailable = await isMarkerAvailable();
+    if (markerAvailable) {
+      return { isTesseractAvailable: false, isMarkerAvailable: true };
+    }
+    return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false };
+  }
+
+  // auto: try marker first, then tesseract
+  const { isMarkerAvailable } = await import('./marker_adapter.js');
+  const markerAvailable = await isMarkerAvailable();
+  if (markerAvailable) {
+    return { isTesseractAvailable: false, isMarkerAvailable: true };
+  }
+  return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false };
 }
 
 function addTesseractArgs(args: string[]): string[] {

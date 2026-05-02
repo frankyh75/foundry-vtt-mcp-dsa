@@ -8,6 +8,7 @@ export type ReviewConfig = {
   apiKey: string;
   showExpertView: boolean;
   rememberLastSettings: boolean;
+  ocrEngine: 'auto' | 'tesseract' | 'marker';
 };
 
 export const defaultReviewConfig: ReviewConfig = {
@@ -18,6 +19,7 @@ export const defaultReviewConfig: ReviewConfig = {
   apiKey: '',
   showExpertView: true,
   rememberLastSettings: true,
+  ocrEngine: 'auto',
 };
 
 const PRESET_DEFAULTS: Record<ReviewBackendPreset, Pick<ReviewConfig, 'baseUrl' | 'apiPath'>> = {
@@ -45,6 +47,7 @@ export function normalizeReviewConfig(input: Partial<ReviewConfig> | unknown): R
     apiKey: candidate.apiKey ?? defaultReviewConfig.apiKey,
     showExpertView: candidate.showExpertView ?? defaultReviewConfig.showExpertView,
     rememberLastSettings: candidate.rememberLastSettings ?? defaultReviewConfig.rememberLastSettings,
+    ocrEngine: candidate.ocrEngine ?? defaultReviewConfig.ocrEngine,
   };
   const presetDefaults = PRESET_DEFAULTS[next.providerPreset];
   return {

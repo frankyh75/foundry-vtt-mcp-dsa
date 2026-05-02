@@ -13,6 +13,7 @@ export interface PdfImportPipelineOptions {
   pdfPath: string;
   outPath: string;
   runner: PdfToolRunner;
+  preferOcrEngine?: import('./tooling.js').OcrEnginePreference;
 }
 
 export interface PdfImportPipelineResult {

@@ -241,7 +241,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const result = await buildPdfImportIr({
       pdfPath,
       outPath: sessionDir,
-      runner: createDefaultPdfToolRunner(),
+      runner: createDefaultPdfToolRunner({ preferOcrEngine: config.ocrEngine }),
+      preferOcrEngine: config.ocrEngine,
     });
 
     const sourceIrPath = join(sessionDir, 'source.ir.json');
