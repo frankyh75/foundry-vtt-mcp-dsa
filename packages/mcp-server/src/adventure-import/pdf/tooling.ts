@@ -217,7 +217,7 @@ function buildMissingToolMessage(command: string, friendlyName: string): string 
   return `${friendlyName} nicht gefunden (${command}). ${hint}`;
 }
 
-async function isCommandAvailable(command: string): Promise<boolean> {
+export async function isCommandAvailable(command: string): Promise<boolean> {
   const resolved = resolvePdfToolPath(command as 'pdfinfo' | 'pdftotext' | 'pdftoppm' | 'tesseract');
   if (!resolved) {
     return false;

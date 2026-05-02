@@ -166,6 +166,7 @@ export default function App() {
   const [configStatus, setConfigStatus] = useState('Konfiguration nicht geladen.');
   const [ollamaModelNames, setOllamaModelNames] = useState<string[]>([...ollamaModelSuggestions]);
   const [modelDiscoveryStatus, setModelDiscoveryStatus] = useState('Lokale Ollama-Modelle noch nicht abgefragt.');
+  const [engineStatus, setEngineStatus] = useState<{ ocr: string; llm: string }>({ ocr: 'Unbekannt', llm: 'Unbekannt' });
 
   const projectedIr = useMemo(() => applyUiAnnotationsToIr(ir, annotations), [ir, annotations]);
   const displayIr = viewMode === 'projected' ? projectedIr : ir;
@@ -229,6 +230,7 @@ export default function App() {
   useEffect(() => {
     void checkBackendHealth();
     void loadReviewConfigFromBackend();
+    void loadEngineStatus();
   }, []);
 
   useEffect(() => {
@@ -582,6 +584,29 @@ export default function App() {
     }
   }
 
+  async function loadEngineStatus(): Promise<void> {
+    try {
+      const status = await requestJson<{
+        poppler: { available: boolean };
+        tesseract: { available: boolean };
+        marker: { available: boolean };
+        ollama: { available: boolean };
+      }>('/engines', undefined, apiBase);
+      const ocrParts: string[] = [];
+      if (status.poppler.available) ocrParts.push('Poppler');
+      if (status.tesseract.available) ocrParts.push('Tesseract');
+      if (status.marker.available) ocrParts.push('Marker');
+      const llmParts: string[] = [];
+      if (status.ollama.available) llmParts.push('Ollama');
+      setEngineStatus({
+        ocr: ocrParts.length ? ocrParts.join(' + ') : 'Keine OCR',
+        llm: llmParts.length ? llmParts.join(' + ') : 'Keine LLM',
+      });
+    } catch (error) {
+      setEngineStatus({ ocr: 'Fehler', llm: 'Fehler' });
+    }
+  }
+
   async function saveReviewConfigToBackend(nextConfig = reviewConfig): Promise<ReviewConfig> {
     const normalized = normalizeReviewConfig(nextConfig);
     setReviewConfig(normalized);
@@ -790,6 +815,8 @@ export default function App() {
           <div className="panel-header">
             <h2>Import-Wizard</h2>
             <span className="pill">{configStatus}</span>
+            <span className="pill" title="OCR-Engines">{engineStatus.ocr}</span>
+            <span className="pill" title="LLM-Engine">{engineStatus.llm}</span>
           </div>
           <div className="detail-grid config-grid">
             <label>

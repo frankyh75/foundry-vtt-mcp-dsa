@@ -101,6 +101,25 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/engines') {
+    const { isCommandAvailable } = await import('./tooling.js');
+    const { isMarkerAvailable } = await import('./marker_adapter.js');
+    const [pdfinfo, pdftotext, tesseract, marker, ollama] = await Promise.allSettled([
+      isCommandAvailable('pdfinfo'),
+      isCommandAvailable('pdftotext'),
+      isCommandAvailable('tesseract'),
+      isMarkerAvailable(),
+      isOllamaReachable(),
+    ]);
+    sendJson(res, 200, {
+      poppler: { available: pdfinfo.status === 'fulfilled' && pdfinfo.value, tools: ['pdfinfo', 'pdftotext', 'pdftoppm'] },
+      tesseract: { available: tesseract.status === 'fulfilled' && tesseract.value },
+      marker: { available: marker.status === 'fulfilled' && marker.value },
+      ollama: { available: ollama.status === 'fulfilled' && ollama.value },
+    });
+    return;
+  }
+
   if (segments[0] !== 'sessions' || segments.length < 2) {
     sendText(res, 404, 'Not Found');
     return;
@@ -351,7 +370,7 @@ async function discoverOllamaModels(config: ReviewConfig): Promise<{
 }
 
 function uniqueStrings(values: string[]): string[] {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function uniqueModels(models: Array<{ name: string; remoteHost?: string; local: boolean }>): Array<{ name: string; remoteHost?: string; local: boolean }> {
@@ -486,6 +505,15 @@ function sendText(res: ServerResponse, statusCode: number, payload: string): voi
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.end(payload);
+}
+
+async function isOllamaReachable(): Promise<boolean> {
+  try {
+    const response = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(2000) });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 const isMain = Boolean(process.argv[1]?.endsWith('review_backend.js'));
