@@ -815,8 +815,12 @@ export default function App() {
           <div className="panel-header">
             <h2>Import-Wizard</h2>
             <span className="pill">{configStatus}</span>
-            <span className="pill" title="OCR-Engines">{engineStatus.ocr}</span>
-            <span className="pill" title="LLM-Engine">{engineStatus.llm}</span>
+            <span className={`pill ${engineStatus.ocr === 'Keine OCR' ? 'err' : engineStatus.ocr === 'Fehler' ? 'warn' : 'ok'}`} title="OCR-Engines">
+              OCR: {engineStatus.ocr}
+            </span>
+            <span className={`pill ${engineStatus.llm === 'Keine LLM' ? 'err' : engineStatus.llm === 'Fehler' ? 'warn' : 'ok'}`} title="LLM-Engine">
+              LLM: {engineStatus.llm}
+            </span>
           </div>
           <div className="detail-grid config-grid">
             <label>

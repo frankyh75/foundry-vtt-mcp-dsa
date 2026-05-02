@@ -396,6 +396,24 @@ button:hover,
   font-size: 0.8rem;
 }
 
+.pill.ok {
+  background: #064e3b;
+  color: #6ee7b7;
+  border-color: #065f46;
+}
+
+.pill.warn {
+  background: #451a03;
+  color: #d4d4d8;
+  border-color: #78350f;
+}
+
+.pill.err {
+  background: #450a0a;
+  color: #f87171;
+  border-color: #7f1d1d;
+}
+
 .muted {
   color: #94a3b8;
 }
