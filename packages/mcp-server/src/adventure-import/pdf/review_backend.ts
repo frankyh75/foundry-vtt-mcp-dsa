@@ -94,6 +94,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/models') {
+    const config = await loadReviewConfig(CONFIG_PATH);
+    const discovery = await discoverOllamaModels(config);
+    sendJson(res, 200, discovery);
+    return;
+  }
+
   if (segments[0] !== 'sessions' || segments.length < 2) {
     sendText(res, 404, 'Not Found');
     return;
@@ -274,6 +281,89 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   sendText(res, 404, 'Not Found');
+}
+
+async function discoverOllamaModels(config: ReviewConfig): Promise<{
+  providerPreset: ReviewConfig['providerPreset'];
+  baseUrl: string;
+  models: Array<{ name: string; remoteHost?: string; local: boolean }>;
+  localModels: string[];
+  localChatModels: string[];
+  warning?: string;
+}> {
+  const configuredBaseUrl = (config.baseUrl.trim() || 'http://127.0.0.1:11434').replace(/\/+$/, '');
+  const localBaseUrl = 'http://127.0.0.1:11434';
+  const probeUrls = config.providerPreset === 'ollama'
+    ? uniqueStrings([configuredBaseUrl, localBaseUrl])
+    : [localBaseUrl];
+
+  const discoveredModels: Array<{ name: string; remoteHost?: string; local: boolean }> = [];
+  const warnings: string[] = [];
+
+  for (const probeUrl of probeUrls) {
+    try {
+      const response = await fetch(`${probeUrl}/api/tags`);
+      if (!response.ok) {
+        warnings.push(`${probeUrl}: ${response.status} ${response.statusText}`);
+        continue;
+      }
+
+      const payload = (await response.json()) as { models?: Array<{ name?: string; remote_host?: string }> };
+      const models = (Array.isArray(payload.models) ? payload.models : [])
+        .map((model) => ({
+          name: typeof model.name === 'string' ? model.name : 'unbekannt',
+          local: typeof model.remote_host !== 'string',
+          ...(typeof model.remote_host === 'string' ? { remoteHost: model.remote_host } : {}),
+        }))
+        .filter((model) => model.name !== 'unbekannt');
+
+      if (models.length) {
+        discoveredModels.push(...models);
+        if (probeUrl === localBaseUrl) {
+          break;
+        }
+      }
+    } catch (error) {
+      warnings.push(`${probeUrl}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  const models = uniqueModels(discoveredModels);
+  const localModels = models.filter((model) => model.local).map((model) => model.name);
+  const localChatModels = localModels.filter((name) => !/embed|nomic-embed-text/i.test(name));
+
+  return {
+    providerPreset: config.providerPreset,
+    baseUrl: configuredBaseUrl,
+    models,
+    localModels,
+    localChatModels,
+    ...(localChatModels.length
+      ? {}
+      : {
+          warning:
+            config.providerPreset === 'ollama'
+              ? 'Nur Embedding- oder Cloud-Backed-Modelle gefunden. Für die Re-Analyse fehlt ein lokales Chat-Modell.'
+              : 'Lokale Ollama-Modelle wurden vom Mac-mini-Fallback geladen. Das konfigurierte Preset ist jedoch nicht Ollama.',
+        }),
+  };
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function uniqueModels(models: Array<{ name: string; remoteHost?: string; local: boolean }>): Array<{ name: string; remoteHost?: string; local: boolean }> {
+  const seen = new Set<string>();
+  const unique: Array<{ name: string; remoteHost?: string; local: boolean }> = [];
+
+  for (const model of models) {
+    if (seen.has(model.name)) continue;
+    seen.add(model.name);
+    unique.push(model);
+  }
+
+  return unique;
 }
 
 async function loadSessionState(sessionId: string): Promise<SessionState> {

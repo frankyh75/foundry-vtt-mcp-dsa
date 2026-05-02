@@ -21,7 +21,7 @@ export const reviewConfigSchema = z.object({
 export type ReviewConfig = z.infer<typeof reviewConfigSchema>;
 
 export const defaultReviewConfig: ReviewConfig = {
-  providerPreset: 'openai-compatible',
+  providerPreset: 'ollama',
   baseUrl: '',
   apiPath: '/v1',
   model: '',

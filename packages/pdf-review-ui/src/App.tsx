@@ -87,6 +87,15 @@ type RectLike = { x: number; y: number; w: number; h: number };
 
 type UiAnnotation = PdfAnnotation;
 
+type OllamaModelDiscovery = {
+  providerPreset: ReviewConfig['providerPreset'];
+  baseUrl: string;
+  models: Array<{ name: string; remoteHost?: string; local: boolean }>;
+  localModels: string[];
+  localChatModels: string[];
+  warning?: string;
+};
+
 const blockTypeOptions = [
   'heading',
   'paragraph',
@@ -103,6 +112,7 @@ const blockTypeOptions = [
 ] as const;
 
 const stubTypeOptions = ['npc_stub', 'location_stub', 'scene_stub'] as const;
+const ollamaModelSuggestions = ['qwen2.5:7b-instruct', 'qwen2.5-coder:7b-instruct', 'llama3.1:8b-instruct', 'mistral:7b-instruct', 'gemma2:9b-instruct'] as const;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/legacy/build/pdf.worker.mjs', import.meta.url).toString();
 
@@ -154,6 +164,8 @@ export default function App() {
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [analysisRunning, setAnalysisRunning] = useState(false);
   const [configStatus, setConfigStatus] = useState('Konfiguration nicht geladen.');
+  const [ollamaModelNames, setOllamaModelNames] = useState<string[]>([...ollamaModelSuggestions]);
+  const [modelDiscoveryStatus, setModelDiscoveryStatus] = useState('Lokale Ollama-Modelle noch nicht abgefragt.');
 
   const projectedIr = useMemo(() => applyUiAnnotationsToIr(ir, annotations), [ir, annotations]);
   const displayIr = viewMode === 'projected' ? projectedIr : ir;
@@ -218,6 +230,10 @@ export default function App() {
     void checkBackendHealth();
     void loadReviewConfigFromBackend();
   }, []);
+
+  useEffect(() => {
+    void loadOllamaModelSuggestions();
+  }, [apiBase, reviewConfig.providerPreset]);
 
   useEffect(() => {
     void renderCurrentPage();
@@ -547,6 +563,25 @@ export default function App() {
     }
   }
 
+  async function loadOllamaModelSuggestions(): Promise<void> {
+    try {
+      const discovery = await requestJson<OllamaModelDiscovery>('/models', undefined, apiBase);
+      const nextNames = [...new Set(discovery.models.map((model) => model.name).filter(Boolean))];
+      setOllamaModelNames(nextNames.length ? nextNames : [...ollamaModelSuggestions]);
+      setModelDiscoveryStatus(
+        discovery.warning
+          ? `${discovery.warning} · ${discovery.models.length} Ollama-Modelle gefunden`
+          : `${discovery.models.length} Ollama-Modelle · ${discovery.localChatModels.length} lokale Chat-Modelle`
+      );
+      if (!reviewConfig.model && discovery.localChatModels.length === 1) {
+        setReviewConfig((current) => ({ ...current, model: discovery.localChatModels[0] }));
+      }
+    } catch (error) {
+      setOllamaModelNames([...ollamaModelSuggestions]);
+      setModelDiscoveryStatus(`Lokale Modellliste nicht geladen · ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   async function saveReviewConfigToBackend(nextConfig = reviewConfig): Promise<ReviewConfig> {
     const normalized = normalizeReviewConfig(nextConfig);
     setReviewConfig(normalized);
@@ -779,7 +814,20 @@ export default function App() {
             </label>
             <label>
               Modell
-              <input type="text" value={reviewConfig.model} onChange={(e) => setReviewConfig((current) => ({ ...current, model: e.target.value }))} />
+              <input
+                type="text"
+                list="ollama-model-suggestions"
+                placeholder="z.B. qwen2.5:7b-instruct"
+                value={reviewConfig.model}
+                onChange={(e) => setReviewConfig((current) => ({ ...current, model: e.target.value }))}
+              />
+              <datalist id="ollama-model-suggestions">
+                {ollamaModelNames.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+              <small className="field-hint">Freitext. Bei Ollama einfach den exakten Modellnamen eintragen.</small>
+              <small className="field-hint">{modelDiscoveryStatus}</small>
             </label>
             <label>
               API-Key

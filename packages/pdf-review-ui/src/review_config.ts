@@ -11,7 +11,7 @@ export type ReviewConfig = {
 };
 
 export const defaultReviewConfig: ReviewConfig = {
-  providerPreset: 'openai-compatible',
+  providerPreset: 'ollama',
   baseUrl: '',
   apiPath: '/v1',
   model: '',
