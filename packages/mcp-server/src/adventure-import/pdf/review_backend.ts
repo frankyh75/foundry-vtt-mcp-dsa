@@ -148,6 +148,46 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === 'GET' && segments[2] === 'pages' && segments[3]) {
+    const pageNum = Number.parseInt(segments[3].split('.')[0] ?? '', 10);
+    if (Number.isNaN(pageNum) || pageNum < 1) {
+      sendJson(res, 400, { error: 'Invalid page number.' });
+      return;
+    }
+    const pdfPath = join(sessionDir, 'source.pdf');
+    if (!existsSync(pdfPath)) {
+      sendJson(res, 404, { error: 'No PDF uploaded yet for this session.' });
+      return;
+    }
+    const { rename } = await import('node:fs/promises');
+    const { execFile } = await import('node:child_process');
+    const pageImageDir = join(sessionDir, 'pages');
+    const pageImagePath = join(pageImageDir, `${pageNum}.png`);
+    if (!existsSync(pageImagePath)) {
+      await mkdir(pageImageDir, { recursive: true });
+      const tmpName = 'page-tmp';
+      const tmpPrefix = join(pageImageDir, tmpName);
+      await new Promise<void>((resolve, reject) => {
+        execFile('pdftoppm', ['-png', '-r', '150', '-f', String(pageNum), '-l', String(pageNum), pdfPath, tmpPrefix], (error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+      const generated = join(pageImageDir, `${tmpName}-${pageNum}.png`);
+      if (existsSync(generated)) {
+        await rename(generated, pageImagePath);
+      }
+    }
+    if (existsSync(pageImagePath)) {
+      sendCors(res);
+      res.setHeader('Content-Type', 'image/png');
+      res.end(await readFile(pageImagePath));
+      return;
+    }
+    sendJson(res, 500, { error: 'Failed to render page image.' });
+    return;
+  }
+
   if (req.method === 'GET' && segments[2] === 'ir') {
     const ir = await loadSourceIr(sessionDir);
     if (!ir) {

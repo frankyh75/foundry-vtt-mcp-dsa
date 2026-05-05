@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { applyPresetDefaults, defaultReviewConfig, normalizeReviewConfig, reviewConfigLabel, type ReviewBackendPreset, type ReviewConfig } from './review_config';
+import EditorToolbar from './EditorToolbar';
+import PropertyPanel from './PropertyPanel';
+import { DSA_BLOCK_LABELS, DSA_BLOCK_COLORS, type DsaBlockType, type EditorTool } from './dsaTypes';
 
 type PdfBBox = { x: number; y: number; w: number; h: number };
 
@@ -167,6 +170,8 @@ export default function App() {
   const [ollamaModelNames, setOllamaModelNames] = useState<string[]>([...ollamaModelSuggestions]);
   const [modelDiscoveryStatus, setModelDiscoveryStatus] = useState('Lokale Ollama-Modelle noch nicht abgefragt.');
   const [engineStatus, setEngineStatus] = useState<{ ocr: string; llm: string }>({ ocr: 'Unbekannt', llm: 'Unbekannt' });
+  const [activeTool, setActiveTool] = useState<EditorTool>('select');
+  const [editTextValue, setEditTextValue] = useState('');
 
   const projectedIr = useMemo(() => applyUiAnnotationsToIr(ir, annotations), [ir, annotations]);
   const displayIr = viewMode === 'projected' ? projectedIr : ir;
@@ -435,7 +440,12 @@ export default function App() {
 
   function applySelectedIgnore() {
     if (!selectedBlock) return;
-    createAnnotation('ignore', { reason: 'decorative or irrelevant' }, 'block');
+    createAnnotation('ignore', { reason: 'manually ignored' }, 'block');
+  }
+
+  function applySelectedDelete() {
+    if (!selectedBlock) return;
+    createAnnotation('ignore', { reason: 'deleted' }, 'block');
   }
 
   function applyMergeSelection() {
@@ -1012,10 +1022,8 @@ export default function App() {
               <span><strong>PDF:</strong> {pdfName}</span>
               <span className="muted">· Ansicht: {viewMode === 'projected' ? 'projiziert' : 'Quelle'}</span>
             </div>
+            <EditorToolbar activeTool={activeTool} onToolChange={setActiveTool} disabled={!sessionId} />
             <div className="viewer-toolbar-right">
-              <button type="button" onClick={() => setViewMode((mode) => (mode === 'projected' ? 'source' : 'projected'))}>
-                {viewMode === 'projected' ? 'Quelle anzeigen' : 'Projektion anzeigen'}
-              </button>
               <div className="page-controls">
                 <button type="button" onClick={() => setPageNumber((p) => Math.max(1, p - 1))}>◀</button>
                 <input
@@ -1089,65 +1097,36 @@ export default function App() {
                 <div className="selection-hint">
                   {selectedBlockIds.length > 1 ? `${selectedBlockIds.length} Blöcke markiert` : 'Ein Block markiert'}
                 </div>
-                <div className="detail-grid">
-                  <label>
-                    Kategorie
-                    <select value={selectedBlockType} onChange={(e) => setSelectedBlockType(e.target.value as typeof selectedBlockType)}>
-                      {blockTypeOptions.map((value) => (
-                        <option key={value} value={value}>{value}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Reading Order
-                    <input type="number" value={readingOrder} onChange={(e) => setReadingOrder(e.target.value)} />
-                  </label>
-                  <label>
-                    Stub-Typ
-                    <select value={selectedStubType} onChange={(e) => setSelectedStubType(e.target.value as typeof selectedStubType)}>
-                      {stubTypeOptions.map((value) => (
-                        <option key={value} value={value}>{value}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Zeichenmodus
-                    <select value={draftMode} onChange={(e) => setDraftMode(e.target.value as DraftMode)}>
-                      <option value="split">split</option>
-                      <option value="relabel">relabel</option>
-                      <option value="mark_stub">mark_stub</option>
-                      <option value="ignore">ignore</option>
-                    </select>
-                  </label>
-                </div>
-                <textarea
-                  className="comment-box"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Kommentar für spätere Regeln oder Prüfung"
+                <PropertyPanel
+                  boxId={selectedBlock.id}
+                  boxType={(selectedBlock.blockType ?? 'unbekannt') as import('./dsaTypes').DsaBlockType}
+                  boxBbox={selectedBlock.bbox}
+                  boxText={selectedBlock.textRaw}
+                  readingOrder={selectedBlock.readingOrder}
+                  activeTool={activeTool}
+                  onTypeChange={(type) => {
+                    setSelectedBlockType(type as typeof selectedBlockType);
+                    createAnnotation(
+                      'relabel',
+                      {
+                        blockType: type,
+                        roleHint: type === 'person' ? 'npc_profile' : type,
+                        readingOrder: selectedBlock.readingOrder,
+                        sourceBlockId: selectedBlock.id,
+                      },
+                      'block'
+                    );
+                  }}
+                  onTextChange={setEditTextValue}
+                  onTextSave={() => {
+                    if (editTextValue) {
+                      createAnnotation('relabel', { textRaw: editTextValue, sourceBlockId: selectedBlock.id }, 'block');
+                      setEditTextValue('');
+                    }
+                  }}
+                  onTextCancel={() => setEditTextValue('')}
+                  onDelete={applySelectedDelete}
                 />
-                <div className="action-row">
-                  <button type="button" onClick={applySelectedReclassify}>Reclassify</button>
-                  <button type="button" onClick={applySelectedReadingOrderFix}>Fix order</button>
-                  <button type="button" onClick={applySelectedStub}>Mark as stub</button>
-                  <button type="button" onClick={applySelectedIgnore}>Ignore</button>
-                  <button type="button" onClick={applyMergeSelection} disabled={selectedBlockIds.length < 2}>
-                    Merge selected
-                  </button>
-                </div>
-                <p className="muted">
-                  Ziehe im PDF einen Bereich auf, um eine {draftMode}-Anmerkung für den markierten Bereich zu erzeugen.
-                </p>
-                <div className="panel-split">
-                  <div>
-                    <h3>Original</h3>
-                    <pre className="json-block">{JSON.stringify(selectedBlockSource ?? selectedBlock, null, 2)}</pre>
-                  </div>
-                  <div>
-                    <h3>Projektion</h3>
-                    <pre className="json-block">{JSON.stringify(selectedBlockProjected ?? selectedBlock, null, 2)}</pre>
-                  </div>
-                </div>
               </>
             ) : (
               <p>Kein Block ausgewählt.</p>
