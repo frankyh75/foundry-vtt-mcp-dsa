@@ -172,6 +172,7 @@ export default function App() {
   const [engineStatus, setEngineStatus] = useState<{ ocr: string; llm: string }>({ ocr: 'Unbekannt', llm: 'Unbekannt' });
   const [activeTool, setActiveTool] = useState<EditorTool>('select');
   const [editTextValue, setEditTextValue] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
 
   const projectedIr = useMemo(() => applyUiAnnotationsToIr(ir, annotations), [ir, annotations]);
   const displayIr = viewMode === 'projected' ? projectedIr : ir;
@@ -777,14 +778,6 @@ export default function App() {
           <p>Lokale 3-Spalten-Ansicht: Seiten, PDF-Preview und Korrektur mit sichtbarer Projektion.</p>
         </div>
         <div className="topbar-actions">
-          <label className="inline-field">
-            API
-            <input type="text" value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
-          </label>
-          <label className="inline-field">
-            Session
-            <input type="text" value={sessionId} onChange={(e) => setSessionId(normalizeSessionId(e.target.value))} />
-          </label>
           <label className="file-button">
             PDF laden
             <input type="file" accept="application/pdf" onChange={(e) => void handlePdfFile(e.target.files?.[0] ?? null)} />
@@ -793,26 +786,49 @@ export default function App() {
             IR laden
             <input type="file" accept="application/json" onChange={(e) => void handleIrFile(e.target.files?.[0] ?? null)} />
           </label>
-          <button type="button" onClick={() => void checkBackendHealth()}>
-            Backend prüfen
-          </button>
-          <button type="button" onClick={() => void loadSessionFromBackend()}>
-            Session laden
-          </button>
-          <button type="button" onClick={() => void saveCurrentSession()}>
-            Session speichern
-          </button>
-          <button type="button" onClick={() => void handleAnalyzePdf()} disabled={analysisRunning}>
-            {analysisRunning ? 'Analysiere…' : 'Analysieren'}
-          </button>
-          <button type="button" onClick={exportAnnotations}>
-            Annotationen exportieren
-          </button>
-          <button type="button" onClick={exportProjectedIr}>
-            Projektion exportieren
+          <button
+            type="button"
+            className={`settings-toggle ${showSettings ? 'active' : ''}`}
+            onClick={() => setShowSettings((s) => !s)}
+            title="Backend-Konfiguration & Experten-Optionen"
+          >
+            ⚙
           </button>
         </div>
       </header>
+
+      {showSettings ? (
+        <section className="settings-dropdown">
+          <div className="settings-row">
+            <label className="inline-field">
+              API
+              <input type="text" value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
+            </label>
+            <label className="inline-field">
+              Session
+              <input type="text" value={sessionId} onChange={(e) => setSessionId(normalizeSessionId(e.target.value))} />
+            </label>
+            <button type="button" onClick={() => void checkBackendHealth()}>
+              Backend prüfen
+            </button>
+            <button type="button" onClick={() => void loadSessionFromBackend()}>
+              Session laden
+            </button>
+            <button type="button" onClick={() => void saveCurrentSession()}>
+              Session speichern
+            </button>
+            <button type="button" onClick={() => void handleAnalyzePdf()} disabled={analysisRunning}>
+              {analysisRunning ? 'Analysiere…' : 'Analysieren'}
+            </button>
+            <button type="button" onClick={exportAnnotations}>
+              Annotationen exportieren
+            </button>
+            <button type="button" onClick={exportProjectedIr}>
+              Projektion exportieren
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <div className="statusbar">
         <span>{status}</span>
@@ -820,125 +836,127 @@ export default function App() {
         <span>{error ?? ''}</span>
       </div>
 
-      <section className="config-strip">
-        <div className="panel config-panel">
-          <div className="panel-header">
-            <h2>Import-Wizard</h2>
-            <span className="pill">{configStatus}</span>
-            <span className={`pill ${engineStatus.ocr === 'Keine OCR' ? 'err' : engineStatus.ocr === 'Fehler' ? 'warn' : 'ok'}`} title="OCR-Engines">
-              OCR: {engineStatus.ocr}
-            </span>
-            <span className={`pill ${engineStatus.llm === 'Keine LLM' ? 'err' : engineStatus.llm === 'Fehler' ? 'warn' : 'ok'}`} title="LLM-Engine">
-              LLM: {engineStatus.llm}
-            </span>
+      {showSettings ? (
+        <section className="config-strip">
+          <div className="panel config-panel">
+            <div className="panel-header">
+              <h2>Import-Wizard</h2>
+              <span className="pill">{configStatus}</span>
+              <span className={`pill ${engineStatus.ocr === 'Keine OCR' ? 'err' : engineStatus.ocr === 'Fehler' ? 'warn' : 'ok'}`} title="OCR-Engines">
+                OCR: {engineStatus.ocr}
+              </span>
+              <span className={`pill ${engineStatus.llm === 'Keine LLM' ? 'err' : engineStatus.llm === 'Fehler' ? 'warn' : 'ok'}`} title="LLM-Engine">
+                LLM: {engineStatus.llm}
+              </span>
+            </div>
+            <div className="detail-grid config-grid">
+              <label>
+                Backend-Preset
+                <select
+                  value={reviewConfig.providerPreset}
+                  onChange={(e) => setReviewConfig((current) => applyPresetDefaults(current, e.target.value as ReviewBackendPreset))}
+                >
+                  <option value="openai-compatible">OpenAI-compatible</option>
+                  <option value="ollama">Ollama</option>
+                  <option value="lmstudio">LM Studio</option>
+                  <option value="lemonade">Lemonade</option>
+                </select>
+              </label>
+              <label>
+                Base URL
+                <input type="text" value={reviewConfig.baseUrl} onChange={(e) => setReviewConfig((current) => ({ ...current, baseUrl: e.target.value }))} />
+              </label>
+              <label>
+                API-Pfad
+                <input type="text" value={reviewConfig.apiPath} onChange={(e) => setReviewConfig((current) => ({ ...current, apiPath: e.target.value }))} />
+              </label>
+              <label>
+                Modell
+                <input
+                  type="text"
+                  list="ollama-model-suggestions"
+                  placeholder="z.B. qwen2.5:7b-instruct"
+                  value={reviewConfig.model}
+                  onChange={(e) => setReviewConfig((current) => ({ ...current, model: e.target.value }))}
+                />
+                <datalist id="ollama-model-suggestions">
+                  {ollamaModelNames.map((model) => (
+                    <option key={model} value={model} />
+                  ))}
+                </datalist>
+                <small className="field-hint">Freitext. Bei Ollama einfach den exakten Modellnamen eintragen.</small>
+                <small className="field-hint">{modelDiscoveryStatus}</small>
+              </label>
+              <label>
+                API-Key
+                <input type="password" value={reviewConfig.apiKey} onChange={(e) => setReviewConfig((current) => ({ ...current, apiKey: e.target.value }))} />
+              </label>
+              <label>
+                OCR-Engine
+                <select
+                  value={reviewConfig.ocrEngine}
+                  onChange={(e) => setReviewConfig((current) => ({ ...current, ocrEngine: e.target.value as ReviewConfig['ocrEngine'] }))}
+                >
+                  <option value="auto">Auto (Marker bevorzugt, Fallback Tesseract)</option>
+                  <option value="tesseract">Tesseract (klassisch, schnell)</option>
+                  <option value="marker">Marker (ML-basiert, falls installiert)</option>
+                </select>
+                <small className="field-hint">Auto = Marker wenn verfügbar, sonst Tesseract. Marker braucht Python + PyTorch.</small>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={reviewConfig.showExpertView}
+                  onChange={(e) => setReviewConfig((current) => ({ ...current, showExpertView: e.target.checked }))}
+                />
+                Expertenansicht (JSON-Panel)
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={reviewConfig.rememberLastSettings}
+                  onChange={(e) => setReviewConfig((current) => ({ ...current, rememberLastSettings: e.target.checked }))}
+                />
+                Letzte Einstellungen merken
+              </label>
+            </div>
+            <div className="action-row">
+              <button type="button" onClick={() => void loadReviewConfigFromBackend()}>
+                Konfig laden
+              </button>
+              <button type="button" onClick={() => void saveReviewConfigToBackend()}>
+                Konfig speichern
+              </button>
+              <button type="button" onClick={() => void handleAnalyzePdf()} disabled={analysisRunning}>
+                {analysisRunning ? 'Analysiere…' : 'PDF analysieren'}
+              </button>
+            </div>
+            {reviewConfig.showExpertView ? (
+              <details open>
+                <summary>Expertenansicht: lokale review-config.json</summary>
+                <pre className="json-block">{JSON.stringify(reviewConfig, null, 2)}</pre>
+              </details>
+            ) : null}
           </div>
-          <div className="detail-grid config-grid">
-            <label>
-              Backend-Preset
-              <select
-                value={reviewConfig.providerPreset}
-                onChange={(e) => setReviewConfig((current) => applyPresetDefaults(current, e.target.value as ReviewBackendPreset))}
-              >
-                <option value="openai-compatible">OpenAI-compatible</option>
-                <option value="ollama">Ollama</option>
-                <option value="lmstudio">LM Studio</option>
-                <option value="lemonade">Lemonade</option>
-              </select>
-            </label>
-            <label>
-              Base URL
-              <input type="text" value={reviewConfig.baseUrl} onChange={(e) => setReviewConfig((current) => ({ ...current, baseUrl: e.target.value }))} />
-            </label>
-            <label>
-              API-Pfad
-              <input type="text" value={reviewConfig.apiPath} onChange={(e) => setReviewConfig((current) => ({ ...current, apiPath: e.target.value }))} />
-            </label>
-            <label>
-              Modell
-              <input
-                type="text"
-                list="ollama-model-suggestions"
-                placeholder="z.B. qwen2.5:7b-instruct"
-                value={reviewConfig.model}
-                onChange={(e) => setReviewConfig((current) => ({ ...current, model: e.target.value }))}
-              />
-              <datalist id="ollama-model-suggestions">
-                {ollamaModelNames.map((model) => (
-                  <option key={model} value={model} />
-                ))}
-              </datalist>
-              <small className="field-hint">Freitext. Bei Ollama einfach den exakten Modellnamen eintragen.</small>
-              <small className="field-hint">{modelDiscoveryStatus}</small>
-            </label>
-            <label>
-              API-Key
-              <input type="password" value={reviewConfig.apiKey} onChange={(e) => setReviewConfig((current) => ({ ...current, apiKey: e.target.value }))} />
-            </label>
-            <label>
-              OCR-Engine
-              <select
-                value={reviewConfig.ocrEngine}
-                onChange={(e) => setReviewConfig((current) => ({ ...current, ocrEngine: e.target.value as ReviewConfig['ocrEngine'] }))}
-              >
-                <option value="auto">Auto (Marker bevorzugt, Fallback Tesseract)</option>
-                <option value="tesseract">Tesseract (klassisch, schnell)</option>
-                <option value="marker">Marker (ML-basiert, falls installiert)</option>
-              </select>
-              <small className="field-hint">Auto = Marker wenn verfügbar, sonst Tesseract. Marker braucht Python + PyTorch.</small>
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={reviewConfig.showExpertView}
-                onChange={(e) => setReviewConfig((current) => ({ ...current, showExpertView: e.target.checked }))}
-              />
-              Expertenansicht (JSON-Panel)
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={reviewConfig.rememberLastSettings}
-                onChange={(e) => setReviewConfig((current) => ({ ...current, rememberLastSettings: e.target.checked }))}
-              />
-              Letzte Einstellungen merken
-            </label>
-          </div>
-          <div className="action-row">
-            <button type="button" onClick={() => void loadReviewConfigFromBackend()}>
-              Konfig laden
-            </button>
-            <button type="button" onClick={() => void saveReviewConfigToBackend()}>
-              Konfig speichern
-            </button>
-            <button type="button" onClick={() => void handleAnalyzePdf()} disabled={analysisRunning}>
-              {analysisRunning ? 'Analysiere…' : 'PDF analysieren'}
-            </button>
-          </div>
-          {reviewConfig.showExpertView ? (
-            <details open>
-              <summary>Expertenansicht: lokale review-config.json</summary>
-              <pre className="json-block">{JSON.stringify(reviewConfig, null, 2)}</pre>
-            </details>
-          ) : null}
-        </div>
 
-        <div className="panel preview-panel">
-          <div className="panel-header">
-            <h2>Dokumentvorschau</h2>
-            <span className="pill">{pdfDocRef.current ? `${pdfDocRef.current.numPages} Seiten` : 'kein PDF'}</span>
+          <div className="panel preview-panel">
+            <div className="panel-header">
+              <h2>Dokumentvorschau</h2>
+              <span className="pill">{pdfDocRef.current ? `${pdfDocRef.current.numPages} Seiten` : 'kein PDF'}</span>
+            </div>
+            {previewImageUrl ? (
+              <img className="preview-image" src={previewImageUrl} alt={`Vorschau von ${pdfName}`} />
+            ) : (
+              <p>Nach dem Laden wird hier eine kleine Vorschau angezeigt.</p>
+            )}
+            <ul className="preview-meta">
+              <li><strong>Datei:</strong> {pdfName}</li>
+              <li><strong>Seite:</strong> {pageNumber}</li>
+              <li><strong>Session:</strong> {sessionId || '–'}</li>
+            </ul>
           </div>
-          {previewImageUrl ? (
-            <img className="preview-image" src={previewImageUrl} alt={`Vorschau von ${pdfName}`} />
-          ) : (
-            <p>Nach dem Laden wird hier eine kleine Vorschau angezeigt.</p>
-          )}
-          <ul className="preview-meta">
-            <li><strong>Datei:</strong> {pdfName}</li>
-            <li><strong>Seite:</strong> {pageNumber}</li>
-            <li><strong>Session:</strong> {sessionId || '–'}</li>
-          </ul>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       <main className="workspace">
         <section className="navigator-column">

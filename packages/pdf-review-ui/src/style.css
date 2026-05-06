@@ -82,6 +82,39 @@ button:hover,
   flex-wrap: wrap;
 }
 
+.settings-toggle {
+  font-size: 1.35rem;
+  line-height: 1;
+  width: 2.5rem;
+  padding: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.settings-toggle:hover {
+  transform: rotate(30deg);
+}
+
+.settings-toggle.active {
+  border-color: #60a5fa;
+  background: #1e293b;
+  color: #60a5fa;
+}
+
+.settings-dropdown {
+  background: rgba(15, 23, 42, 0.96);
+  border-bottom: 1px solid #1f2937;
+  padding: 0.75rem 1.25rem;
+}
+
+.settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
 .inline-field {
   display: inline-flex;
   flex-direction: column;
