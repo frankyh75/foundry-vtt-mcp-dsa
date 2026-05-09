@@ -262,7 +262,19 @@ Das System muss **NICHT** perfekt automatisch klassifizieren. Das System muss de
 
 ---
 
-## Nächste Schritte
+## Extrahierte Schlüsselseiten (für wiederkehrende Tests)
+
+| Datei | Seite | Inhalt | Größe | Format |
+|-------|-------|--------|-------|--------|
+| `Deicherbe-p08-elidan.pdf` | 8 | Elidan NSC-Profil (einzelner NSC mit Porträt) | 4.1 MB | PDF 1.3, 1 Seite |
+| `Deicherbe-p09-kinder.pdf` | 9 | Elidans Kinder (5 NSCs in Absätzen, Gruppenillustration) | 4.7 MB | PDF 1.3, 1 Seite |
+| `Deicherbe-p12-deichbauern.pdf` | 12 | Deichbauern Statblock (Wertekasten mit Rahmen) | 5.5 MB | PDF 1.3, 1 Seite |
+| `Deicherbe-p16-krakenmolch.pdf` | 16 | Krakenmolch Creature (Monster ohne Porträt) | 5.7 MB | PDF 1.3, 1 Seite |
+| `Deicherbe-p17-orknase.pdf` | 17 | Orknase + Thorwalerschild (Kampfwerte) | 5.4 MB | PDF 1.3, 1 Seite |
+
+**Wichtig:** Die Einzelseiten-PDFs behalten das **originale PDF-Format** (Version 1.3, image-basiert). Sie können direkt an Marker/Backend für wiederkehrende Tests übergeben werden.
+
+---
 
 1. **Entity-Namensextraktion fixen** — `extractLabel()` in `heuristics_classification.ts` muss mit verstümmelter OCR umgehen
 2. **Statblock-Erkennung verbessern** — Heuristik auf Block-Text: MU/LeP/AT/TP-Patterns → auto-label als `stat_block`
