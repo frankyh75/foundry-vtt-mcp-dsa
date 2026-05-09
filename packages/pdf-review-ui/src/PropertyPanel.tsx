@@ -1,5 +1,6 @@
 import ClassificationBox from './ClassificationBox';
 import TextEditBox from './TextEditBox';
+import CommentBox from './CommentBox';
 import { DSA_BLOCK_LABELS, type DsaBlockType, type PdfBBox } from './dsaTypes';
 
 interface PropertyPanelProps {
@@ -10,10 +11,12 @@ interface PropertyPanelProps {
   readingOrder?: number;
   suggestedType?: DsaBlockType | null;
   activeTool: string;
+  comment?: string;
   onTypeChange: (type: DsaBlockType) => void;
   onTextChange: (text: string) => void;
   onTextSave?: () => void;
   onTextCancel?: () => void;
+  onCommentChange: (comment: string) => void;
   onDelete: () => void;
   onAcceptSuggestion?: () => void;
 }
@@ -26,10 +29,12 @@ export default function PropertyPanel({
   readingOrder,
   suggestedType,
   activeTool,
+  comment = '',
   onTypeChange,
   onTextChange,
   onTextSave,
   onTextCancel,
+  onCommentChange,
   onDelete,
   onAcceptSuggestion,
 }: PropertyPanelProps) {
@@ -87,6 +92,12 @@ export default function PropertyPanel({
           <div className="text-preview">{boxText || '—'}</div>
         </div>
       )}
+
+      <CommentBox
+        comment={comment}
+        onChange={onCommentChange}
+        onSave={() => {}}
+      />
 
       <div className="panel-actions">
         <button className="btn-danger" onClick={onDelete}>Block löschen</button>

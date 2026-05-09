@@ -36,7 +36,7 @@ type PdfAnnotation = {
   id: string;
   targetType: 'document' | 'page' | 'block' | 'section' | 'entityCandidate' | 'entityStub';
   targetId: string;
-  action: 'relabel' | 'split' | 'merge' | 'mark_stub' | 'ignore' | 'fix_reading_order' | 'promote_candidate' | 'reject_candidate';
+  action: 'relabel' | 'split' | 'merge' | 'mark_stub' | 'ignore' | 'fix_reading_order' | 'promote_candidate' | 'reject_candidate' | 'add_comment';
   payload: Record<string, unknown>;
   comment?: string;
   author: string;
@@ -1213,6 +1213,42 @@ export default function App() {
                   }}
                   onTextCancel={() => setEditTextValue('')}
                   onDelete={applySelectedDelete}
+                  comment={(() => {
+                    const ann = annotations.find((a) => a.targetId === selectedBlock.id && a.action === 'add_comment');
+                    return ann?.comment ?? '';
+                  })()}
+                  onCommentChange={(newComment) => {
+                    const existingIndex = annotations.findIndex((a) => a.targetId === selectedBlock.id && a.action === 'add_comment');
+                    if (newComment === '') {
+                      if (existingIndex >= 0) {
+                        const next = [...annotations];
+                        next.splice(existingIndex, 1);
+                        persistAnnotations(next);
+                      }
+                      return;
+                    }
+                    const ann: UiAnnotation = {
+                      id: `ann-comment-${selectedBlock.id}-${Date.now()}`,
+                      targetType: 'block',
+                      targetId: selectedBlock.id,
+                      action: 'add_comment',
+                      payload: {},
+                      comment: newComment,
+                      author: 'user',
+                      createdAt: new Date().toISOString(),
+                      source: 'ui',
+                      sourceBlockIds: [selectedBlock.id],
+                      confidence: 1,
+                      provenance: { producer: 'ui', rule: 'manual_comment.v1' },
+                    };
+                    if (existingIndex >= 0) {
+                      const next = [...annotations];
+                      next[existingIndex] = ann;
+                      persistAnnotations(next);
+                    } else {
+                      persistAnnotations([...annotations, ann]);
+                    }
+                  }}
                 />
               </>
             ) : (
