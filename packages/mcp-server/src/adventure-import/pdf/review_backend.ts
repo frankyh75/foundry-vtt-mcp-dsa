@@ -80,6 +80,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/health') {
+    sendJson(res, 200, { status: 'ok', dataDir: DATA_DIR });
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/config') {
     const config = await loadReviewConfig(CONFIG_PATH);
     sendJson(res, 200, config);

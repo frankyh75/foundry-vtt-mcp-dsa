@@ -22,31 +22,27 @@ test.describe('PDF Review UI', () => {
 
   test('Session Deicherbe1 laden zeigt Blocks', async ({ page }) => {
     await page.goto('/');
-    // Fill session input and load
-    const inputs = page.locator('input[type="text"]');
-    await inputs.first().fill('Deicherbe1');
+    // Session-Input ist jetzt direkt in der Topbar sichtbar
+    await page.locator('input[placeholder="Session-ID"]').fill('Deicherbe1');
     await page.getByRole('button', { name: /Session laden/i }).click();
 
-    // Wait for canvas or page rendering
-    await page.waitForSelector('.page-stage', { timeout: 15000 });
-    await page.waitForTimeout(2000); // Let blocks render
+    // Wait for session loaded indicator
+    await expect(page.getByText('Session Deicherbe1 geladen.')).toBeVisible({ timeout: 15000 });
 
-    // Check that the canvas/preview area exists
-    const stage = page.locator('.page-stage');
-    await expect(stage).toBeVisible();
+    // Bounding Boxes should appear
+    await expect(page.locator('.block-box').first()).toBeVisible({ timeout: 15000 });
 
     // Screenshot for manual inspection
     await page.screenshot({ path: '/tmp/playwright-deicherbe1-loaded.png' });
 
-    // Try to click first block if any exist; if none, take note
+    // Click first block
     const blocks = page.locator('.block-box');
     const count = await blocks.count();
-    if (count > 0) {
-      await blocks.first().click();
-      // PropertyPanel should become active when a block is selected
-      const panel = page.locator('.property-panel');
-      await expect(panel).toBeVisible();
-    }
+    expect(count).toBeGreaterThan(0);
+    await blocks.first().click();
+    // PropertyPanel should become active when a block is selected
+    const panel = page.locator('.property-panel');
+    await expect(panel).toBeVisible();
   });
 
   test('Backend liefert Seitenbild als PNG', async () => {

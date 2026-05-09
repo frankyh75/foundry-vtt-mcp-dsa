@@ -2,7 +2,7 @@ import { EDITOR_TOOLS, EDITOR_TOOL_LABELS, type EditorTool } from './dsaTypes';
 
 interface EditorToolbarProps {
   activeTool: EditorTool;
-  onToolChange: (tool: EditorTool) => void;
+  onAction: (tool: EditorTool) => void;
   disabled?: boolean;
 }
 
@@ -16,14 +16,14 @@ const toolIcons: Record<EditorTool, string> = {
   'ai-chat': '🤖',
 };
 
-export default function EditorToolbar({ activeTool, onToolChange, disabled }: EditorToolbarProps) {
+export default function EditorToolbar({ activeTool, onAction, disabled }: EditorToolbarProps) {
   return (
     <div className="editor-toolbar">
       {EDITOR_TOOLS.map((tool) => (
         <button
           key={tool}
           className={`tool-btn ${activeTool === tool ? 'active' : ''}`}
-          onClick={() => onToolChange(tool)}
+          onClick={() => onAction(tool)}
           disabled={disabled}
           title={EDITOR_TOOL_LABELS[tool]}
         >

@@ -131,6 +131,11 @@ button:hover,
   padding: 0.6rem 0.85rem;
 }
 
+.session-field input {
+  min-width: 8rem;
+  max-width: 12rem;
+}
+
 .statusbar {
   display: flex;
   justify-content: space-between;
@@ -296,6 +301,21 @@ button:hover,
 .block-footer,
 .block-header,
 .block-unknown { border-color: rgba(148, 163, 184, 0.5); }
+
+/* DSA-spezifische Block-Typen */
+.block-überschrift { border-color: #e74c3c; background: rgba(231, 76, 60, 0.15); }
+.block-vorlesetext { border-color: #27ae60; background: rgba(39, 174, 96, 0.15); }
+.block-spielleiter-info { border-color: #f39c12; background: rgba(243, 156, 18, 0.15); }
+.block-person { border-color: #9b59b6; background: rgba(155, 89, 182, 0.15); }
+.block-ort { border-color: #3498db; background: rgba(52, 152, 219, 0.15); }
+.block-szene { border-color: #e67e22; background: rgba(230, 126, 34, 0.15); }
+.block-würfelprobe { border-color: #1abc9c; background: rgba(26, 188, 156, 0.15); }
+.block-gegenstand { border-color: #95a5a6; background: rgba(149, 165, 166, 0.15); }
+.block-regelbox { border-color: #34495e; background: rgba(52, 73, 94, 0.15); }
+.block-tabelle { border-color: #16a085; background: rgba(22, 160, 133, 0.15); }
+.block-stimmungstext { border-color: #d35400; background: rgba(211, 84, 0, 0.15); }
+.block-dekoration { border-color: #bdc3c7; background: rgba(189, 195, 199, 0.15); }
+.block-unbekannt { border-color: #7f8c8d; background: rgba(127, 140, 141, 0.15); }
 
 .draft-box {
   position: absolute;

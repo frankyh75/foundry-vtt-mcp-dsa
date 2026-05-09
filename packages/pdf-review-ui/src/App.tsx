@@ -173,6 +173,8 @@ export default function App() {
   const [activeTool, setActiveTool] = useState<EditorTool>('select');
   const [editTextValue, setEditTextValue] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [isLoading, setIsLoading] = useState(false);
 
   const projectedIr = useMemo(() => applyUiAnnotationsToIr(ir, annotations), [ir, annotations]);
   const displayIr = viewMode === 'projected' ? projectedIr : ir;
@@ -256,10 +258,13 @@ export default function App() {
 
     const page = await pdfDocRef.current.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 1 });
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    canvas.style.width = `${Math.ceil(viewport.width)}px`;
-    canvas.style.height = `${Math.ceil(viewport.height)}px`;
+    const vw = Math.ceil(viewport.width);
+    const vh = Math.ceil(viewport.height);
+    canvas.width = vw;
+    canvas.height = vh;
+    canvas.style.width = `${vw}px`;
+    canvas.style.height = `${vh}px`;
+    setCanvasSize({ width: vw, height: vh });
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -507,12 +512,14 @@ export default function App() {
   }
 
   function resolveSessionId(preferred?: string): string {
-    const fromState = normalizeSessionId(preferred ?? sessionId);
+    const fromPreferred = preferred ? normalizeSessionId(preferred) : '';
+    if (fromPreferred) return fromPreferred;
+    const fromState = normalizeSessionId(sessionId);
     if (fromState) return fromState;
     const fromIr = normalizeSessionId(irRef.current.document.id);
-    if (fromIr) return fromIr;
+    if (fromIr && fromIr !== 'unloaded') return fromIr;
     const fromPdf = normalizeSessionId(pdfName.replace(/\.[^.]+$/, ''));
-    if (fromPdf) return fromPdf;
+    if (fromPdf && fromPdf !== 'kein_pdf_geladen') return fromPdf;
     return 'review-session';
   }
 
@@ -674,6 +681,44 @@ export default function App() {
     }
   }
 
+  function handleToolbarAction(tool: EditorTool) {
+    switch (tool) {
+      case 'merge':
+        applyMergeSelection();
+        break;
+      case 'delete':
+        if (selectedBlock) {
+          applySelectedDelete();
+        } else if (selectedBlockIds.length > 0) {
+          for (const id of selectedBlockIds) {
+            const block = visibleBlocks.find((b) => b.id === id);
+            if (block) {
+              setSelectedBlockId(block.id);
+              setSelectedBlockType(block.blockType as typeof selectedBlockType);
+              createAnnotation('ignore', { reason: 'deleted' }, 'block');
+            }
+          }
+          setStatus(`${selectedBlockIds.length} Blöcke als gelöscht markiert.`);
+        }
+        break;
+      case 'split':
+        setDraftMode('split');
+        break;
+      case 'edit-text':
+        if (selectedBlock) {
+          setEditTextValue(selectedBlock.textRaw || '');
+        }
+        break;
+      case 'draw':
+        setDraftMode('relabel');
+        break;
+      case 'select':
+      case 'ai-chat':
+      default:
+        break;
+    }
+  }
+
   async function saveCurrentSession(sessionOverride?: string, annotationsOverride?: UiAnnotation[]): Promise<void> {
     const targetSessionId = resolveSessionId(sessionOverride);
     const base = normalizeApiBase(apiBase);
@@ -767,8 +812,22 @@ export default function App() {
     }
   }
 
-  const pageWidth = currentPage?.width ?? canvasRef.current?.width ?? 0;
-  const pageHeight = currentPage?.height ?? canvasRef.current?.height ?? 0;
+  function getBlockScaledBbox(block: PdfBlock): PdfBBox {
+    if (!canvasSize.width || !canvasSize.height) return block.bbox;
+    // BBox-Koordinaten sind oft im OCR-Pixel-Raum (z.B. 150 DPI), nicht im PDF-Punkt-Raum (72 DPI).
+    // Skaliere dynamisch: max(BBox) -> Canvas-Größe, statt feste page.width/page.height zu nutzen.
+    const pageBlocks = displayIr.blocks.filter((b) => b.pageNumber === block.pageNumber);
+    const maxX = Math.max(...pageBlocks.map((b) => b.bbox.x + b.bbox.w), 1);
+    const maxY = Math.max(...pageBlocks.map((b) => b.bbox.y + b.bbox.h), 1);
+    const scaleX = canvasSize.width / maxX;
+    const scaleY = canvasSize.height / maxY;
+    return {
+      x: block.bbox.x * scaleX,
+      y: block.bbox.y * scaleY,
+      w: block.bbox.w * scaleX,
+      h: block.bbox.h * scaleY,
+    };
+  }
 
   return (
     <div className="app-shell">
@@ -786,6 +845,18 @@ export default function App() {
             IR laden
             <input type="file" accept="application/json" onChange={(e) => void handleIrFile(e.target.files?.[0] ?? null)} />
           </label>
+          <label className="inline-field session-field">
+            <input
+              type="text"
+              value={sessionId}
+              placeholder="Session-ID"
+              onChange={(e) => setSessionId(normalizeSessionId(e.target.value))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void loadSessionFromBackend(); } }}
+            />
+          </label>
+          <button type="button" onClick={() => void loadSessionFromBackend()} disabled={!sessionId}>
+            Session laden
+          </button>
           <button
             type="button"
             className={`settings-toggle ${showSettings ? 'active' : ''}`}
@@ -804,26 +875,19 @@ export default function App() {
               API
               <input type="text" value={apiBase} onChange={(e) => setApiBase(e.target.value)} />
             </label>
-            <label className="inline-field">
-              Session
-              <input type="text" value={sessionId} onChange={(e) => setSessionId(normalizeSessionId(e.target.value))} />
-            </label>
             <button type="button" onClick={() => void checkBackendHealth()}>
               Backend prüfen
             </button>
-            <button type="button" onClick={() => void loadSessionFromBackend()}>
-              Session laden
-            </button>
-            <button type="button" onClick={() => void saveCurrentSession()}>
+            <button type="button" onClick={() => void saveCurrentSession()} disabled={!sessionId}>
               Session speichern
             </button>
-            <button type="button" onClick={() => void handleAnalyzePdf()} disabled={analysisRunning}>
+            <button type="button" onClick={() => void handleAnalyzePdf()} disabled={analysisRunning || !pdfBytesRef.current}>
               {analysisRunning ? 'Analysiere…' : 'Analysieren'}
             </button>
-            <button type="button" onClick={exportAnnotations}>
+            <button type="button" onClick={exportAnnotations} disabled={annotations.length === 0}>
               Annotationen exportieren
             </button>
-            <button type="button" onClick={exportProjectedIr}>
+            <button type="button" onClick={exportProjectedIr} disabled={!displayIr.document.id || displayIr.document.id === 'unloaded'}>
               Projektion exportieren
             </button>
           </div>
@@ -1040,7 +1104,7 @@ export default function App() {
               <span><strong>PDF:</strong> {pdfName}</span>
               <span className="muted">· Ansicht: {viewMode === 'projected' ? 'projiziert' : 'Quelle'}</span>
             </div>
-            <EditorToolbar activeTool={activeTool} onToolChange={setActiveTool} disabled={!sessionId} />
+            <EditorToolbar activeTool={activeTool} onAction={(tool) => { setActiveTool(tool); handleToolbarAction(tool); }} disabled={!sessionId} />
             <div className="viewer-toolbar-right">
               <div className="page-controls">
                 <button type="button" onClick={() => setPageNumber((p) => Math.max(1, p - 1))}>◀</button>
@@ -1056,33 +1120,35 @@ export default function App() {
             </div>
           </div>
 
-          <div className="page-stage" style={{ width: pageWidth || undefined, minHeight: pageHeight || undefined }}>
+          <div className="page-stage" style={{ width: canvasSize.width || undefined, minHeight: canvasSize.height || undefined }}>
             <canvas ref={canvasRef} className="pdf-canvas" />
             <div
               className="overlay"
-              style={{ width: pageWidth || undefined, height: pageHeight || undefined }}
+              style={{ width: canvasSize.width || undefined, height: canvasSize.height || undefined }}
               onPointerDown={handleOverlayPointerDown}
               onPointerMove={handleOverlayPointerMove}
               onPointerUp={handleOverlayPointerUp}
             >
               {visibleBlocks.map((block) => {
                 const isSelected = selectedBlockIds.includes(block.id);
+                const scaled = getBlockScaledBbox(block);
+                const label = DSA_BLOCK_LABELS[block.blockType as keyof typeof DSA_BLOCK_LABELS] ?? block.blockType;
                 return (
                   <button
                     key={block.id}
                     type="button"
                     className={`block-box block-${block.blockType} ${isSelected ? 'selected' : ''}`}
                     style={{
-                      left: block.bbox.x,
-                      top: block.bbox.y,
-                      width: block.bbox.w,
-                      height: block.bbox.h,
+                      left: scaled.x,
+                      top: scaled.y,
+                      width: scaled.w,
+                      height: scaled.h,
                     }}
                     onClick={(event) => handleBlockClick(block.id, event)}
                     onPointerDown={(event) => event.stopPropagation()}
-                    title={`${block.blockType} · ${block.textNormalized || block.textRaw}`}
+                    title={`${label} · ${block.textNormalized || block.textRaw}`}
                   >
-                    <span className="block-label">{block.blockType}</span>
+                    <span className="block-label">{label}</span>
                     <span className="block-meta">#{block.readingOrder}</span>
                   </button>
                 );
