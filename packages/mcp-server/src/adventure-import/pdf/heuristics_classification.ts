@@ -345,31 +345,77 @@ function scoreScene(text: string): HeuristicScore {
 }
 
 function extractProperName(text: string): string | undefined {
-  const match = text.match(/\b([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+){0,2})\b/);
-  return match?.[1]?.trim();
+  // Versuche 1-3 Titlecase-Worte (Abc, Abc Def, Abc-Def Ghi)
+  const match = text.match(
+    /\b([A-ZÄÖÜ][a-zäöüß-]+(?:\s+[A-ZÄÖÜ][a-zäöüß-]+){0,2})\b/,
+  );
+  if (match?.[1]) {
+    const name = match[1].trim();
+    // Namen sind typischerweise kurz (2-30 Zeichen)
+    if (name.length >= 2 && name.length <= 30) {
+      return name;
+    }
+  }
+  return undefined;
 }
 
-function extractLabel(text: string, entityType: 'npc' | 'location' | 'scene'): string | undefined {
-  const line = normalizeText(text).split('\n')[0]?.trim() ?? '';
-  if (!line) {
+function isOcrGarbage(text: string): boolean {
+  // Nur Sonderzeichen, Zahlen, Whitespace = OCR-Müll
+  return /^[\W\d\s]+$/.test(text);
+}
+
+function extractLabel(
+  text: string,
+  entityType: 'npc' | 'location' | 'scene',
+): string | undefined {
+  const normalized = normalizeText(text);
+  const line = normalized.split('\n')[0]?.trim() ?? '';
+  if (!line || line.length < 2) {
     return undefined;
   }
 
-  const colonLabel = line.split(':')[0]?.trim();
-  if (colonLabel && colonLabel.length <= 80) {
-    return colonLabel;
+  // OCR-Müll → kein Name extrahierbar
+  if (isOcrGarbage(line)) {
+    return undefined;
   }
 
+  // Versuch 1: Doppelpunkt-Label (alles vor dem ersten :)
+  const colonIdx = line.indexOf(':');
+  if (colonIdx > 1 && colonIdx <= 40) {
+    const colonLabel = line.slice(0, colonIdx).trim();
+    if (
+      colonLabel.length >= 2 &&
+      /^[A-Za-zÄÖÜäöüß\d\s\-]+$/.test(colonLabel)
+    ) {
+      return colonLabel;
+    }
+  }
+
+  // Versuch 2: Proper Name (1-3 Titlecase-Worte)
   const name = extractProperName(line);
   if (name) {
     return name;
   }
 
+  // Versuch 3: Erste sinnvolle Wortgruppe (bis 4 Worte, stoppe bei Satzzeichen)
+  const words = line
+    .split(/[\s,;!?().]+/)
+    .filter((w) => w.length > 0 && /^[A-Za-zÄÖÜäöüß]/.test(w));
+  if (words.length >= 1) {
+    const labelWords = words.slice(0, Math.min(4, words.length));
+    const label = labelWords.join(' ');
+    if (label.length >= 2 && label.length <= 40) {
+      return label;
+    }
+  }
+
+  // Scene: ganze Zeile erlaubt (bis 80 Zeichen)
   if (entityType === 'scene' && line.length <= 80) {
     return line;
   }
 
-  return line.slice(0, 80);
+  // Fallback: undefined → kein Candidate bei unbrauchbarem Text
+  return undefined;
 }
 
 function buildCandidateAttributes(text: string, entityType: 'npc' | 'location' | 'scene'): Record<string, unknown> {
