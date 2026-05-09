@@ -109,17 +109,20 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (req.method === 'GET' && url.pathname === '/engines') {
     const { isCommandAvailable } = await import('./tooling.js');
     const { isMarkerAvailable } = await import('./marker_adapter.js');
-    const [pdfinfo, pdftotext, tesseract, marker, ollama] = await Promise.allSettled([
+    const { isSuryaAvailable } = await import('./surya_adapter.js');
+    const [pdfinfo, pdftotext, tesseract, marker, surya, ollama] = await Promise.allSettled([
       isCommandAvailable('pdfinfo'),
       isCommandAvailable('pdftotext'),
       isCommandAvailable('tesseract'),
       isMarkerAvailable(),
+      isSuryaAvailable(),
       isOllamaReachable(),
     ]);
     sendJson(res, 200, {
       poppler: { available: pdfinfo.status === 'fulfilled' && pdfinfo.value, tools: ['pdfinfo', 'pdftotext', 'pdftoppm'] },
       tesseract: { available: tesseract.status === 'fulfilled' && tesseract.value },
       marker: { available: marker.status === 'fulfilled' && marker.value },
+      surya: { available: surya.status === 'fulfilled' && surya.value },
       ollama: { available: ollama.status === 'fulfilled' && ollama.value },
     });
     return;

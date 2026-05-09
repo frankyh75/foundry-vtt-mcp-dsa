@@ -8,7 +8,7 @@ export const reviewBackendPresetSchema = z.enum(['openai-compatible', 'ollama', 
 
 export type ReviewBackendPreset = z.infer<typeof reviewBackendPresetSchema>;
 
-export const ocrEngineSchema = z.enum(['auto', 'tesseract', 'marker']);
+export const ocrEngineSchema = z.enum(['auto', 'tesseract', 'marker', 'surya']);
 export type OcrEngine = z.infer<typeof ocrEngineSchema>;
 
 export const reviewConfigSchema = z.object({

@@ -20,12 +20,12 @@ export interface OcrBlock {
   };
   confidence: number;
   readingOrder: number;
-  source: 'ocr';
+  source: 'ocr' | 'surya';
 }
 
 export interface OcrPageResult {
   available: boolean;
-  engine: 'tesseract' | 'marker' | 'missing' | 'failed';
+  engine: 'tesseract' | 'marker' | 'surya' | 'missing' | 'failed';
   reason?: string;
   text: string;
   blocks: OcrBlock[];
@@ -50,7 +50,7 @@ const TOOL_ENV_VARS: Record<string, string> = {
   tesseract: 'TESSERACT_BIN',
 };
 
-export type OcrEnginePreference = 'auto' | 'tesseract' | 'marker';
+export type OcrEnginePreference = 'auto' | 'tesseract' | 'marker' | 'surya';
 
 export interface PdfToolRunnerOptions {
   preferOcrEngine?: OcrEnginePreference;
@@ -59,6 +59,7 @@ export interface PdfToolRunnerOptions {
 export function createDefaultPdfToolRunner(options?: PdfToolRunnerOptions): PdfToolRunner {
   const preferOcrEngine = options?.preferOcrEngine ?? 'auto';
   const markerCache = new Map<string, Map<number, OcrPageResult>>();
+  const suryaCache = new Map<string, Map<number, OcrPageResult>>();
 
   return {
     async pdfInfo(pdfPath: string): Promise<string> {
@@ -87,7 +88,34 @@ export function createDefaultPdfToolRunner(options?: PdfToolRunnerOptions): PdfT
       }
     },
     async ocrPage(pdfPath: string, pageNumber: number, ocrOptions?: { languageHint?: string }): Promise<OcrPageResult> {
-      const { isTesseractAvailable, isMarkerAvailable } = await resolveEngineAvailability(preferOcrEngine);
+      const { isTesseractAvailable, isMarkerAvailable, isSuryaAvailable } = await resolveEngineAvailability(preferOcrEngine);
+
+      if (isSuryaAvailable) {
+        const cached = suryaCache.get(pdfPath)?.get(pageNumber);
+        if (cached) {
+          return cached;
+        }
+
+        const { runSuryaOnPdf, convertSuryaResultToPageMap } = await import('./surya_adapter.js');
+        const suryaResult = await runSuryaOnPdf(pdfPath);
+        const pageMap = convertSuryaResultToPageMap(suryaResult);
+        suryaCache.set(pdfPath, pageMap);
+
+        const result = pageMap.get(pageNumber);
+        if (result) {
+          return result;
+        }
+
+        return {
+          available: false,
+          engine: 'surya',
+          reason: `Surya processed ${pageMap.size} pages but page ${pageNumber} not found`,
+          text: '',
+          blocks: [],
+          pageWidth: 0,
+          pageHeight: 0,
+        };
+      }
 
       if (isMarkerAvailable) {
         const cached = markerCache.get(pdfPath)?.get(pageNumber);
@@ -239,27 +267,43 @@ async function isTesseractAvailable(): Promise<boolean> {
 
 async function resolveEngineAvailability(
   prefer: OcrEnginePreference,
-): Promise<{ isTesseractAvailable: boolean; isMarkerAvailable: boolean }> {
+): Promise<{ isTesseractAvailable: boolean; isMarkerAvailable: boolean; isSuryaAvailable: boolean }> {
   if (prefer === 'tesseract') {
-    return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false };
+    return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false, isSuryaAvailable: false };
   }
 
   if (prefer === 'marker') {
     const { isMarkerAvailable } = await import('./marker_adapter.js');
     const markerAvailable = await isMarkerAvailable();
     if (markerAvailable) {
-      return { isTesseractAvailable: false, isMarkerAvailable: true };
+      return { isTesseractAvailable: false, isMarkerAvailable: true, isSuryaAvailable: false };
     }
-    return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false };
+    return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false, isSuryaAvailable: false };
   }
 
-  // auto: try marker first, then tesseract
+  if (prefer === 'surya') {
+    const { isSuryaAvailable } = await import('./surya_adapter.js');
+    const suryaAvailable = await isSuryaAvailable();
+    if (suryaAvailable) {
+      return { isTesseractAvailable: false, isMarkerAvailable: false, isSuryaAvailable: true };
+    }
+    return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false, isSuryaAvailable: false };
+  }
+
+  // auto: try marker first, then surya, then tesseract
   const { isMarkerAvailable } = await import('./marker_adapter.js');
   const markerAvailable = await isMarkerAvailable();
   if (markerAvailable) {
-    return { isTesseractAvailable: false, isMarkerAvailable: true };
+    return { isTesseractAvailable: false, isMarkerAvailable: true, isSuryaAvailable: false };
   }
-  return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false };
+
+  const { isSuryaAvailable } = await import('./surya_adapter.js');
+  const suryaAvailable = await isSuryaAvailable();
+  if (suryaAvailable) {
+    return { isTesseractAvailable: false, isMarkerAvailable: false, isSuryaAvailable: true };
+  }
+
+  return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false, isSuryaAvailable: false };
 }
 
 function addTesseractArgs(args: string[]): string[] {
