@@ -791,6 +791,9 @@ export default function App() {
       if (state.hasPdf) {
         const pdfBytes = await requestBuffer(`/sessions/${encodeURIComponent(targetSessionId)}/pdf`, base);
         await loadPdfFromBytes(pdfBytes, `${targetSessionId}.pdf`);
+        // Force re-render of page canvas after PDF bytes arrive
+        setPageNumber((prev) => prev);
+        void renderCurrentPage();
       }
 
       if (state.hasIr) {
