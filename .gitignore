@@ -88,8 +88,10 @@ DEPLOYMENT-FIX.md
 DEVELOPMENT.md
 VERIFY.md
 VISUAL-CONFIRMATION.md
-docs/deicherbe-golden-sample-analyse.md
 
 # Urheberrechtlich geschütztes Material — niemals committen
+packages/pdf-review-ui/test/fixtures/Deicherbe*.pdf
 docs/deicherbe-golden-sample-analyse.md
 packages/pdf-review-ui/test/fixtures/Deicherbe*.pdf
+adventures/deicherbe-1-preprocessed.json
+adventures/deicherbe-2-preprocessed.json
