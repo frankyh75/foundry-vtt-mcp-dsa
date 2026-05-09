@@ -1,8 +1,9 @@
 # Implementierungsplan: DSA5-Statblock-Extraktion + Playwright-Validierung
 
 **Datum:** 2026-05-09
+**Version:** 2 (korrigiert nach Ralph-Loop-Recherche)
 **Ziel:** Statblock-Erkennung verbessern, Playwright-Regression aufbauen, GUI-Workflow stabilisieren
-**Scope:** 4 iterative Phasen, jede mit Playwright-Test-Checkpoint
+**Scope:** 4 Phasen via `/goal` (persistent, mit Retry bis grün)
 **Golden Sample:** Deicherbe (Seite 12 Deichbauern, Seite 16 Krakenmolch, Seite 17 Thurbold)
 
 ---
@@ -178,103 +179,93 @@ e2e/
 
 ---
 
-## Ralph-Loop (konkreter `/goal` Command)
+## Ralph Loop — Arbeitsweise mit `/goal`
 
-Jede Phase läuft als autonomer Agent-Loop mit `delegate_task`. Der Loop endet erst wenn der Playwright-Test grün ist.
+`/goal` in Hermes ist ein **persistentes Ziel-Management** — kein einmaliger Subagent-Call. Es bleibt über Turns hinweg aktiv, ein auxiliary-client "judge" prüft ob das Ziel erreicht ist, und bei Rot wird automatisch fortgesetzt/retried.
 
-### Phase 1: Statblock-Heuristik
+**Für unser Projekt bedeutet das:**
+- Pro Phase EIN `/goal` mit klaren Akzeptanzkriterien
+- Hermes implementiert, testet, und wiederholt bei Bedarf — ohne manuelles "nochmal"
+- Der Mensch entscheidet nur: `pause` (unterbrechen), `resume` (weiter), `clear` (abbrechen)
 
-```
-/goal "Implementiere Statblock-Heuristik in heuristics_classification.ts.
+**Unterschied zu `delegate_task`:**
+- `delegate_task` = einmalig, synchron, endet nach dem ersten Versuch
+- `/goal` = persistent, asynchron, retryt bis grün oder bis clear
 
-ERWARTUNG:
-- Deicherbe Seite 12 (Deichbauern) muss Blöcke mit roleHint='stat_block' haben
-- Pattern: MU \d+.*LeP \d+.*AT \d+ → auto-stat_block
-- Pattern: SK \d+ ZK \d+ AW \d+ GS \d+ → auto-combat_block (wenn kein MU)
+### Phase 1: Statblock-Heuristik — ERLEDIGT
 
-VALIDIERUNG:
-1. npm run typecheck (muss 0 Fehler)
-2. npm run build
-3. Stack starten: npm run pdf:review-stack
-4. Session Deicherbe1 laden
-5. IR abrufen: GET /sessions/Deicherbe1/ir
-6. Prüfe: blocks auf Seite 12 haben roleHint='stat_block'
-7. npx playwright test e2e/statblock.spec.ts --workers=1
-8. Test muss grün sein
+Bereits manuell implementiert und committet (`a8d6c8c`).
+Unit-Tests grün (7/7). Playwright-Test teilweise skipped wegen alter IR.
 
-WENN ROT:
-- IR-Dump analysieren (welche roleHint haben die Blöcke stattdessen?)
-- Regex anpassen
-- Wiederholen ab Schritt 2
+### Phase 2: Thorwaler-Block — OPTIONAL
 
-NICHT TUN:
-- Keine GUI-Änderungen
-- Keine Entity-Namensänderungen
-- Kein Merge-Werkzeug
+Thorwaler wird bereits durch MU/LeP/AT-Pattern erkannt. Höhenheuristik nur Safety-Net.
+→ Kann übersprungen werden, falls Phase 3+4 wichtiger.
 
-COMMIT:
-feat(statblock): Phase 1 — Auto-Erkennung MU/LeP/AT Pattern"
-```
-
-### Phase 2: Thorwaler-Block
+### Phase 3: Entity-Namensextraktion — NÄCHSTES `/goal`
 
 ```
-/goal "Thorwaler-Statblock (Seite 17, Block 324) als stat_block erkennen.
+/goal "Fix Entity-Namensextraktion in heuristics_classification.ts.
 
-ERWARTUNG:
-- Block 324 hat 863px Höhe und enthält MU 14, LeP 33, Zäher Hund, etc.
-- Trotz einzelnem riesigem paragraph-Block → roleHint='stat_block'
-- Heuristik: Block-Höhe > 400px + Text enthält MU + LeP → stat_block
-
-VALIDIERUNG:
-1. IR von DeicherbeComplete analysieren
-2. Block 324 prüfen: roleHint === 'stat_block'
-3. Playwright: e2e/statblock.spec.ts (Thorwaler-Testcase)
-4. Test muss grün sein
-
-WENN ROT:
-- Block-Höhe-Threshold anpassen
-- Oder: Textlänge-Heuristik statt Höhe
-
-COMMIT:
-feat(statblock): Phase 2 — Thorwaler einzelner 863px-Block"
-```
-
-### Phase 3: Entity-Namen
-
-```
-/goal "Entity-Namensextraktion fixen: extractLabel() für verstümmelte OCR.
+KONTEXT:
+- Datei: packages/mcp-server/src/adventure-import/pdf/heuristics_classification.ts
+- Funktion: extractLabel() + extractProperName()
+- Problem: >50% der entityCandidates haben name='' weil OCR verstümmelt
 
 ERWARTUNG:
 - Entity Candidates haben name != '' für >50%
 - Elidan, Perlmin, Ovine, Deichbauern, Krakenmolch erkannt
 - extractProperName() toleriert Umlaute und Bindestriche
-- Fallback: Erste nicht-Müll-Zeile = Name
+- Fallback: Wenn Regex fehlschlägt → erste nicht-Müll-Zeile = Name
+- OCR-Müll filtern: Pattern ^[\W\d]+$ → überspringen
 
-VALIDIERUNG:
-1. IR entityCandidates prüfen
-2. Playwright: e2e/entity-names.spec.ts
-3. Test muss grün sein
+VALIDIERUNG (durchzuführen):
+1. npm run typecheck (0 Fehler)
+2. npm run build
+3. npx vitest run src/adventure-import/pdf/heuristics_classification.test.ts
+4. Test muss grün sein (7+ Tests)
+5. IR von Deicherbe1 prüfen: entityCandidates müssen Namen haben
+6. Playwright: npx playwright test e2e/entity-names.spec.ts --workers=1
+7. Test muss grün sein
+
+WENN ROT:
+- Analysiere welche Namen fehlen
+- Passe Regex oder Fallback-Logik an
+- Wiederhole ab Schritt 3
+
+NICHT TUN:
+- Keine GUI-Änderungen
+- Kein Merge-Werkzeug
+- Keine Statblock-Regex-Änderungen
 
 COMMIT:
 fix(entity): Phase 3 — Namensextraktion für verstümmelte OCR"
 ```
 
-### Phase 4: NSC-Merge
+### Phase 4: NSC-Merge — SPÄTER
 
 ```
-/goal "NSC-Merge-Werkzeug: 7 Blöcke → 1 Entity.
+/goal "NSC-Merge-Werkzeug: Multi-Select + Merge zu Entity.
+
+KONTEXT:
+- GUI: packages/pdf-review-ui/src/App.tsx
+- Backend: AnnotationStore in packages/mcp-server/...
+- Problem: Zerstückelte NSC-Box (Name + Erscheinung + Statblock) = 7 Blöcke
 
 ERWARTUNG:
-- Multi-Select: Shift+Click und Cmd+Click
-- Merge-Button in Toolbar
-- Annotation: entity_merge mit sourceBlockIds
-- GUI zeigt gemergte Entity als einheitlichen Block
+- Multi-Select: Shift+Click (Range), Cmd+Click (Einzel)
+- Merge-Button in Toolbar → Annotation entity_merge
+- Gemergte Entity als einheitlicher Block mit Tabs (Profil | Statblock | Darstellung)
 
 VALIDIERUNG:
-1. GUI manuell testen: Elidan-Blöcke mergen
-2. Playwright: e2e/entity-merge.spec.ts
+1. GUI manuell: Elidan-Blöcke auf Seite 8 mergen
+2. Playwright: e2e/entity-merge.spec.ts grün
 3. Test muss grün sein
+
+WENN ROT:
+- Analysiere welcher Schritt fehlschlägt
+- Passe Select-Logik oder Annotation-Format an
+- Wiederhole ab Schritt 2
 
 COMMIT:
 feat(gui): Phase 4 — NSC-Merge-Werkzeug"
