@@ -38,6 +38,7 @@ export function classifyAdventurePdfIr(
     const npcScore = scoreNpc(text);
     const locationScore = scoreLocation(text);
     const sceneScore = scoreScene(text);
+    const statblockScore = scoreStatblock(text);
 
     let blockType: AdventurePdfBlockV1['blockType'] = block.blockType;
     let roleHint: string | undefined = block.roleHint;
@@ -61,6 +62,12 @@ export function classifyAdventurePdfIr(
       confidence = Math.min(confidence, 0.1);
     }
 
+    // Statblock-Erkennung überschreibt roleHint wenn starkes Signal
+    if (statblockScore.score >= 0.7) {
+      roleHint = 'stat_block';
+      confidence = Math.max(confidence, statblockScore.score);
+    }
+
     let nextBlock = {
       ...block,
       blockType,
@@ -68,18 +75,20 @@ export function classifyAdventurePdfIr(
       confidence,
       provenance: {
         producer: 'heuristics_classification',
-        rule: determineBlockRule(text, illustrationScore, headingScore, npcScore, locationScore, sceneScore),
+        rule: determineBlockRule(text, illustrationScore, headingScore, npcScore, locationScore, sceneScore, statblockScore),
       },
     } satisfies AdventurePdfBlockV1;
 
-    const candidate = buildEntityCandidate(sourcePath, nextBlock, npcScore, locationScore, sceneScore);
+    const candidate = buildEntityCandidate(sourcePath, nextBlock, npcScore, locationScore, sceneScore, statblockScore);
     if (candidate) {
       const semanticRoleHint =
-        candidate.candidate.entityType === 'npc'
-          ? 'npc_profile'
-          : candidate.candidate.entityType === 'location'
-            ? 'location'
-            : 'scene';
+        statblockScore.score >= 0.7
+          ? 'stat_block'
+          : candidate.candidate.entityType === 'npc'
+            ? 'npc_profile'
+            : candidate.candidate.entityType === 'location'
+              ? 'location'
+              : 'scene';
 
       nextBlock = {
         ...nextBlock,
@@ -130,8 +139,9 @@ function buildEntityCandidate(
   npcScore: HeuristicScore,
   locationScore: HeuristicScore,
   sceneScore: HeuristicScore,
+  statblockScore?: HeuristicScore,
 ): { candidate: AdventurePdfEntityCandidateV1; stub?: AdventurePdfEntityStubV1 } | undefined {
-  const best = selectBestEntity(npcScore, locationScore, sceneScore);
+  const best = selectBestEntity(npcScore, locationScore, sceneScore, statblockScore);
   if (!best || best.score < 0.45) {
     return undefined;
   }
@@ -191,8 +201,16 @@ interface HeuristicScore {
   entityType: 'npc' | 'location' | 'scene';
 }
 
-function selectBestEntity(npcScore: HeuristicScore, locationScore: HeuristicScore, sceneScore: HeuristicScore): HeuristicScore | undefined {
+function selectBestEntity(
+  npcScore: HeuristicScore,
+  locationScore: HeuristicScore,
+  sceneScore: HeuristicScore,
+  statblockScore?: HeuristicScore,
+): HeuristicScore | undefined {
   const scores = [npcScore, locationScore, sceneScore];
+  if (statblockScore) {
+    scores.push(statblockScore);
+  }
   scores.sort((left, right) => right.score - left.score);
   return scores[0];
 }
@@ -225,8 +243,9 @@ function determineBlockRule(
   npcScore: HeuristicScore,
   locationScore: HeuristicScore,
   sceneScore: HeuristicScore,
+  statblockScore?: HeuristicScore,
 ): string {
-  const best = selectBestEntity(npcScore, locationScore, sceneScore);
+  const best = selectBestEntity(npcScore, locationScore, sceneScore, statblockScore);
   if (illustrationScore.score >= 0.5) return illustrationScore.rule;
   if (headingScore.score >= 0.55) return headingScore.rule;
   if (best && best.score >= 0.45) return best.rule;
@@ -283,6 +302,22 @@ function scoreNpc(text: string): HeuristicScore {
   }
 
   return { score: 0.1, rule: 'npc_absent.v1', entityType: 'npc' };
+}
+
+function scoreStatblock(text: string): HeuristicScore {
+  const hasMu = /\bMU\s+\d+\b/.test(text);
+  const hasLep = /\bLeP\s+\d+\b/.test(text);
+  const hasAt = /\bAT\s+\d+\b/.test(text);
+  const hasTp = /\bTP\s+\d+W\d+(?:\+\d+)?\b/.test(text);
+  const hasKampf = /\bSK\s+\d+.*ZK\s+\d+.*AW\s+\d+.*GS\s+\d+/.test(text);
+
+  if (hasMu && hasLep && hasAt && hasTp) {
+    return { score: 0.95, rule: 'statblock_full.v1', entityType: 'npc' };
+  }
+  if (hasKampf && hasAt) {
+    return { score: 0.75, rule: 'statblock_combat.v1', entityType: 'npc' };
+  }
+  return { score: 0.05, rule: 'statblock_absent.v1', entityType: 'npc' };
 }
 
 function scoreLocation(text: string): HeuristicScore {
