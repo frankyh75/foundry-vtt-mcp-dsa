@@ -8,7 +8,7 @@ export type ReviewConfig = {
   apiKey: string;
   showExpertView: boolean;
   rememberLastSettings: boolean;
-  ocrEngine: 'auto' | 'tesseract' | 'marker';
+  ocrEngine: 'auto' | 'tesseract' | 'marker' | 'surya';
 };
 
 export const defaultReviewConfig: ReviewConfig = {

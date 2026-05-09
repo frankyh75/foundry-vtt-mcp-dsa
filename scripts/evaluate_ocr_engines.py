@@ -96,7 +96,7 @@ def analyze(session_id, engine, model="llava:13b"):
     print(f"  🔬 Analyse: {engine} …", end="", flush=True)
     payload = {
         "model": model,
-        "options": {"ocrEngine": engine} if engine == "surya" else {}
+        "config": {"ocrEngine": engine}
     }
     resp = curl_json("POST", f"/sessions/{session_id}/analyze", data=payload)
     if resp and "analysisId" in str(resp):
