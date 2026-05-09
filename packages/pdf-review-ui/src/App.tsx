@@ -1103,24 +1103,26 @@ export default function App() {
 
         <section className="viewer-column">
           <div className="viewer-toolbar">
-            <div className="viewer-toolbar-left">
-              <span><strong>PDF:</strong> {pdfName}</span>
-              <span className="muted">· Ansicht: {viewMode === 'projected' ? 'projiziert' : 'Quelle'}</span>
-            </div>
-            <EditorToolbar activeTool={activeTool} onAction={(tool) => { setActiveTool(tool); handleToolbarAction(tool); }} disabled={!sessionId} />
-            <div className="viewer-toolbar-right">
-              <div className="page-controls">
-                <button type="button" onClick={() => setPageNumber((p) => Math.max(1, p - 1))}>◀</button>
-                <input
-                  type="number"
-                  min={1}
-                  value={pageNumber}
-                  onChange={(e) => setPageNumber(Math.max(1, Number(e.target.value) || 1))}
-                />
-                <span>/ {displayIr.document.pageCount || '–'}</span>
-                <button type="button" onClick={() => setPageNumber((p) => Math.min(displayIr.document.pageCount || p + 1, p + 1))}>▶</button>
+            <div className="viewer-toolbar-main">
+              <div className="viewer-toolbar-left">
+                <span><strong>PDF:</strong> {pdfName}</span>
+                <span className="muted">· Ansicht: {viewMode === 'projected' ? 'projiziert' : 'Quelle'}</span>
+              </div>
+              <div className="viewer-toolbar-right">
+                <div className="page-controls">
+                  <button type="button" onClick={() => setPageNumber((p) => Math.max(1, p - 1))}>◀</button>
+                  <input
+                    type="number"
+                    min={1}
+                    value={pageNumber}
+                    onChange={(e) => setPageNumber(Math.max(1, Number(e.target.value) || 1))}
+                  />
+                  <span>/ {displayIr.document.pageCount || '–'}</span>
+                  <button type="button" onClick={() => setPageNumber((p) => Math.min(displayIr.document.pageCount || p + 1, p + 1))}>▶</button>
+                </div>
               </div>
             </div>
+            <EditorToolbar activeTool={activeTool} onAction={(tool) => { setActiveTool(tool); handleToolbarAction(tool); }} disabled={!sessionId} />
           </div>
 
           <div className="page-stage" style={{ width: canvasSize.width || undefined, minHeight: canvasSize.height || undefined }}>
