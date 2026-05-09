@@ -270,9 +270,11 @@ Das System muss **NICHT** perfekt automatisch klassifizieren. Das System muss de
 | `Deicherbe-p09-kinder.pdf` | 9 | Elidans Kinder (5 NSCs in Absätzen, Gruppenillustration) | 4.7 MB | PDF 1.3, 1 Seite |
 | `Deicherbe-p12-deichbauern.pdf` | 12 | Deichbauern Statblock (Wertekasten mit Rahmen) | 5.5 MB | PDF 1.3, 1 Seite |
 | `Deicherbe-p16-krakenmolch.pdf` | 16 | Krakenmolch Creature (Monster ohne Porträt) | 5.7 MB | PDF 1.3, 1 Seite |
-| `Deicherbe-p17-orknase.pdf` | 17 | Orknase + Thorwalerschild (Kampfwerte) | 5.4 MB | PDF 1.3, 1 Seite |
+| `Deicherbe-p17-orknase.pdf` | 17 | Orknase + Thorwalerschild (Minimal-Kampfwerte, **keine Basisattribute**) | 5.4 MB | PDF 1.3, 1 Seite |
 
 **Wichtig:** Die Einzelseiten-PDFs behalten das **originale PDF-Format** (Version 1.3, image-basiert). Sie können direkt an Marker/Backend für wiederkehrende Tests übergeben werden.
+
+**Korrektur:** Seite 17 enthält **keinen vollständigen Thorwaler-NSC-Statblock** mit MU/KL/IN/CH/FF/GE/KO/KK/LeP. Stattdessen nur einen **Minimal-Kampfblock** (Orknase, Thorwalerschild, Schneidzahn, SK, ZK, AW, GS).
 
 ---
 
