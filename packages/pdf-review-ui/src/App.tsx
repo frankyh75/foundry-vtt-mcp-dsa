@@ -1030,22 +1030,52 @@ export default function App() {
           <div className="panel">
             <div className="panel-header">
               <h2>Arbeitsfolge</h2>
-              <span className="pill">{displayIr.document.pageCount || '–'} Seiten</span>
             </div>
             <ol className="workflow-list">
-              <li>
+              <li
+                className={!sessionId ? 'active' : 'done'}
+                onClick={() => document.querySelector('input[type="text"]')?.focus()}
+                role="button"
+                tabIndex={0}
+              >
                 <strong>1. Laden</strong>
                 <span>PDF oder IR importieren</span>
               </li>
-              <li>
+              <li
+                className={sessionId && !analysisRunning && displayIr.blocks.length === 0 ? 'active' : displayIr.blocks.length > 0 ? 'done' : ''}
+                onClick={() => sessionId && !analysisRunning && displayIr.blocks.length === 0 && handleAnalyzePdf()}
+                role="button"
+                tabIndex={0}
+              >
                 <strong>2. Analysieren</strong>
                 <span>Seiten, Blöcke und Projektion aufbauen</span>
               </li>
-              <li>
+              <li
+                className={displayIr.blocks.length > 0 && !selectedBlockId ? 'active' : selectedBlockId ? 'done' : ''}
+                onClick={() => displayIr.blocks.length > 0 && setActiveTool('select')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') { displayIr.blocks.length > 0 && setActiveTool('select'); } }}
+              >
                 <strong>3. Prüfen</strong>
                 <span>Seiten nacheinander korrigieren</span>
               </li>
-              <li>
+              <li
+                className={annotations.length > 0 ? 'active' : ''}
+                onClick={() => {
+                  if (annotations.length > 0) {
+                    const blob = new Blob([JSON.stringify(annotations, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${sessionId || 'export'}-annotations.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
                 <strong>4. Exportieren</strong>
                 <span>Annotationen oder Projektion sichern</span>
               </li>

@@ -372,6 +372,28 @@ button:hover,
   border: 1px solid #243041;
   border-radius: 12px;
   background: #0b1220;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.workflow-list li:hover {
+  border-color: #60a5fa;
+  background: #111e2e;
+}
+
+.workflow-list li.done {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.workflow-list li.done strong {
+  color: #22c55e;
+}
+
+.workflow-list li.active {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.35);
 }
 
 .workflow-list strong {
