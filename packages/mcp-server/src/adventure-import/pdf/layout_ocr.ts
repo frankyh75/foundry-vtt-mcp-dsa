@@ -87,7 +87,7 @@ export async function layoutOcrPdf(
     }
 
     const ocrBlocks = ocrResult.blocks.length > 0 ? ocrResult.blocks : [];
-    const pageBlocks: PdfLayoutRawBlock[] = ocrBlocks.map((block) => buildOcrBlock(document.sourcePath, page, block, layoutOcrStatus));
+    const pageBlocks: PdfLayoutRawBlock[] = ocrBlocks.map((block) => buildOcrBlock(document.sourcePath, page, block, layoutOcrStatus, ocrResult.engine));
     rawBlocks.push(...pageBlocks);
 
     const pageText = ocrResult.text.trim();
@@ -251,6 +251,7 @@ function buildOcrBlock(
   page: PdfIngestPage,
   block: OcrPageResult['blocks'][number],
   layoutOcrStatus: 'needs_ocr' | 'unsupported' | 'text_layer',
+  engine: OcrPageResult['engine'],
 ): PdfLayoutRawBlock {
   const textRaw = block.text;
   const normalizedConfidence = Number.isFinite(block.confidence) ? clampConfidence(block.confidence / 100) : 0.5;
@@ -274,8 +275,8 @@ function buildOcrBlock(
     confidence: normalizedConfidence,
     provenance: {
       producer: 'layout_ocr',
-      rule: `tesseract_${block.kind}.v1`,
-      details: `readingOrder=${block.readingOrder}`,
+      rule: `${engine}_${block.kind}.v1`,
+      details: `readingOrder=${block.readingOrder},engine=${engine}`,
     },
   };
 }
