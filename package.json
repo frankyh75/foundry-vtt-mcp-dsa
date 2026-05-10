@@ -26,7 +26,7 @@
     "pdf:import": "node scripts/pdf-import.mjs",
     "pdf:review": "npm run dev --workspace=packages/pdf-review-ui",
     "pdf:review-backend": "npm run build --workspace=packages/mcp-server && node packages/mcp-server/dist/adventure-import/pdf/review_backend.js",
-    "pdf:review-stack": "concurrently --kill-others --names 'FRONTEND,BACKEND' --prefix-colors 'cyan,magenta' \"npm run preview --workspace=packages/pdf-review-ui -- --host 0.0.0.0 --port 4173\" \"node packages/mcp-server/dist/adventure-import/pdf/review_backend.js\"",
+    "pdf:review-stack": "npm run build --workspace=packages/pdf-review-ui && npm run build --workspace=packages/mcp-server && concurrently --kill-others --names 'FRONTEND,BACKEND' --prefix-colors 'cyan,magenta' \"npm run preview --workspace=packages/pdf-review-ui -- --host 0.0.0.0 --port 4173\" \"node packages/mcp-server/dist/adventure-import/pdf/review_backend.js\"",
     "test:mcp:schema": "node scripts/mcp-schema-smoke-test.mjs",
     "audit:deps": "npm audit && npm run audit --workspaces --if-present",
     "audit:unused": "npx knip",

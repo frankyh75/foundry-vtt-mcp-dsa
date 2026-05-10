@@ -9,7 +9,7 @@ interface PdfCanvasRendererProps {
   className?: string;
 }
 
-export default function PdfCanvasRenderer({
+export function PdfCanvasRenderer({
   pdfDoc,
   pageNumber,
   onPreviewUrl,

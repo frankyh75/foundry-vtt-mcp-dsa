@@ -300,7 +300,7 @@ function scoreNpc(text: string): HeuristicScore {
     'zauberer', 'zauberin', 'kundschafter(in)?',
     'räuber(in)?', 'schankwirt(in)?', 'npc',
   ];
-  const npcRolePattern = new RegExp(`\b(${DSA_NPC_ROLES.join('|')})\b`, 'i');
+  const npcRolePattern = new RegExp(`\\b(${DSA_NPC_ROLES.join('|')})\\b`, 'i');
   const hasRoleWords = npcRolePattern.test(text);
   const name = extractProperName(text);
   if (hasRoleWords && name) {

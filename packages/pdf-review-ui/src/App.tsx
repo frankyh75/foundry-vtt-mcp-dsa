@@ -4,7 +4,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { applyPresetDefaults, defaultReviewConfig, normalizeReviewConfig, reviewConfigLabel, type ReviewBackendPreset, type ReviewConfig } from './review_config';
 import EditorToolbar from './EditorToolbar';
 import PropertyPanel from './PropertyPanel';
-import PdfCanvasRenderer from './components/PdfCanvasRenderer';
+import { PdfCanvasRenderer } from './components/PdfCanvasRenderer';
 import { DSA_BLOCK_LABELS, DSA_BLOCK_COLORS, type DsaBlockType, type EditorTool } from './dsaTypes';
 
 type PdfBBox = { x: number; y: number; w: number; h: number };

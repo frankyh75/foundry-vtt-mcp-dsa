@@ -74,7 +74,7 @@ Antworte NUR als gültiges JSON im folgenden Schema. Kein Markdown, keine Erklä
 `;
 }
 
-async function callQwen(systemPrompt: string, userPrompt: string): Promise<string> {
+async function callQwen(systemPrompt: string, userPrompt: string, signal?: AbortSignal): Promise<string> {
   const res = await fetch('http://127.0.0.1:11434/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -88,6 +88,7 @@ async function callQwen(systemPrompt: string, userPrompt: string): Promise<strin
       max_tokens: 4096,
       response_format: { type: 'json_object' },
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -110,7 +111,7 @@ export async function reviewPageBlocks(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const raw = await callQwen(system, prompt);
+    const raw = await callQwen(system, prompt, controller.signal);
     clearTimeout(timer);
 
     const parsed = JSON.parse(raw);

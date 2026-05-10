@@ -216,6 +216,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const body = await readBody(req);
     const pdfPath = join(sessionDir, 'source.pdf');
     await writeFile(pdfPath, body);
+    // Invalidate cached page images when PDF changes
+    const pageImageDir = join(sessionDir, 'pages');
+    if (existsSync(pageImageDir)) {
+      const { rm } = await import('node:fs/promises');
+      await rm(pageImageDir, { recursive: true, force: true });
+    }
     const meta = await loadMeta(sessionId);
     const filename = normalizeFilename(req.headers['x-filename']);
     if (filename) {
