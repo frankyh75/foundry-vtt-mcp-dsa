@@ -57,9 +57,31 @@ export async function layoutOcrPdf(
 
     if (hasUsableText) {
       textPageCount += 1;
-      const rawBlock = buildTextLayerBlock(document.sourcePath, page, normalizedText);
-      rawBlocks.push(rawBlock);
-      classifiedPages.push(buildPage(page, document.id, rawBlock, [rawBlock.id], normalizedText.length, textSource, layoutOcrStatus, ocrMode));
+      const textBlocks = splitTextLayerIntoBlocks(normalizedText);
+      if (textBlocks.length === 0) {
+        // Fallback: ein Block für die gesamte Seite
+        const rawBlock = buildTextLayerBlock(document.sourcePath, page, normalizedText, 1, 1);
+        rawBlocks.push(rawBlock);
+        classifiedPages.push(buildPage(page, document.id, rawBlock, [rawBlock.id], normalizedText.length, textSource, layoutOcrStatus, ocrMode));
+        continue;
+      }
+      const pageRawBlocks: PdfLayoutRawBlock[] = textBlocks.map((text, idx) =
+        buildTextLayerBlock(document.sourcePath, page, text, idx + 1, textBlocks.length)
+      );
+      rawBlocks.push(...pageRawBlocks);
+      const primaryBlock = pageRawBlocks[0] ?? buildTextLayerBlock(document.sourcePath, page, normalizedText, 1, 1);
+      classifiedPages.push(
+        buildPage(
+          page,
+          document.id,
+          primaryBlock,
+          pageRawBlocks.map((b) => b.id),
+          normalizedText.length,
+          textSource,
+          layoutOcrStatus,
+          ocrMode,
+        ),
+      );
       continue;
     }
 
@@ -157,29 +179,44 @@ function buildPage(
   };
 }
 
-function buildTextLayerBlock(sourcePath: string, page: PdfIngestPage, textRaw: string): PdfLayoutRawBlock {
+function splitTextLayerIntoBlocks(text: string, minBlockLength: number = 20): string[] {
+  return text
+    .split(/\n{2,}/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= minBlockLength);
+}
+
+function buildTextLayerBlock(
+  sourcePath: string,
+  page: PdfIngestPage,
+  textRaw: string,
+  readingOrder: number,
+  totalBlocks: number,
+): PdfLayoutRawBlock {
   const blockType = inferBlockTypeFromText(textRaw);
+  const portion = totalBlocks > 1 ? 1 / totalBlocks : 1;
   return {
-    id: createRawBlockId(sourcePath, page.pageNumber, 1, textRaw),
+    id: createRawBlockId(sourcePath, page.pageNumber, readingOrder, textRaw),
     pageId: page.id,
     pageNumber: page.pageNumber,
-    readingOrder: 1,
+    readingOrder,
     bbox: {
       x: 0,
-      y: 0,
+      y: page.height * (readingOrder - 1) * portion,
       w: page.width,
-      h: page.height,
+      h: page.height * portion,
     },
     textRaw,
     textSource: 'text_layer',
     layoutOcrStatus: 'text_layer',
     blockType,
-    source: blockType === 'heading' ? 'text_layer' : 'text_layer',
+    source: 'text_layer',
     sourceBlockIds: [page.id],
     confidence: 0.9,
     provenance: {
       producer: 'layout_ocr',
       rule: `pdf_text_layer.${blockType}.v1`,
+      details: `segment=${readingOrder}/${totalBlocks}`,
     },
   };
 }
