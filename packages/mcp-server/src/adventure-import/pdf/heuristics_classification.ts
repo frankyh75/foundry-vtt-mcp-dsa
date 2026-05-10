@@ -291,7 +291,17 @@ function scoreIllustration(text: string): HeuristicScore {
 }
 
 function scoreNpc(text: string): HeuristicScore {
-  const hasRoleWords = /\b(wirt(in)?|händler(in)?|meister(in)?|bäuer(in)?|jäger(in)?|priester(in)?|guard|wachen?|schreiber(in)?|npc)\b/i.test(text);
+  const DSA_NPC_ROLES = [
+    'wirt(in)?', 'händler(in)?', 'meister(in)?', 'bäuer(in)?',
+    'jäger(in)?', 'priester(in)?', 'geweihte[rn]?', 'geweihter',
+    'wachen?', 'hauptmann', 'ratsherr', 'bürgermeister',
+    'söldner(in)?', 'leibwächter(in)?', 'magier(in)?', 'hexe',
+    'druide', 'druiden?', 'schreiber(in)?', 'diener(in)?',
+    'zauberer', 'zauberin', 'kundschafter(in)?',
+    'räuber(in)?', 'schankwirt(in)?', 'npc',
+  ];
+  const npcRolePattern = new RegExp(`\b(${DSA_NPC_ROLES.join('|')})\b`, 'i');
+  const hasRoleWords = npcRolePattern.test(text);
   const name = extractProperName(text);
   if (hasRoleWords && name) {
     return { score: 0.72, rule: 'npc_name_role.v1', entityType: 'npc' };
