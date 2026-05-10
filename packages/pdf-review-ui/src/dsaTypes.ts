@@ -74,8 +74,7 @@ export type EditorTool =
   | 'split'       // Box teilen
   | 'merge'       // Boxen vereinen
   | 'delete'      // Box löschen
-  | 'edit-text'   // Text korrigieren
-  | 'ai-chat';    // KI-Assistenz
+  | 'edit-text';  // Text korrigieren
 
 export const EDITOR_TOOLS: EditorTool[] = [
   'select',
@@ -84,7 +83,6 @@ export const EDITOR_TOOLS: EditorTool[] = [
   'merge',
   'delete',
   'edit-text',
-  'ai-chat',
 ];
 
 export const EDITOR_TOOL_LABELS: Record<EditorTool, string> = {
@@ -94,7 +92,6 @@ export const EDITOR_TOOL_LABELS: Record<EditorTool, string> = {
   'merge': 'Vereinigen',
   'delete': 'Löschen',
   'edit-text': 'Text korrigieren',
-  'ai-chat': 'KI-Chat',
 };
 
 /** Editor-Phase */

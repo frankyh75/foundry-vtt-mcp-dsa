@@ -43,6 +43,7 @@ export const annotationActionSchema = z.enum([
   'fix_reading_order',
   'promote_candidate',
   'reject_candidate',
+  'add_comment',
 ]);
 export const importPlanTargetTypeSchema = z.enum(['foundry_actor', 'foundry_journal', 'foundry_scene']);
 export const importPlanTargetSubtypeSchema = z.enum(['npc', 'location', 'scene']);

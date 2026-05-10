@@ -13,7 +13,6 @@ const toolIcons: Record<EditorTool, string> = {
   'merge': '⇄',
   'delete': '🗑',
   'edit-text': '✎',
-  'ai-chat': '🤖',
 };
 
 export default function EditorToolbar({ activeTool, onAction, disabled }: EditorToolbarProps) {
