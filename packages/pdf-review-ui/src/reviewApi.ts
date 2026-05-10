@@ -39,6 +39,7 @@ export type EngineStatus = {
   poppler: { available: boolean; tools: string[] };
   tesseract: { available: boolean };
   marker: { available: boolean };
+  surya: { available: boolean };
   ollama: { available: boolean };
 };
 

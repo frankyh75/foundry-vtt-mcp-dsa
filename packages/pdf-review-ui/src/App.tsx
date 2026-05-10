@@ -608,12 +608,14 @@ export default function App() {
         poppler: { available: boolean };
         tesseract: { available: boolean };
         marker: { available: boolean };
+        surya: { available: boolean };
         ollama: { available: boolean };
       }>('/engines', undefined, apiBase);
       const ocrParts: string[] = [];
       if (status.poppler.available) ocrParts.push('Poppler');
       if (status.tesseract.available) ocrParts.push('Tesseract');
       if (status.marker.available) ocrParts.push('Marker');
+      if (status.surya.available) ocrParts.push('Surya');
       const llmParts: string[] = [];
       if (status.ollama.available) llmParts.push('Ollama');
       setEngineStatus({
@@ -964,11 +966,12 @@ export default function App() {
                   value={reviewConfig.ocrEngine}
                   onChange={(e) => setReviewConfig((current) => ({ ...current, ocrEngine: e.target.value as ReviewConfig['ocrEngine'] }))}
                 >
-                  <option value="auto">Auto (Marker bevorzugt, Fallback Tesseract)</option>
+                  <option value="auto">Auto (Tesseract bevorzugt, dann Marker, dann Surya)</option>
                   <option value="tesseract">Tesseract (klassisch, schnell)</option>
                   <option value="marker">Marker (ML-basiert, falls installiert)</option>
+                  <option value="surya">Surya (Layout + OCR, GPU empfohlen)</option>
                 </select>
-                <small className="field-hint">Auto = Marker wenn verfügbar, sonst Tesseract. Marker braucht Python + PyTorch.</small>
+                <small className="field-hint">Auto = Tesseract wenn verfügbar, sonst Marker, sonst Surya. Surya braucht GPU für akzeptable Geschwindigkeit.</small>
               </label>
               <label>
                 <input
