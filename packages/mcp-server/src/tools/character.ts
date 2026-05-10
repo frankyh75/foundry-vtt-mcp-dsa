@@ -186,6 +186,48 @@ export class CharacterTools {
         },
       },
       {
+        name: 'create-world-items',
+        description: 'Creates world-level Item documents in Foundry\'s Items sidebar. Items are NOT attached to any actor — the GM (or players, if owned) can drag-and-drop from the sidebar onto any actor sheet. Use this for reusable libraries (spell lists, action collections, gear catalogs). For items that should live on a specific actor, use add-actor-items instead. GM-only.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            items: {
+              type: 'array',
+              minItems: 1,
+              description: 'One or more items to create in the world Items sidebar',
+              items: {
+                type: 'object',
+                properties: {
+                  name: {
+                    type: 'string',
+                    description: 'Display name of the item',
+                  },
+                  type: {
+                    type: 'string',
+                    description: 'Item type valid for the active system (e.g. "action", "talent", "weapon")',
+                  },
+                  img: {
+                    type: 'string',
+                    description: 'Optional icon path (e.g. "icons/svg/explosion.svg" or a system-bundled path)',
+                  },
+                  system: {
+                    type: 'object',
+                    description: 'System-specific data (free-form). Passed through unchanged to Foundry\'s DataModel layer.',
+                    additionalProperties: true,
+                  },
+                },
+                required: ['name', 'type'],
+              },
+            },
+            folder: {
+              type: 'string',
+              description: 'Optional folder name or ID. If the folder does not exist it will be created. Omit to place items at the sidebar root.',
+            },
+          },
+          required: ['items'],
+        },
+      },
+      {
         name: 'search-character-items',
         description:
           "Search within a character's items, spells, actions, and effects. More token-efficient than get-character when you need specific items. Supports text search (name/description) and type filtering. Returns matching items with full details including targeting info for spells. Use this to find specific spells, equipment, feats, or abilities without loading the entire character.",
@@ -484,6 +526,46 @@ export class CharacterTools {
       throw new Error(
         `Failed to add items to "${actorIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
       );
+    }
+  }
+
+  async handleCreateWorldItems(args: any): Promise<any> {
+    const itemSchema = z.object({
+      name: z.string().min(1, 'Item name cannot be empty'),
+      type: z.string().min(1, 'Item type cannot be empty'),
+      img: z.string().optional(),
+      system: z.record(z.any()).optional(),
+    });
+
+    const schema = z.object({
+      items: z.array(itemSchema).min(1, 'At least one item is required'),
+      folder: z.string().optional(),
+    });
+
+    const { items, folder } = schema.parse(args);
+
+    this.logger.info('Creating world items', {
+      count: items.length,
+      folder: folder ?? null,
+      types: items.map(i => i.type),
+    });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.createWorldItems', {
+        items,
+        folder,
+      });
+
+      this.logger.debug('Successfully created world items', {
+        folderId: result.folderId,
+        created: result.created?.length ?? 0,
+      });
+
+      return result;
+
+    } catch (error) {
+      this.logger.error('Failed to create world items', error);
+      throw new Error(`Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
