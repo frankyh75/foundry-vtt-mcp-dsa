@@ -4,6 +4,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { applyPresetDefaults, defaultReviewConfig, normalizeReviewConfig, reviewConfigLabel, type ReviewBackendPreset, type ReviewConfig } from './review_config';
 import EditorToolbar from './EditorToolbar';
 import PropertyPanel from './PropertyPanel';
+import PdfCanvasRenderer from './components/PdfCanvasRenderer';
 import { DSA_BLOCK_LABELS, DSA_BLOCK_COLORS, type DsaBlockType, type EditorTool } from './dsaTypes';
 
 type PdfBBox = { x: number; y: number; w: number; h: number };
@@ -140,8 +141,8 @@ const SESSION_ID_STORAGE_KEY = 'foundry-pdf-review-ui:session-id';
 const DEFAULT_BACKEND_PORT = 4174;
 
 export default function App() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);  // legacy ref for overlays
   const pdfBytesRef = useRef<ArrayBuffer | null>(null);
   const irRef = useRef<PdfIr>(emptyIr);
 
@@ -245,35 +246,7 @@ export default function App() {
     void loadOllamaModelSuggestions();
   }, [apiBase, reviewConfig.providerPreset]);
 
-  useEffect(() => {
-    void renderCurrentPage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageNumber, displayIr.document.id, pdfName]);
-
-  async function renderCurrentPage() {
-    const canvas = canvasRef.current;
-    if (!canvas || !pdfDocRef.current) {
-      return;
-    }
-
-    const page = await pdfDocRef.current.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 1 });
-    const vw = Math.ceil(viewport.width);
-    const vh = Math.ceil(viewport.height);
-    canvas.width = vw;
-    canvas.height = vh;
-    canvas.style.width = `${vw}px`;
-    canvas.style.height = `${vh}px`;
-    setCanvasSize({ width: vw, height: vh });
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    if (pageNumber === 1 || !previewImageUrl) {
-      setPreviewImageUrl(canvas.toDataURL('image/png'));
-    }
-  }
+  // Canvas rendering now handled by PdfCanvasRenderer component
 
   async function handlePdfFile(file: File | null) {
     if (!file) return;
@@ -550,7 +523,7 @@ export default function App() {
     pdfBytesRef.current = arrayBuffer.slice(0);
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const doc = await loadingTask.promise;
-    pdfDocRef.current = doc;
+    setPdfDoc(doc);
     setPdfName(name);
     setStatus(`PDF geladen: ${name} (${doc.numPages} Seiten)`);
     if (pageNumber > doc.numPages) {
@@ -715,7 +688,6 @@ export default function App() {
         setDraftMode('relabel');
         break;
       case 'select':
-      case 'ai-chat':
       default:
         break;
     }
@@ -793,9 +765,7 @@ export default function App() {
       if (state.hasPdf) {
         const pdfBytes = await requestBuffer(`/sessions/${encodeURIComponent(targetSessionId)}/pdf`, base);
         await loadPdfFromBytes(pdfBytes, `${targetSessionId}.pdf`);
-        // Force re-render of page canvas after PDF bytes arrive
-        setPageNumber((prev) => prev);
-        void renderCurrentPage();
+        // PdfCanvasRenderer handles re-render via state change
       }
 
       if (state.hasIr) {
@@ -1012,7 +982,7 @@ export default function App() {
           <div className="panel preview-panel">
             <div className="panel-header">
               <h2>Dokumentvorschau</h2>
-              <span className="pill">{pdfDocRef.current ? `${pdfDocRef.current.numPages} Seiten` : 'kein PDF'}</span>
+              <span className="pill">{pdfDoc ? `${pdfDoc.numPages} Seiten` : 'kein PDF'}</span>
             </div>
             {previewImageUrl ? (
               <img className="preview-image" src={previewImageUrl} alt={`Vorschau von ${pdfName}`} />
@@ -1170,7 +1140,13 @@ export default function App() {
           </div>
 
           <div className="page-stage" style={{ width: canvasSize.width || undefined, minHeight: canvasSize.height || undefined }}>
-            <canvas ref={canvasRef} className="pdf-canvas" />
+            <PdfCanvasRenderer
+              pdfDoc={pdfDoc}
+              pageNumber={pageNumber}
+              onPreviewUrl={setPreviewImageUrl}
+              onCanvasSize={setCanvasSize}
+              className="pdf-canvas"
+            />
             <div
               className="overlay"
               style={{ width: canvasSize.width || undefined, height: canvasSize.height || undefined }}
