@@ -252,7 +252,7 @@ export default function App() {
 
   async function renderCurrentPage() {
     const canvas = canvasRef.current;
-    if (!canvas || !pdfDocRef.current || !currentPage) {
+    if (!canvas || !pdfDocRef.current) {
       return;
     }
 
@@ -842,7 +842,7 @@ export default function App() {
         <div className="topbar-actions">
           <label className="file-button">
             PDF laden
-            <input type="file" accept="application/pdf" onChange={(e) => void handlePdfFile(e.target.files?.[0] ?? null)} />
+            <input id="pdf-upload-input" type="file" accept="application/pdf" onChange={(e) => void handlePdfFile(e.target.files?.[0] ?? null)} />
           </label>
           <label className="file-button">
             IR laden
@@ -1034,24 +1034,26 @@ export default function App() {
             <ol className="workflow-list">
               <li
                 className={!sessionId ? 'active' : 'done'}
-                onClick={() => document.querySelector('input[type="text"]')?.focus()}
+                onClick={() => document.getElementById('pdf-upload-input')?.click()}
                 role="button"
                 tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') document.getElementById('pdf-upload-input')?.click(); }}
               >
                 <strong>1. Laden</strong>
                 <span>PDF oder IR importieren</span>
               </li>
               <li
-                className={sessionId && !analysisRunning && displayIr.blocks.length === 0 ? 'active' : displayIr.blocks.length > 0 ? 'done' : ''}
-                onClick={() => sessionId && !analysisRunning && displayIr.blocks.length === 0 && handleAnalyzePdf()}
+                className={sessionId && !analysisRunning ? (displayIr.blocks.length > 0 ? 'done' : 'active') : ''}
+                onClick={() => sessionId && !analysisRunning && handleAnalyzePdf()}
                 role="button"
                 tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') { sessionId && !analysisRunning && handleAnalyzePdf(); } }}
               >
                 <strong>2. Analysieren</strong>
                 <span>Seiten, Blöcke und Projektion aufbauen</span>
               </li>
               <li
-                className={displayIr.blocks.length > 0 && !selectedBlockId ? 'active' : selectedBlockId ? 'done' : ''}
+                className={displayIr.blocks.length > 0 ? (selectedBlockId ? 'done' : 'active') : ''}
                 onClick={() => displayIr.blocks.length > 0 && setActiveTool('select')}
                 role="button"
                 tabIndex={0}
@@ -1061,20 +1063,31 @@ export default function App() {
                 <span>Seiten nacheinander korrigieren</span>
               </li>
               <li
-                className={annotations.length > 0 ? 'active' : ''}
+                className={displayIr.blocks.length > 0 ? 'active' : ''}
                 onClick={() => {
-                  if (annotations.length > 0) {
-                    const blob = new Blob([JSON.stringify(annotations, null, 2)], { type: 'application/json' });
+                  if (displayIr.blocks.length > 0) {
+                    const blob = new Blob([JSON.stringify(displayIr, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `${sessionId || 'export'}-annotations.json`;
+                    a.download = `${sessionId || 'export'}-projection.json`;
                     a.click();
                     URL.revokeObjectURL(url);
                   }
                 }}
                 role="button"
                 tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && displayIr.blocks.length > 0) {
+                    const blob = new Blob([JSON.stringify(displayIr, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${sessionId || 'export'}-projection.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }
+                }}
               >
                 <strong>4. Exportieren</strong>
                 <span>Annotationen oder Projektion sichern</span>

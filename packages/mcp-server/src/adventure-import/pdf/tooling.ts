@@ -290,7 +290,12 @@ async function resolveEngineAvailability(
     return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false, isSuryaAvailable: false };
   }
 
-  // auto: try marker first, then surya, then tesseract
+  // auto: try tesseract first (fast, no model download), then marker, then surya
+  const tesseractAvailable = await isTesseractAvailable();
+  if (tesseractAvailable) {
+    return { isTesseractAvailable: true, isMarkerAvailable: false, isSuryaAvailable: false };
+  }
+
   const { isMarkerAvailable } = await import('./marker_adapter.js');
   const markerAvailable = await isMarkerAvailable();
   if (markerAvailable) {
@@ -303,7 +308,7 @@ async function resolveEngineAvailability(
     return { isTesseractAvailable: false, isMarkerAvailable: false, isSuryaAvailable: true };
   }
 
-  return { isTesseractAvailable: await isTesseractAvailable(), isMarkerAvailable: false, isSuryaAvailable: false };
+  return { isTesseractAvailable: false, isMarkerAvailable: false, isSuryaAvailable: false };
 }
 
 function addTesseractArgs(args: string[]): string[] {
