@@ -222,12 +222,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const { rm } = await import('node:fs/promises');
       await rm(pageImageDir, { recursive: true, force: true });
     }
+    // Clear old IR and annotations so the new PDF starts fresh
+    const { rm } = await import('node:fs/promises');
+    for (const file of ['source.ir.json', 'projected.ir.json', 'annotations.json']) {
+      const path = join(sessionDir, file);
+      if (existsSync(path)) {
+        await rm(path, { force: true });
+      }
+    }
     const meta = await loadMeta(sessionId);
     const filename = normalizeFilename(req.headers['x-filename']);
     if (filename) {
       meta.pdfName = filename;
     }
     meta.hasPdf = true;
+    meta.hasIr = false;
+    meta.documentId = '';
     meta.updatedAt = new Date().toISOString();
     await saveMeta(sessionDir, meta);
     sendJson(res, 200, { ok: true, sessionId, pdfPath });

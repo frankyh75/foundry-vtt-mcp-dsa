@@ -255,9 +255,7 @@ export default function App() {
     setPdfName(file.name);
     pdfBytesRef.current = await file.arrayBuffer();
     const targetSessionId = resolveSessionId(file.name.replace(/\.[^.]+$/, ''));
-    if (!sessionId) {
-      setSessionId(targetSessionId);
-    }
+    setSessionId(targetSessionId);
     setStatus(`Lade PDF ${file.name}...`);
     await loadPdfFromBytes(pdfBytesRef.current, file.name);
     await saveCurrentSession(targetSessionId);
@@ -274,9 +272,7 @@ export default function App() {
     setSelectedBlockId(null);
     setSelectedBlockIds([]);
     const targetSessionId = resolveSessionId(parsed.document?.id ?? file.name.replace(/\.[^.]+$/, ''));
-    if (!sessionId) {
-      setSessionId(targetSessionId);
-    }
+    setSessionId(targetSessionId);
     setStatus(`IR geladen: ${parsed.document?.id ?? file.name}`);
     await saveCurrentSession(targetSessionId);
   }
@@ -291,12 +287,19 @@ export default function App() {
     persistAnnotations(mergeAnnotations(annotations, [annotation]));
   }
 
-  function createAnnotation(action: UiAnnotation['action'], payload: Record<string, unknown>, targetType: UiAnnotation['targetType']) {
-    const targetId =
+  function createAnnotation(
+    action: UiAnnotation['action'],
+    payload: Record<string, unknown>,
+    targetType: UiAnnotation['targetType'],
+    overrideTargetId?: string,
+    overrideSourceBlockIds?: string[],
+  ) {
+    const targetId = overrideTargetId ?? (
       targetType === 'page'
         ? (currentPage?.id ?? `page-${pageNumber}`)
-        : selectedBlock?.id ?? selectedBlockSource?.id ?? currentPage?.id ?? `page-${pageNumber}`;
-    const sourceBlockIds =
+        : selectedBlock?.id ?? selectedBlockSource?.id ?? currentPage?.id ?? `page-${pageNumber}`
+    );
+    const sourceBlockIds = overrideSourceBlockIds ?? (
       action === 'merge'
         ? selectedBlockIds.length > 1
           ? [...selectedBlockIds]
@@ -307,8 +310,8 @@ export default function App() {
           ? [selectedBlock.id]
           : selectedBlockSource
             ? [selectedBlockSource.id]
-            : [];
-
+            : []
+    );
     const next: UiAnnotation = {
       id: crypto.randomUUID(),
       targetType,
@@ -668,11 +671,11 @@ export default function App() {
           for (const id of selectedBlockIds) {
             const block = visibleBlocks.find((b) => b.id === id);
             if (block) {
-              setSelectedBlockId(block.id);
-              setSelectedBlockType(block.blockType as typeof selectedBlockType);
-              createAnnotation('ignore', { reason: 'deleted' }, 'block');
+              createAnnotation('ignore', { reason: 'deleted' }, 'block', block.id, [block.id]);
             }
           }
+          setSelectedBlockId(null);
+          setSelectedBlockIds([]);
           setStatus(`${selectedBlockIds.length} Blöcke als gelöscht markiert.`);
         }
         break;
@@ -770,6 +773,10 @@ export default function App() {
 
       if (state.hasIr) {
         loadedIr = await requestJson<PdfIr>(`/sessions/${encodeURIComponent(targetSessionId)}/ir`, undefined, base);
+        setIr(loadedIr);
+      } else {
+        // Reset IR for PDF-only sessions so old session state doesn't leak
+        loadedIr = { ...ir, pages: [], blocks: [], sections: [], entityCandidates: [], entityStubs: [], annotations: [], importPlan: [] };
         setIr(loadedIr);
       }
 
