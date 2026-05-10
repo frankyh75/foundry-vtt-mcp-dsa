@@ -90,9 +90,24 @@ function buildPlanPayload(stub: AdventurePdfEntityStubV1): Record<string, unknow
   const summary = getSummary(stub.minimumPayload);
 
   if (stub.stubType === 'npc_stub') {
+    const mp = stub.minimumPayload;
     return {
       name: stub.label,
-      notes: 'Aus PDF importiert. Bitte manuell pruefen.',
+      type: 'npc',
+      system: {
+        ...(extractAttributes(mp)),
+        status: {
+          wounds: extractWounds(mp),
+          astralenergy: { value: extractAsP(mp) },
+          karmaenergy: { value: extractKaP(mp) },
+        },
+        details: {
+          species: extractString(mp, 'species') ?? '',
+          culture: extractString(mp, 'culture') ?? '',
+          experience: { total: extractNumber(mp, 'experience') ?? extractNumber(mp, 'ap') ?? 0 },
+        },
+        notes: 'Aus PDF importiert. Bitte manuell pruefen.',
+      },
       summary,
       sourceBlockIds: [...stub.sourceBlockIds],
     };
@@ -130,4 +145,55 @@ function getSummary(payload: Record<string, unknown>): string {
 
 function isPresent(value: unknown): boolean {
   return typeof value === 'string' ? value.trim().length > 0 : value !== undefined && value !== null;
+}
+
+function extractNumber(payload: Record<string, unknown>, key: string): number | null {
+  const v = payload[key];
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = parseFloat(v.replace(/[^0-9.-]/g, ''));
+    if (!isNaN(n)) return n;
+  }
+  return null;
+}
+
+function extractString(payload: Record<string, unknown>, key: string): string | null {
+  const v = payload[key];
+  if (typeof v === 'string' && v.trim().length > 0) return v.trim();
+  return null;
+}
+
+function extractAttributes(payload: Record<string, unknown>): Record<string, unknown> {
+  const charKeys = ['mu', 'kl', 'in', 'ch', 'ff', 'ge', 'ko', 'kk'];
+  const attrs: Record<string, unknown> = {};
+  for (const key of charKeys) {
+    const val = extractNumber(payload, key);
+    if (val !== null) {
+      attrs[key] = { value: val };
+    } else {
+      // try German full names
+      const fullNames: Record<string, string> = {
+        mu: 'mut', kl: 'klugheit', in: 'intuition', ch: 'charisma',
+        ff: 'fingerfertigkeit', ge: 'gewandtheit', ko: 'konstitution', kk: 'körperkraft',
+      };
+      const fullVal = extractNumber(payload, fullNames[key] ?? key);
+      if (fullVal !== null) {
+        attrs[key] = { value: fullVal };
+      }
+    }
+  }
+  return { characteristics: attrs };
+}
+
+function extractWounds(payload: Record<string, unknown>): { initial: number } {
+  const lep = extractNumber(payload, 'lep') ?? extractNumber(payload, 'leps') ?? extractNumber(payload, 'LeP');
+  return lep !== null ? { initial: lep } : { initial: 0 };
+}
+
+function extractAsP(payload: Record<string, unknown>): number {
+  return extractNumber(payload, 'asp') ?? extractNumber(payload, 'asP') ?? extractNumber(payload, 'astralenergie') ?? 0;
+}
+
+function extractKaP(payload: Record<string, unknown>): number {
+  return extractNumber(payload, 'kap') ?? extractNumber(payload, 'kaP') ?? extractNumber(payload, 'karmaenergie') ?? 0;
 }
