@@ -407,10 +407,40 @@ That's it! Your system is now supported.
 - **Key fields:** traits (array), rarity, size, alignment
 - **Files:** `packages/mcp-server/src/systems/pf2e/`
 
-### DSA5 Example (Requested by Community)
-- **Power metric:** Challenge Points or Level
-- **Key fields:** 8 characteristics (mu/kl/in/ch/ff/ge/ko/kk), wounds, AsP, KaP
-- **Expected files:** `packages/mcp-server/src/systems/dsa5/`
+### DSA5 (Das Schwarze Auge 5) — **Fully Implemented**
+- **Power metric:** Experience Level (Erfahrungsgrad 1-7), derived from total AP
+- **Key fields:** 8 Eigenschaften (MU/KL/IN/CH/FF/GE/KO/KK), LeP (wounds.current), AsP, KaP, AT/PA, AW, INI, GS
+- **Filterable by:** Species (Spezies), Culture (Kultur), Size, Experience Level, Has Spells
+- **Files:** `packages/mcp-server/src/systems/dsa5/adapter.ts`, `filters.ts`, `index-builder.ts`, `constants.ts`
+- **Registered in:** `packages/mcp-server/src/backend.ts`
+
+**DSA5-specific data paths:**
+```typescript
+{
+  mu: 'system.characteristics.mu.value',
+  kl: 'system.characteristics.kl.value',
+  in: 'system.characteristics.in.value',
+  ch: 'system.characteristics.ch.value',
+  ff: 'system.characteristics.ff.value',
+  ge: 'system.characteristics.ge.value',
+  ko: 'system.characteristics.ko.value',
+  kk: 'system.characteristics.kk.value',
+  lifePoints: 'system.status.wounds.current',
+  astralenergy: 'system.status.astralenergy.value',
+  karmaenergy: 'system.status.karmaenergy.value',
+  initiative: 'system.status.initiative.value',
+  dodge: 'system.status.dodge.value',
+  armor: 'system.status.armor.value',
+  speed: 'system.status.speed.value',
+}
+```
+
+**DSA5-specific creature formatting includes:**
+- All 8 Eigenschaften with abbreviations and full German names
+- Combat values: AT, PA, RS, INI, GS
+- Resource bars: LeP, AsP, KaP with current/max
+- Experience level (Erfahrungsgrad 1-7) calculated from AP total
+- Species, Culture, Profession (career) fields
 
 ## Tips & Best Practices
 
