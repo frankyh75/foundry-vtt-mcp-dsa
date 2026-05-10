@@ -65,7 +65,7 @@ export async function layoutOcrPdf(
         classifiedPages.push(buildPage(page, document.id, rawBlock, [rawBlock.id], normalizedText.length, textSource, layoutOcrStatus, ocrMode));
         continue;
       }
-      const pageRawBlocks: PdfLayoutRawBlock[] = textBlocks.map((text, idx) =
+      const pageRawBlocks: PdfLayoutRawBlock[] = textBlocks.map((text, idx) =>
         buildTextLayerBlock(document.sourcePath, page, text, idx + 1, textBlocks.length)
       );
       rawBlocks.push(...pageRawBlocks);
