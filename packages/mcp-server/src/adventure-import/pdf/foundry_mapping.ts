@@ -67,17 +67,20 @@ function mapMissingFields(
   const fields: string[] = [];
   if (stubType === 'npc_stub') {
     if (!isPresent(minimumPayload.name)) fields.push('name');
-    fields.push('attributes', 'skills');
+    if (!isPresent(minimumPayload.attributes)) fields.push('attributes');
+    if (!isPresent(minimumPayload.skills)) fields.push('skills');
   }
 
   if (stubType === 'location_stub') {
     if (!isPresent(minimumPayload.name)) fields.push('name');
-    fields.push('description', 'sceneLinks');
+    if (!isPresent(minimumPayload.description)) fields.push('description');
+    if (!isPresent(minimumPayload.sceneLinks)) fields.push('sceneLinks');
   }
 
   if (stubType === 'scene_stub') {
     if (!isPresent(minimumPayload.title)) fields.push('title');
-    fields.push('trigger', 'summary');
+    if (!isPresent(minimumPayload.trigger)) fields.push('trigger');
+    if (!isPresent(minimumPayload.summary)) fields.push('summary');
   }
 
   return Array.from(new Set(fields));
