@@ -51,13 +51,16 @@ const TOOL_ENV_VARS: Record<string, string> = {
 };
 
 export type OcrEnginePreference = 'auto' | 'tesseract' | 'marker' | 'surya';
+export type OcrProfile = 'default' | 'fast' | 'quality' | 'statblock';
 
 export interface PdfToolRunnerOptions {
   preferOcrEngine?: OcrEnginePreference;
+  ocrProfile?: OcrProfile;
 }
 
 export function createDefaultPdfToolRunner(options?: PdfToolRunnerOptions): PdfToolRunner {
   const preferOcrEngine = options?.preferOcrEngine ?? 'auto';
+  const ocrProfile = options?.ocrProfile ?? 'default';
   const markerCache = new Map<string, Map<number, OcrPageResult>>();
   const suryaCache = new Map<string, Map<number, OcrPageResult>>();
 

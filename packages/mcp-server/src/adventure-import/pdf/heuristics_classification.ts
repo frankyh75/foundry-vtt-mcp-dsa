@@ -106,22 +106,19 @@ export function classifyAdventurePdfIr(
   }
 
   const classifiedSections = sections.map((section) => {
-    const firstBlock = blockById.get(section.blockIds[0] ?? '');
-    if (!firstBlock) {
-      return section;
-    }
-
-    const sectionType = inferSectionType(firstBlock);
+    // M2: Accumulate section type from first 3 blocks, not just first block
+    const firstThreeBlocks = section.blockIds.slice(0, 3).map(id => blockById.get(id)).filter(Boolean) as AdventurePdfBlockV1[];
+    const sectionType = inferSectionTypeFromBlocks(firstThreeBlocks);
     return {
       ...section,
       sectionType,
-      confidence: Math.max(section.confidence, firstBlock.confidence - 0.05),
+      confidence: Math.max(section.confidence, (firstThreeBlocks[0]?.confidence ?? 0) - 0.05),
       provenance: {
         producer: 'heuristics_classification',
         rule: 'section_refine.v1',
       },
-      source: sourceSchema.parse(firstBlock.source),
-      sourceBlockIds: [...firstBlock.sourceBlockIds],
+      source: sourceSchema.parse(firstThreeBlocks[0]?.source ?? 'unknown'),
+      sourceBlockIds: [...(firstThreeBlocks[0]?.sourceBlockIds ?? [])],
     } satisfies AdventurePdfSectionV1;
   });
 
@@ -213,6 +210,14 @@ function selectBestEntity(
   }
   scores.sort((left, right) => right.score - left.score);
   return scores[0];
+}
+
+function inferSectionTypeFromBlocks(blocks: AdventurePdfBlockV1[]): AdventurePdfSectionV1['sectionType'] {
+  for (const block of blocks.slice(0, 3)) {
+    const type = inferSectionType(block);
+    if (type !== 'unknown') return type;
+  }
+  return sectionTypeSchema.parse('unknown');
 }
 
 function inferSectionType(block: AdventurePdfBlockV1): AdventurePdfSectionV1['sectionType'] {

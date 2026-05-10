@@ -42,10 +42,12 @@ export function assemblePdfIr(
   const headingBlocks = blocks.filter((block) => isHeadingLike(block.textRaw));
   for (const block of headingBlocks) {
     const sectionType = inferSectionType(block.textRaw);
+    const sectionDepth = inferSectionDepth(block.textRaw);
     const section = sectionSchema.parse({
       id: createSectionId(sourcePath, block.textRaw.slice(0, 80), block.sourceBlockIds),
       title: inferSectionTitle(block.textRaw),
       sectionType,
+      sectionDepth,
       blockIds: [block.id],
       source: sourceSchema.parse(block.source),
       sourceBlockIds: [...block.sourceBlockIds],
@@ -93,6 +95,15 @@ function inferSectionType(text: string): AdventurePdfSectionV1['sectionType'] {
   }
 
   return sectionTypeSchema.parse('unknown');
+}
+
+function inferSectionDepth(text: string): number {
+  // Kapitelüberschriften wie "1. Die Abreise" = Depth 0
+  // Unterkapitel wie "1.1 Der Weg" = Depth 1
+  const match = text.match(/^(\d+(?:\.\d+)*)/);
+  if (!match) return 0;
+  const segments = match[1].split('.');
+  return Math.max(0, segments.length - 1);
 }
 
 function isHeadingLike(text: string): boolean {

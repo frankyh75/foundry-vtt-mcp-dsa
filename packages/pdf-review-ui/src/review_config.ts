@@ -9,6 +9,7 @@ export type ReviewConfig = {
   showExpertView: boolean;
   rememberLastSettings: boolean;
   ocrEngine: 'auto' | 'tesseract' | 'marker' | 'surya';
+  ocrProfile: 'default' | 'fast' | 'quality' | 'statblock';
 };
 
 export const defaultReviewConfig: ReviewConfig = {
@@ -20,6 +21,7 @@ export const defaultReviewConfig: ReviewConfig = {
   showExpertView: true,
   rememberLastSettings: true,
   ocrEngine: 'auto',
+  ocrProfile: 'default',
 };
 
 const PRESET_DEFAULTS: Record<ReviewBackendPreset, Pick<ReviewConfig, 'baseUrl' | 'apiPath'>> = {
@@ -48,6 +50,7 @@ export function normalizeReviewConfig(input: Partial<ReviewConfig> | unknown): R
     showExpertView: candidate.showExpertView ?? defaultReviewConfig.showExpertView,
     rememberLastSettings: candidate.rememberLastSettings ?? defaultReviewConfig.rememberLastSettings,
     ocrEngine: candidate.ocrEngine ?? defaultReviewConfig.ocrEngine,
+    ocrProfile: candidate.ocrProfile ?? defaultReviewConfig.ocrProfile,
   };
   const presetDefaults = PRESET_DEFAULTS[next.providerPreset];
   return {

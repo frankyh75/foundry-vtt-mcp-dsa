@@ -146,6 +146,7 @@ export const sectionSchema = z
     id: z.string().min(1),
     title: z.string().min(1),
     sectionType: sectionTypeSchema,
+    sectionDepth: z.number().int().min(0).default(0),
     blockIds: z.array(z.string().min(1)),
     source: sourceSchema,
     sourceBlockIds: z.array(z.string().min(1)).default([]),
