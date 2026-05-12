@@ -88,4 +88,53 @@ describe('buildPdfImportIr', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('extracts DSA5 statblock into import plan payload', async () => {
+    const { dir, pdfPath } = await createTempPdfFile();
+    const runner = {
+      pdfInfo: vi.fn().mockResolvedValue('Pages: 1\nPage size: 595 x 842 pts\n'),
+      pdfToText: vi.fn().mockResolvedValue(
+        'Deichbauern\nMU 12 KL 11 IN 12 CH 11\nFF 14 GE 13 KO 13 KK 13\nLeP 31 AsP - KaP - INI 13+1W6\nSK 1 ZK 2 AW 7 GS 8\nDeichgabel: AT 10 PA 4 TP 1W6+2 RW mittel'
+      ),
+      probeRender: vi.fn(),
+      ocrPage: vi.fn(),
+    };
+
+    try {
+      const result = await buildPdfImportIr({
+        pdfPath,
+        outPath: join(dir, 'out'),
+        runner,
+      });
+
+      // Pipeline-End-to-End: Statblock -> IR -> Import-Plan
+      expect(result.ir.importPlan.length).toBeGreaterThanOrEqual(1);
+      const npcPlan = result.ir.importPlan.find((p) => p.targetSubtype === 'npc');
+      expect(npcPlan).toBeDefined();
+      expect(npcPlan?.targetType).toBe('foundry_actor');
+
+      // Payload enthält Statblock-Daten
+      const payload = npcPlan?.payload as Record<string, unknown>;
+      expect(payload.name).toBe('Deichbauern');
+
+      const system = payload.system as Record<string, unknown>;
+      expect(system.characteristics).toBeDefined();
+      const characteristics = system.characteristics as Record<string, unknown>;
+      expect(characteristics.mu).toEqual({ value: 12 });
+      expect(characteristics.ff).toEqual({ value: 14 });
+
+      const status = system.status as Record<string, unknown>;
+      expect(status.wounds).toEqual({ initial: 31 });
+      expect(status.ini).toEqual({ value: '13+1W6' });
+      expect(status.sk).toEqual({ value: 1 });
+
+      const combat = system.combat as Record<string, unknown>;
+      expect(combat.weapons).toBeDefined();
+      const weapons = combat.weapons as Array<Record<string, unknown>>;
+      expect(weapons[0].name).toBe('Deichgabel');
+      expect(weapons[0].tp).toBe('1W6+2');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
