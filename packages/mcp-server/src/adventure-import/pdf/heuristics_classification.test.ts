@@ -79,5 +79,19 @@ describe('Entity Candidate mit Statblock', () => {
     const stub = result.entityStubs[0];
     expect(stub.stubType).toBe('npc_stub');
     expect(stub.minimumPayload).toBeDefined();
+    // DSA5-Statblock-Extraktion prüfen
+    expect(stub.minimumPayload.attributes).toBeDefined();
+    expect((stub.minimumPayload.attributes as Record<string, number>).mu).toBe(12);
+    expect((stub.minimumPayload.attributes as Record<string, number>).kl).toBe(11);
+    expect((stub.minimumPayload.attributes as Record<string, number>).ff).toBe(14);
+    expect(stub.minimumPayload.lep).toBe(31);
+    expect(stub.minimumPayload.asp).toBeNull();
+    expect(stub.minimumPayload.ini).toBe('13+1W6');
+    expect(stub.minimumPayload.sk).toBe(1);
+    expect(stub.minimumPayload.zk).toBe(2);
+    expect(stub.minimumPayload.weapons).toBeDefined();
+    expect(Array.isArray(stub.minimumPayload.weapons)).toBe(true);
+    expect((stub.minimumPayload.weapons as Array<Record<string, unknown>>).length).toBe(1);
+    expect((stub.minimumPayload.weapons as Array<Record<string, unknown>>)[0].name).toBe('Deichgabel');
   });
 });

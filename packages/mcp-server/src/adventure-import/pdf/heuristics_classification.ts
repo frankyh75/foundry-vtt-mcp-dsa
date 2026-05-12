@@ -460,9 +460,11 @@ function buildMinimumPayload(text: string, entityType: 'npc' | 'location' | 'sce
   const summary = summarizeText(text);
 
   if (entityType === 'npc') {
+    const stats = extractNpcStatblock(text);
     return {
       name: label,
       summary,
+      ...stats,
     };
   }
 
@@ -477,6 +479,89 @@ function buildMinimumPayload(text: string, entityType: 'npc' | 'location' | 'sce
     title: label,
     summary,
   };
+}
+
+/** Extrahiert DSA5-Attribute aus einem NPC-Statblock-Text */
+function extractNpcStatblock(text: string): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Attribute: MU, KL, IN, CH, FF, GE, KO, KK
+  const attrMap: Record<string, number> = {};
+  const attrPattern = /\b(MU|KL|IN|CH|FF|GE|KO|KK)\s+(\d+|\-|\—|\–|\−)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = attrPattern.exec(normalized)) !== null) {
+    const key = match[1].toLowerCase();
+    const raw = match[2].trim();
+    const value = raw === '-' || raw === '—' || raw === '–' || raw === '−' ? null : parseInt(raw, 10);
+    if (!isNaN(value as number) || value === null) {
+      attrMap[key] = value as number;
+    }
+  }
+  if (Object.keys(attrMap).length > 0) {
+    result.attributes = attrMap;
+  }
+
+  // LeP, AsP, KaP, INI
+  const lepMatch = /\bLeP\s+(\d+|\-|\—|\–|\−)/i.exec(normalized);
+  if (lepMatch) {
+    const raw = lepMatch[1].trim();
+    result.lep = raw === '-' || raw === '—' ? null : parseInt(raw, 10);
+  }
+
+  const aspMatch = /\bAsP\s+(\d+|\-|\—|\–|\−)/i.exec(normalized);
+  if (aspMatch) {
+    const raw = aspMatch[1].trim();
+    result.asp = raw === '-' || raw === '—' ? null : parseInt(raw, 10);
+  }
+
+  const kapMatch = /\bKaP\s+(\d+|\-|\—|\–|\−)/i.exec(normalized);
+  if (kapMatch) {
+    const raw = kapMatch[1].trim();
+    result.kap = raw === '-' || raw === '—' ? null : parseInt(raw, 10);
+  }
+
+  const iniMatch = /\bINI\s+(\d+(?:\+\d*W\d+)?)/i.exec(normalized);
+  if (iniMatch) {
+    result.ini = iniMatch[1];
+  }
+
+  // Kampfwerte: SK, ZK, AW, GS
+  const skMatch = /\bSK\s+(\d+)/i.exec(normalized);
+  if (skMatch) result.sk = parseInt(skMatch[1], 10);
+
+  const zkMatch = /\bZK\s+(\d+)/i.exec(normalized);
+  if (zkMatch) result.zk = parseInt(zkMatch[1], 10);
+
+  const awMatch = /\bAW\s+(\d+)/i.exec(normalized);
+  if (awMatch) result.aw = parseInt(awMatch[1], 10);
+
+  const gsMatch = /\bGS\s+(\d+)/i.exec(normalized);
+  if (gsMatch) result.gs = parseInt(gsMatch[1], 10);
+
+  // Waffen
+  const weapons: Array<Record<string, unknown>> = [];
+  const weaponPattern = /([A-Za-zÄÖÜäöüß\s\-]+):\s*AT\s+(\d+)\s+(?:PA\s+(\d+)\s+)?TP\s+(\d+W\d+(?:\+\d+)?)\s+RW\s+(kurz|mittel|lang)/gi;
+  while ((match = weaponPattern.exec(normalized)) !== null) {
+    weapons.push({
+      name: match[1].trim(),
+      at: parseInt(match[2], 10),
+      pa: match[3] ? parseInt(match[3], 10) : null,
+      tp: match[4],
+      rw: match[5].toLowerCase(),
+    });
+  }
+  if (weapons.length > 0) {
+    result.weapons = weapons;
+  }
+
+  // Sonderfertigkeiten
+  const sfMatch = /Sonderfertigkeiten:\s*([^.\n]+)/i.exec(normalized);
+  if (sfMatch) {
+    result.sonderfertigkeiten = sfMatch[1].split(/,\s*/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  return result;
 }
 
 function toStubType(entityType: 'npc' | 'location' | 'scene'): 'npc_stub' | 'location_stub' | 'scene_stub' | undefined {
