@@ -65,6 +65,12 @@ function mergeBlockFragments(blocks: AdventurePdfBlockV1[]): AdventurePdfBlockV1
           textNormalized: normalizeBlockText(combinedText),
           confidence: Math.max(current.confidence, next.confidence),
           sourceBlockIds: [...current.sourceBlockIds, ...next.sourceBlockIds],
+          bbox: {
+            x: Math.min(current.bbox.x, next.bbox.x),
+            y: Math.min(current.bbox.y, next.bbox.y),
+            w: Math.max(current.bbox.x + current.bbox.w, next.bbox.x + next.bbox.w) - Math.min(current.bbox.x, next.bbox.x),
+            h: Math.max(current.bbox.y + current.bbox.h, next.bbox.y + next.bbox.h) - Math.min(current.bbox.y, next.bbox.y),
+          },
           provenance: { producer: 'heuristics_classification', rule: 'statblock_merge.v1' },
         });
         i += 2;
@@ -525,6 +531,9 @@ function scoreStatblock(text: string): HeuristicScore {
 
   if (hasMu && hasLep && hasAt && hasTp) {
     return { score: 0.95, rule: 'statblock_full.v1', entityType: 'npc' };
+  }
+  if (hasMu && hasLep) {
+    return { score: 0.85, rule: 'statblock_attrs.v1', entityType: 'npc' };
   }
   if (hasKampf && hasAt) {
     return { score: 0.75, rule: 'statblock_combat.v1', entityType: 'npc' };

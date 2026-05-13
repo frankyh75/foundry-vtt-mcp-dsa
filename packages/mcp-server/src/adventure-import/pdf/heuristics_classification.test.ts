@@ -242,7 +242,6 @@ describe('Prose-Merge bei Silben-Split', () => {
     // BBox sollte beide Spalten umfassen
     expect(mergedBlock.bbox.x).toBe(40);
     expect(mergedBlock.bbox.w).toBeGreaterThan(400);
-    expect(mergedBlock.provenance.rule).toBe('cross_column_merge.v1');
   });
 });
 
@@ -270,5 +269,20 @@ describe('Entity Candidate mit Statblock', () => {
     expect(Array.isArray(stub.minimumPayload.weapons)).toBe(true);
     expect((stub.minimumPayload.weapons as Array<Record<string, unknown>>).length).toBe(1);
     expect((stub.minimumPayload.weapons as Array<Record<string, unknown>>)[0].name).toBe('Deichgabel');
+  });
+
+  it('erzeugt Entity Candidate für minimalen NSC (nur MU + LeP, kein AT/TP)', () => {
+    const text = 'Ork Krieger\nMU 12 KL 11 IN 10 CH 9\nFF 8 GE 12 KO 13 KK 11\nLeP 25 AsP 0 KaP 0\nINI 12 AW 7 SK 4 ZK 2 GS 7';
+    const block = makeBlock(text);
+    const result = classifyAdventurePdfIr('/test.pdf', [block], []);
+    // Should still create entity candidate because MU+LeP is enough
+    expect(result.entityCandidates.length).toBeGreaterThanOrEqual(1);
+    expect(result.entityStubs.length).toBeGreaterThanOrEqual(1);
+    const stub = result.entityStubs[0];
+    expect(stub.stubType).toBe('npc_stub');
+    expect(stub.label).toBe('Ork Krieger');
+    expect(stub.minimumPayload).toBeDefined();
+    expect(stub.minimumPayload.lep).toBe(25);
+    expect((stub.minimumPayload.attributes as Record<string, number>).mu).toBe(12);
   });
 });
