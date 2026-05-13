@@ -14,12 +14,7 @@ async function selectPage(page: any, pageNumber: number) {
 }
 
 test.describe('Statblock-Erkennung', () => {
-  // HINWEIS: Dieser Test erfordert eine NEU-ANALYSE der Session, damit
-  // die neue Statblock-Heuristik angewendet wird. Bestehende IR-Dateien
-  // haben noch die alte Klassifikation (npc_profile statt stat_block).
-  // Die Heuristik ist durch Unit-Tests verifiziert (7/7 grün).
-  // E2E-Test wird aktiviert sobald Re-Analyse durchgeführt wurde.
-  test.skip('Deichbauern Seite 12 hat stat_block roleHint', async ({ page }) => {
+  test('Deichbauern Seite 12 hat stat_block roleHint', async ({ page }) => {
     await loadSession(page, 'Deicherbe1');
     await selectPage(page, 12);
 

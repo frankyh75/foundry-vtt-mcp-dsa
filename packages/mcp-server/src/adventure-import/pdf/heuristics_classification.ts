@@ -124,7 +124,75 @@ function mergeBlockFragments(blocks: AdventurePdfBlockV1[]): AdventurePdfBlockV1
     i += 1;
   }
 
-  return merged;
+  // --- Second pass: cross-column statblock merge (2-column layouts) ---
+  // Find blocks on the same page with complementary statblock data
+  // that are horizontally adjacent but were split by column layout.
+  const crossColumnMerged: AdventurePdfBlockV1[] = [];
+  const consumed = new Set<number>();
+  for (let a = 0; a < merged.length; a++) {
+    if (consumed.has(a)) continue;
+    const blockA = merged[a];
+    const textA = normalizeText(blockA.textRaw);
+    const hasAttrsA = /\b(MU|KL|IN|CH)\s+\d{1,2}/.test(textA);
+    const hasCombatA = /\b(LeP|FF|GE|AT|SK|ZK)\s+\d+/.test(textA);
+
+    // Look for a complementary block on the same page
+    let mergedIdx: number | undefined;
+    let mergedBlock: AdventurePdfBlockV1 | undefined;
+    for (let b = a + 1; b < merged.length; b++) {
+      if (consumed.has(b)) continue;
+      const blockB = merged[b];
+      if (blockB.pageNumber !== blockA.pageNumber) continue;
+      const textB = normalizeText(blockB.textRaw);
+      const hasAttrsB = /\b(MU|KL|IN|CH)\s+\d{1,2}/.test(textB);
+      const hasCombatB = /\b(LeP|FF|GE|AT|SK|ZK)\s+\d+/.test(textB);
+
+      // Complementary: one has attributes, the other has combat/stats
+      // AND they are on roughly the same vertical band (±15% page height)
+      const sameVerticalBand = Math.abs(blockA.bbox.y - blockB.bbox.y) < Math.max(blockA.bbox.h, blockB.bbox.h) * 1.5;
+      const horizontallyClose = Math.abs((blockA.bbox.x + blockA.bbox.w) - blockB.bbox.x) < 50 || 
+                                  Math.abs((blockB.bbox.x + blockB.bbox.w) - blockA.bbox.x) < 50;
+      if ((hasAttrsA && hasCombatB && !hasCombatA) || (hasCombatA && hasAttrsB && !hasAttrsB)) {
+        if (sameVerticalBand || horizontallyClose) {
+          mergedIdx = b;
+          mergedBlock = blockB;
+          break;
+        }
+      }
+      if ((hasAttrsB && hasCombatA && !hasAttrsA) || (hasCombatB && hasAttrsA && !hasCombatB)) {
+        if (sameVerticalBand || horizontallyClose) {
+          mergedIdx = b;
+          mergedBlock = blockB;
+          break;
+        }
+      }
+    }
+
+    if (mergedIdx !== undefined && mergedBlock) {
+      const combinedText = `${textA}\n${normalizeText(mergedBlock.textRaw)}`;
+      crossColumnMerged.push({
+        ...blockA,
+        textRaw: combinedText,
+        textNormalized: normalizeBlockText(combinedText),
+        confidence: Math.max(blockA.confidence, mergedBlock.confidence),
+        sourceBlockIds: [...blockA.sourceBlockIds, ...mergedBlock.sourceBlockIds],
+        bbox: {
+          x: Math.min(blockA.bbox.x, mergedBlock.bbox.x),
+          y: Math.min(blockA.bbox.y, mergedBlock.bbox.y),
+          w: Math.max(blockA.bbox.x + blockA.bbox.w, mergedBlock.bbox.x + mergedBlock.bbox.w) - Math.min(blockA.bbox.x, mergedBlock.bbox.x),
+          h: Math.max(blockA.bbox.y + blockA.bbox.h, mergedBlock.bbox.y + mergedBlock.bbox.h) - Math.min(blockA.bbox.y, mergedBlock.bbox.y),
+        },
+        provenance: { producer: 'heuristics_classification', rule: 'cross_column_merge.v1' },
+      });
+      consumed.add(a);
+      consumed.add(mergedIdx);
+    } else {
+      crossColumnMerged.push(blockA);
+      consumed.add(a);
+    }
+  }
+
+  return crossColumnMerged;
 }
 
 /**

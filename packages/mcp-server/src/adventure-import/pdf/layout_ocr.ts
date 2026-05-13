@@ -66,7 +66,9 @@ export async function layoutOcrPdf(
 
       if (ocrResult?.available && ocrResult.blocks.length > 0) {
         const mergedOcrBlocks = mergeOcrBlockFragments(ocrResult.blocks);
-        const pageBlocks: PdfLayoutRawBlock[] = mergedOcrBlocks.map((block) =>
+        // --- NEW: Semantic splitting for long single OCR prose blocks ---
+        const finalOcrBlocks = applySemanticSplittingToOcrBlocks(mergedOcrBlocks);
+        const pageBlocks: PdfLayoutRawBlock[] = finalOcrBlocks.map((block) =>
           buildOcrBlock(document.sourcePath, page, block, layoutOcrStatus, ocrResult.engine)
         );
         rawBlocks.push(...pageBlocks);
@@ -142,7 +144,9 @@ export async function layoutOcrPdf(
     }
 
     const ocrBlocks = ocrResult.blocks.length > 0 ? mergeOcrBlockFragments(ocrResult.blocks) : [];
-    const pageBlocks: PdfLayoutRawBlock[] = ocrBlocks.map((block) => buildOcrBlock(document.sourcePath, page, block, layoutOcrStatus, ocrResult.engine));
+    // --- NEW: Semantic splitting for long single OCR prose blocks ---
+    const finalOcrBlocks = applySemanticSplittingToOcrBlocks(ocrBlocks);
+    const pageBlocks: PdfLayoutRawBlock[] = finalOcrBlocks.map((block) => buildOcrBlock(document.sourcePath, page, block, layoutOcrStatus, ocrResult.engine));
     rawBlocks.push(...pageBlocks);
 
     const pageText = ocrResult.text.trim();
@@ -531,4 +535,76 @@ function isHeadingLike(text: string): boolean {
 
 function looksLikeList(text: string): boolean {
   return /^[•\-*+]\s+/.test(text.trim()) || /^\d+[\).]\s+/.test(text.trim());
+}
+
+// ── NEW: Apply semantic splitting to OCR blocks ─────────────────────────────
+
+/**
+ * For image-based PDFs (pdfType: "image"), OCR engines often return a single
+ * large prose block instead of semantically separated paragraphs and headings.
+ * This function splits long paragraph-like OCR blocks using the same
+ * `splitSemanticBlocks()` logic that the text-layer path already uses.
+ *
+ * Rules:
+ * - Only split blocks with kind === 'paragraph' and text.length > 500
+ * - Headings, lists, illustrations are never split
+ * - Each split result becomes a separate OcrBlock with adjusted bbox and readingOrder
+ * - Original block order is preserved (split results replace the original inline)
+ */
+function applySemanticSplittingToOcrBlocks(blocks: import('./tooling.js').OcrBlock[]): import('./tooling.js').OcrBlock[] {
+  if (blocks.length === 0) return blocks;
+
+  const result: import('./tooling.js').OcrBlock[] = [];
+  let readingOrderCounter = 1;
+
+  for (const block of blocks) {
+    // Only split paragraph-like blocks that are long enough
+    if (block.kind !== 'paragraph' || block.text.length <= 300) {
+      result.push({ ...block, readingOrder: readingOrderCounter++ });
+      continue;
+    }
+
+    const semanticBlocks = splitSemanticBlocks(block.text);
+    if (semanticBlocks.length <= 1) {
+      // Splitting didn't produce more blocks — keep original
+      result.push({ ...block, readingOrder: readingOrderCounter++ });
+      continue;
+    }
+
+    // Split the original bbox vertically among the semantic blocks
+    // (proportional to text length of each sub-block)
+    const totalLen = block.text.length;
+    let currentY = block.bbox.y;
+
+    for (let i = 0; i < semanticBlocks.length; i++) {
+      const sb = semanticBlocks[i];
+      const portion = sb.text.length / totalLen;
+      const h = block.bbox.h * portion;
+
+      result.push({
+        ...block,
+        text: sb.text,
+        kind: mapSemanticKindToOcrKind(sb.blockKind),
+        readingOrder: readingOrderCounter++,
+        bbox: {
+          x: block.bbox.x,
+          y: currentY,
+          w: block.bbox.w,
+          h,
+        },
+      });
+      currentY += h;
+    }
+  }
+
+  return result;
+}
+
+function mapSemanticKindToOcrKind(kind: 'heading' | 'statblock' | 'paragraph' | 'unknown'): import('./tooling.js').OcrBlockKind {
+  switch (kind) {
+    case 'heading': return 'heading';
+    case 'statblock': return 'paragraph';  // statblock is not a native OCR kind, treat as paragraph
+    case 'paragraph': return 'paragraph';
+    case 'unknown': return 'paragraph';
+  }
 }

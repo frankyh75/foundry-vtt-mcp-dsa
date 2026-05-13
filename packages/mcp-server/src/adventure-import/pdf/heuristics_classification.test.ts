@@ -213,6 +213,37 @@ describe('Prose-Merge bei Silben-Split', () => {
     // Langer Block (>200 Zeichen) ist eigenständig, kurzer wird nicht mit ihm gemergt
     expect(result.blocks.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('merged cross-column statblocks in 2-Spalten-Layouts', () => {
+    // Simuliert: Linke Spalte hat MU/KL/IN/CH, rechte Spalte hat FF/GE/KO/KK + LeP
+    const leftColumn = makeBlock('MU 12 KL 11 IN 10 CH 9', {
+      id: 'block:left',
+      readingOrder: 1,
+      bbox: { x: 40, y: 300, w: 220, h: 80 },
+      blockType: 'paragraph',
+    });
+    const rightColumn = makeBlock('FF 8 GE 12 KO 13 KK 11\nLeP 25 AsP 0 KaP 0', {
+      id: 'block:right',
+      readingOrder: 2,
+      bbox: { x: 300, y: 300, w: 220, h: 120 },
+      blockType: 'paragraph',
+    });
+    const result = classifyAdventurePdfIr('/test.pdf', [leftColumn, rightColumn], []);
+
+    // Die zwei Spalten sollten zu einem gemergt werden
+    expect(result.blocks.length).toBe(1);
+    const mergedBlock = result.blocks[0];
+    expect(mergedBlock.textRaw).toContain('MU 12');
+    expect(mergedBlock.textRaw).toContain('FF 8');
+    expect(mergedBlock.textRaw).toContain('LeP 25');
+    // combined text has enough stat terms for detection
+    expect(mergedBlock.textRaw).toMatch(/\b(MU|KL|IN|CH|FF|GE|KO|KK)\s+\d/);
+    expect(mergedBlock.textRaw).toMatch(/\bLeP\s+\d/);
+    // BBox sollte beide Spalten umfassen
+    expect(mergedBlock.bbox.x).toBe(40);
+    expect(mergedBlock.bbox.w).toBeGreaterThan(400);
+    expect(mergedBlock.provenance.rule).toBe('cross_column_merge.v1');
+  });
 });
 
 describe('Entity Candidate mit Statblock', () => {

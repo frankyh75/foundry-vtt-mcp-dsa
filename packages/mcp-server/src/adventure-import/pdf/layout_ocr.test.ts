@@ -261,4 +261,73 @@ describe('layoutOcrPdf', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('splits long single OCR prose blocks semantically when no text layer exists', async () => {
+    const { dir, pdfPath } = await createTempPdfFile();
+    const longProse = 'Kapitel 1: Der Anfang\n\nDie Sonne stand hoch am Himmel, als die Gruppe sich auf den Weg machte. Sie hatte bereits viele Abenteuer hinter sich gebracht und war bereit für neue Herausforderungen. Die Straße war staubig und die Hitze lag schwer über der Landschaft.\n\nMU 12 KL 11 IN 10 CH 9 FF 8 GE 12 KO 13 KK 11 LeP 25 AsP 0 KaP 0 INI 12 AW 7 SK 4 ZK 2 GS 7';
+    const runner = {
+      pdfInfo: vi.fn().mockResolvedValue('Pages: 1\\nPage size: 595 x 842 pts\\n'),
+      pdfToText: vi.fn().mockResolvedValue(''),
+      probeRender: vi.fn().mockResolvedValue(true),
+      ocrPage: vi.fn().mockResolvedValue({
+        available: true,
+        engine: 'tesseract',
+        text: longProse,
+        blocks: [
+          {
+            kind: 'paragraph' as const,
+            text: longProse,
+            bbox: { x: 42, y: 30, w: 500, h: 700 },
+            confidence: 85,
+            readingOrder: 1,
+            source: 'ocr' as const,
+          },
+        ],
+        pageWidth: 595,
+        pageHeight: 842,
+      }),
+    };
+
+    try {
+      const result = await layoutOcrPdf(
+        {
+          id: 'doc:test',
+          sourcePath: pdfPath,
+          sourceHash: 'sha256:test',
+          pageCount: 1,
+          pdfType: 'unknown',
+          defaultLanguage: 'de',
+        },
+        [
+          {
+            id: 'page:test',
+            pageNumber: 1,
+            width: 595,
+            height: 842,
+          },
+        ],
+        runner,
+      );
+
+      expect(result.document.pdfType).toBe('image');
+      expect(result.pages[0]?.layoutOcrStatus).toBe('needs_ocr');
+      expect(result.pages[0]?.source).toBe('ocr');
+      // The single long OCR block should be split into heading + prose + statblock
+      expect(result.rawBlocks.length).toBeGreaterThanOrEqual(3);
+      const blockTypes = result.rawBlocks.map((block) => block.blockType);
+      expect(blockTypes).toContain('heading');
+      expect(blockTypes).toContain('paragraph');
+      // At least one block should contain statblock attributes
+      const statBlock = result.rawBlocks.find((b) =>
+        /\b(MU|KL|IN|CH|FF|GE|KO|KK|LeP|AsP|KaP|INI|AW|SK|ZK|GS)\s+\d/.test(b.textRaw)
+      );
+      expect(statBlock).toBeDefined();
+      expect(statBlock?.textRaw).toContain('LeP 25');
+      // Verify readingOrder is sequential
+      const orders = result.rawBlocks.map((b) => b.readingOrder).sort((a, b) => a - b);
+      expect(orders).toEqual(Array.from({ length: orders.length }, (_, i) => i + 1));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });
