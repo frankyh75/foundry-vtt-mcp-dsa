@@ -67,6 +67,76 @@ export const DSA_BLOCK_COLORS: Record<DsaBlockType, string> = {
   'unbekannt': '#7f8c8d',
 };
 
+/**
+ * IR-Blocktyp + roleHint → DSA-Blocktyp.
+ * Berücksichtigt roleHint für feinere Zuordnung,
+ * fällt auf blockType zurück wenn roleHint fehlt.
+ */
+export function irBlockTypeToDsa(blockType: string, roleHint?: string): DsaBlockType {
+  // roleHint hat Priorität für paragraph-Blöcke
+  if (roleHint) {
+    switch (roleHint) {
+      case 'npc_profile':
+      case 'npc':
+        return 'person';
+      case 'location':
+        return 'ort';
+      case 'scene':
+        return 'szene';
+      case 'read_aloud':
+        return 'vorlesetext';
+      case 'gm_info':
+      case 'spielleiter_info':
+        return 'spielleiter-info';
+      case 'combat':
+      case 'skill_check':
+        return 'würfelprobe';
+      case 'item':
+      case 'gegenstand':
+        return 'gegenstand';
+      case 'stat_block':
+        return 'person';
+      case 'rule_box':
+        return 'regelbox';
+      case 'table':
+      case 'table_like':
+        return 'tabelle';
+      case 'flavor_text':
+        return 'stimmungstext';
+      case 'decoration':
+      case 'illustration':
+        return 'dekoration';
+    }
+  }
+
+  // Fallback auf blockType
+  switch (blockType) {
+    case 'heading':
+    case 'header':
+      return 'überschrift';
+    case 'stat_block':
+    case 'npc':
+      return 'person';
+    case 'table':
+    case 'table_like':
+      return 'tabelle';
+    case 'read_aloud':
+      return 'vorlesetext';
+    case 'sidebar':
+    case 'rule_box':
+      return 'regelbox';
+    case 'illustration':
+    case 'decoration':
+      return 'dekoration';
+    case 'list':
+      return 'stimmungstext';
+    case 'paragraph':
+      return 'stimmungstext';
+    default:
+      return 'unbekannt';
+  }
+}
+
 /** Werkzeug-Modi im Editor */
 export type EditorTool =
   | 'select'      // Boxen auswählen, verschieben, resize

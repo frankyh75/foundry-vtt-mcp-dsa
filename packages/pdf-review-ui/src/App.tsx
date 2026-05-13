@@ -5,7 +5,7 @@ import { applyPresetDefaults, defaultReviewConfig, normalizeReviewConfig, review
 import EditorToolbar from './EditorToolbar';
 import PropertyPanel from './PropertyPanel';
 import { PdfCanvasRenderer } from './components/PdfCanvasRenderer';
-import { DSA_BLOCK_LABELS, DSA_BLOCK_COLORS, type DsaBlockType, type EditorTool } from './dsaTypes';
+import { DSA_BLOCK_LABELS, DSA_BLOCK_COLORS, irBlockTypeToDsa, type DsaBlockType, type EditorTool } from './dsaTypes';
 
 type PdfBBox = { x: number; y: number; w: number; h: number };
 
@@ -1164,12 +1164,13 @@ export default function App() {
               {visibleBlocks.map((block) => {
                 const isSelected = selectedBlockIds.includes(block.id);
                 const scaled = getBlockScaledBbox(block);
-                const label = DSA_BLOCK_LABELS[block.blockType as keyof typeof DSA_BLOCK_LABELS] ?? block.blockType;
+                const dsaType = irBlockTypeToDsa(block.blockType, block.roleHint);
+                const label = DSA_BLOCK_LABELS[dsaType] ?? block.blockType;
                 return (
                   <button
                     key={block.id}
                     type="button"
-                    className={`block-box block-${block.blockType} ${isSelected ? 'selected' : ''}`}
+                    className={`block-box block-${dsaType} ${isSelected ? 'selected' : ''}`}
                     style={{
                       left: scaled.x,
                       top: scaled.y,
@@ -1215,7 +1216,7 @@ export default function App() {
                 </div>
                 <PropertyPanel
                   boxId={selectedBlock.id}
-                  boxType={(selectedBlock.blockType ?? 'unbekannt') as import('./dsaTypes').DsaBlockType}
+                  boxType={irBlockTypeToDsa(selectedBlock.blockType ?? 'unknown', selectedBlock.roleHint)}
                   boxBbox={selectedBlock.bbox}
                   boxText={selectedBlock.textRaw}
                   readingOrder={selectedBlock.readingOrder}
@@ -1601,13 +1602,15 @@ function summarizePageBlocks(blocks: PdfBlock[]): string {
 
   const counts = new Map<string, number>();
   for (const block of blocks) {
-    counts.set(block.blockType, (counts.get(block.blockType) ?? 0) + 1);
+    const dsaType = irBlockTypeToDsa(block.blockType, block.roleHint);
+    const label = DSA_BLOCK_LABELS[dsaType] ?? dsaType;
+    counts.set(label, (counts.get(label) ?? 0) + 1);
   }
 
   const summary = Array.from(counts.entries())
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
     .slice(0, 2)
-    .map(([blockType, count]) => `${blockType} ${count}`)
+    .map(([label, count]) => `${label} ${count}`)
     .join(' · ');
 
   return summary || 'keine Blöcke';
@@ -1733,6 +1736,7 @@ function toStubType(value: unknown): 'npc_stub' | 'location_stub' | 'scene_stub'
 }
 
 function normalizeBlockType(value: string): PdfBlock['blockType'] | undefined {
+  // IR-native types pass through
   if (
     value === 'heading' ||
     value === 'paragraph' ||
@@ -1749,7 +1753,23 @@ function normalizeBlockType(value: string): PdfBlock['blockType'] | undefined {
   ) {
     return value;
   }
-  return undefined;
+  // DSA types map back to IR types
+  const dsaToIr: Record<string, PdfBlock['blockType']> = {
+    'überschrift': 'heading',
+    'vorlesetext': 'read_aloud',
+    'spielleiter-info': 'sidebar',
+    'person': 'stat_block',
+    'ort': 'paragraph',
+    'szene': 'paragraph',
+    'würfelprobe': 'paragraph',
+    'gegenstand': 'paragraph',
+    'regelbox': 'sidebar',
+    'tabelle': 'table_like',
+    'stimmungstext': 'paragraph',
+    'dekoration': 'decoration',
+    'unbekannt': 'unknown',
+  };
+  return dsaToIr[value];
 }
 
 function buildDefaultMinimumPayload(stubType: 'npc_stub' | 'location_stub' | 'scene_stub', label: string, text: string): Record<string, unknown> {

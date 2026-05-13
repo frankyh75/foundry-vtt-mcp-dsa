@@ -2,7 +2,8 @@ import type { AdventurePdfBlockV1, AdventurePdfPageV1 } from './ir.js';
 import { layoutOcrStatusSchema, ocrModeSchema, sourceSchema } from './ir.js';
 import { createRawBlockId } from './ids.js';
 import type { PdfIngestDocument, PdfIngestPage } from './ingest.js';
-import type { PdfToolRunner, OcrBlockKind, OcrPageResult } from './tooling.js';
+import type { PdfToolRunner, OcrBlock, OcrBlockKind, OcrPageResult } from './tooling.js';
+import { splitSemanticBlocks } from './semantic_block_splitter.js';
 
 export interface PdfLayoutRawBlock {
   id: string;
@@ -22,6 +23,7 @@ export interface PdfLayoutRawBlock {
   source: AdventurePdfPageV1['source'];
   sourceBlockIds: string[];
   confidence: number;
+  engineBlockType?: string;
   provenance: {
     producer: string;
     rule: string;
@@ -57,7 +59,38 @@ export async function layoutOcrPdf(
 
     if (hasUsableText) {
       textPageCount += 1;
-      const textBlocks = splitTextLayerIntoBlocks(normalizedText);
+
+      const ocrResult = await runner.ocrPage(document.sourcePath, page.pageNumber, {
+        languageHint: document.defaultLanguage,
+      });
+
+      if (ocrResult?.available && ocrResult.blocks.length > 0) {
+        const mergedOcrBlocks = mergeOcrBlockFragments(ocrResult.blocks);
+        const pageBlocks: PdfLayoutRawBlock[] = mergedOcrBlocks.map((block) =>
+          buildOcrBlock(document.sourcePath, page, block, layoutOcrStatus, ocrResult.engine)
+        );
+        rawBlocks.push(...pageBlocks);
+        const pageText = ocrResult.text.trim();
+        const primaryBlock =
+          pageBlocks[0] ?? buildPagePlaceholderBlock(document.sourcePath, page, 'ocr', 'ocr_empty');
+        classifiedPages.push(
+          buildPage(
+            page,
+            document.id,
+            primaryBlock,
+            pageBlocks.map((b) => b.id),
+            pageText.length,
+            'ocr',
+            layoutOcrStatus,
+            ocrMode,
+          ),
+        );
+        continue;
+      }
+
+      const semanticBlocks = splitSemanticBlocks(normalizedText);
+      const textBlocks = semanticBlocks.map((b) => b.text);
+      const blockKinds = semanticBlocks.map((b) => b.blockKind);
       if (textBlocks.length === 0) {
         // Fallback: ein Block für die gesamte Seite
         const rawBlock = buildTextLayerBlock(document.sourcePath, page, normalizedText, 1, 1);
@@ -66,7 +99,7 @@ export async function layoutOcrPdf(
         continue;
       }
       const pageRawBlocks: PdfLayoutRawBlock[] = textBlocks.map((text, idx) =>
-        buildTextLayerBlock(document.sourcePath, page, text, idx + 1, textBlocks.length)
+        buildTextLayerBlock(document.sourcePath, page, text, idx + 1, textBlocks.length, blockKinds[idx])
       );
       rawBlocks.push(...pageRawBlocks);
       const primaryBlock = pageRawBlocks[0] ?? buildTextLayerBlock(document.sourcePath, page, normalizedText, 1, 1);
@@ -108,7 +141,7 @@ export async function layoutOcrPdf(
       continue;
     }
 
-    const ocrBlocks = ocrResult.blocks.length > 0 ? ocrResult.blocks : [];
+    const ocrBlocks = ocrResult.blocks.length > 0 ? mergeOcrBlockFragments(ocrResult.blocks) : [];
     const pageBlocks: PdfLayoutRawBlock[] = ocrBlocks.map((block) => buildOcrBlock(document.sourcePath, page, block, layoutOcrStatus, ocrResult.engine));
     rawBlocks.push(...pageBlocks);
 
@@ -192,8 +225,11 @@ function buildTextLayerBlock(
   textRaw: string,
   readingOrder: number,
   totalBlocks: number,
+  semanticBlockKind?: 'heading' | 'statblock' | 'paragraph' | 'unknown',
 ): PdfLayoutRawBlock {
-  const blockType = inferBlockTypeFromText(textRaw);
+  const blockType = semanticBlockKind
+    ? mapSemanticKindToBlockType(semanticBlockKind)
+    : inferBlockTypeFromText(textRaw);
   const portion = totalBlocks > 1 ? 1 / totalBlocks : 1;
   return {
     id: createRawBlockId(sourcePath, page.pageNumber, readingOrder, textRaw),
@@ -219,6 +255,15 @@ function buildTextLayerBlock(
       details: `segment=${readingOrder}/${totalBlocks}`,
     },
   };
+}
+
+function mapSemanticKindToBlockType(kind: 'heading' | 'statblock' | 'paragraph' | 'unknown'): AdventurePdfBlockV1['blockType'] {
+  switch (kind) {
+    case 'heading': return 'heading';
+    case 'statblock': return 'paragraph';  // statblock maps to paragraph in blockType; roleHint carries the semantic
+    case 'paragraph': return 'paragraph';
+    case 'unknown': return 'paragraph';
+  }
 }
 
 function buildPagePlaceholderBlock(
@@ -292,7 +337,7 @@ function buildOcrBlock(
 ): PdfLayoutRawBlock {
   const textRaw = block.text;
   const normalizedConfidence = Number.isFinite(block.confidence) ? clampConfidence(block.confidence / 100) : 0.5;
-  return {
+  const rawBlock: PdfLayoutRawBlock = {
     id: createRawBlockId(
       sourcePath,
       page.pageNumber,
@@ -316,6 +361,124 @@ function buildOcrBlock(
       details: `readingOrder=${block.readingOrder},engine=${engine}`,
     },
   };
+  if (block.engineBlockType !== undefined) {
+    rawBlock.engineBlockType = block.engineBlockType;
+  }
+  return rawBlock;
+}
+
+/**
+ * Merge adjacent OCR block fragments that were artificially split.
+ *
+ * Rules (mirror mergeBlockFragments from heuristics_classification):
+ * - Only merge blocks on the SAME page (all input assumed same page)
+ * - Merge consecutive short fragments (≤60 chars) that look like continuations
+ *   (start lowercase) or are statblock fragments.
+ * - Never merge a heading into a prose block.
+ * - Preserve highest readingOrder block as primary, absorb text into it.
+ */
+function mergeOcrBlockFragments(blocks: OcrBlock[]): OcrBlock[] {
+  if (blocks.length <= 1) return blocks;
+
+  const merged: OcrBlock[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    const current = blocks[i];
+    const currentText = normalizeText(current.text);
+    const isShort = currentText.length <= 60;
+
+    // --- Strategy 1: Statblock merge ---
+    const hasPartialAttrs = /\b(MU|KL|IN|CH)\s+\d{1,2}/.test(currentText);
+    const missingFullStatblock = !/\bLeP\s+\d+/.test(currentText);
+
+    if (hasPartialAttrs && isShort && missingFullStatblock && i + 1 < blocks.length) {
+      const next = blocks[i + 1];
+      const nextText = normalizeText(next.text);
+      const nextHasCoreStats = /\b(LeP|FF|GE)\s+\d+/.test(nextText) || /\b(AT|SK|ZK)\s+\d+/.test(nextText);
+
+      if (nextHasCoreStats) {
+        const combinedText = `${currentText}\n${nextText}`;
+        merged.push({
+          ...current,
+          text: combinedText,
+          confidence: Math.max(current.confidence, next.confidence),
+          readingOrder: Math.max(current.readingOrder, next.readingOrder),
+          bbox: unionBBox(current.bbox, next.bbox),
+        });
+        i += 2;
+        continue;
+      }
+    }
+
+    // --- Strategy 2: Prose merge ---
+    // Collect consecutive short blocks that form a prose paragraph.
+    if (
+      isShort &&
+      current.kind !== 'heading' &&
+      !hasPartialAttrs &&
+      !isRealHeading(currentText) &&
+      i + 1 < blocks.length
+    ) {
+      const group: OcrBlock[] = [current];
+      const textParts: string[] = [currentText];
+      let j = i + 1;
+
+      while (j < blocks.length) {
+        const candidate = blocks[j];
+        const candidateText = normalizeText(candidate.text);
+
+        // Stop if candidate is clearly a standalone element
+        if (candidate.kind === 'heading') break;
+        if (isRealHeading(candidateText)) break;
+        if (/\b(MU|KL|IN|CH|LeP|FF|GE|KO|KK)\s+\d{1,2}/.test(candidateText)) break; // statblock
+        if (candidateText.length > 200) break; // long block = standalone paragraph
+        if (textParts.join(' ').length + candidateText.length > 600) break; // accumulated too long
+
+        group.push(candidate);
+        textParts.push(candidateText);
+        j++;
+      }
+
+      if (group.length >= 2) {
+        const combinedText = textParts.join('\n');
+        const primary = group[group.length - 1]; // highest readingOrder wins
+        merged.push({
+          ...primary,
+          text: combinedText,
+          confidence: Math.max(...group.map((b) => b.confidence)),
+          readingOrder: Math.max(...group.map((b) => b.readingOrder)),
+          bbox: group.reduce((acc, b) => unionBBox(acc, b.bbox), primary.bbox),
+        });
+        i = j;
+        continue;
+      }
+    }
+
+    merged.push(current);
+    i += 1;
+  }
+
+  return merged;
+}
+
+function unionBBox(
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number },
+): { x: number; y: number; w: number; h: number } {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  const w = Math.max(a.x + a.w, b.x + b.w) - x;
+  const h = Math.max(a.y + a.h, b.y + b.h) - y;
+  return { x, y, w, h };
+}
+
+function isRealHeading(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return false;
+  if (/^\d+([.\s]|\.\d+)*\s+\S/.test(trimmed)) return true;
+  if (trimmed === trimmed.toUpperCase() && trimmed.length <= 40 && trimmed.length > 1) return true;
+  if (/^(Kapitel|Szene|Szenario|Ort|Personen|NSC|Meisterwissen|Hintergrundwissen|Ausrüstung|Kampf|Magie)\b/i.test(trimmed)) return true;
+  return false;
 }
 
 function mapOcrBlockKind(kind: OcrBlockKind): AdventurePdfBlockV1['blockType'] {

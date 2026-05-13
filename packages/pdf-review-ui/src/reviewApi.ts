@@ -1,4 +1,4 @@
-const API_BASE = 'http://192.168.178.133:4174';
+const API_BASE = `http://${window.location.hostname}:4174`;
 
 export type SessionState = {
   sessionId: string;

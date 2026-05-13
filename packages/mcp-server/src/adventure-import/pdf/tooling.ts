@@ -21,6 +21,7 @@ export interface OcrBlock {
   confidence: number;
   readingOrder: number;
   source: 'ocr' | 'surya';
+  engineBlockType?: string;
 }
 
 export interface OcrPageResult {

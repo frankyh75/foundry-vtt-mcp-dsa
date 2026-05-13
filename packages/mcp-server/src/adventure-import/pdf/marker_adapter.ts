@@ -127,6 +127,7 @@ export function convertMarkerResultToPageMap(result: MarkerResult): Map<number, 
         confidence: 0.85,
         readingOrder,
         source: 'ocr',
+        engineBlockType: markerBlock.block_type,
       });
       readingOrder += 1;
     }

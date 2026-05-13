@@ -21,17 +21,146 @@ export interface PdfHeuristicsResult {
   entityStubs: AdventurePdfEntityStubV1[];
 }
 
+/**
+ * Merge adjacent blocks that were artificially split by the PDF text layer.
+ * Two merge strategies:
+ *
+ * 1. Statblock merge: A short block with partial attributes (MU/KL/IN/CH) followed
+ *    by a block with combat data (LeP/FF/GE/SK/ZK) belongs together.
+ *
+ * 2. Prose merge: Consecutive short blocks (≤120 chars) that look like hyphenation
+ *    fragments or sentence continuations, NOT standalone headings or statblocks,
+ *    are merged into a single narrative paragraph.
+ */
+function mergeBlockFragments(blocks: AdventurePdfBlockV1[]): AdventurePdfBlockV1[] {
+  if (blocks.length <= 1) return blocks;
+
+  const merged: AdventurePdfBlockV1[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    const current = blocks[i];
+    const currentText = normalizeText(current.textRaw);
+
+    // --- Strategy 1: Statblock merge ---
+    const hasPartialAttrs = /\b(MU|KL|IN|CH)\s+\d{1,2}/.test(currentText);
+    const isShort = currentText.length <= 120;
+    const missingFullStatblock = !/\bLeP\s+\d+/.test(currentText);
+
+    if (hasPartialAttrs && isShort && missingFullStatblock && i + 1 < blocks.length) {
+      const next = blocks[i + 1];
+      // Never merge blocks from different pages
+      if (next.pageNumber !== current.pageNumber) {
+        merged.push(current);
+        i++;
+        continue;
+      }
+      const nextText = normalizeText(next.textRaw);
+      const nextHasCoreStats = /\b(LeP|FF|GE)\s+\d+/.test(nextText) || /\b(AT|SK|ZK)\s+\d+/.test(nextText);
+
+      if (nextHasCoreStats) {
+        const combinedText = `${currentText}\n${nextText}`;
+        merged.push({
+          ...current,
+          textRaw: combinedText,
+          textNormalized: normalizeBlockText(combinedText),
+          confidence: Math.max(current.confidence, next.confidence),
+          sourceBlockIds: [...current.sourceBlockIds, ...next.sourceBlockIds],
+          provenance: { producer: 'heuristics_classification', rule: 'statblock_merge.v1' },
+        });
+        i += 2;
+        continue;
+      }
+    }
+
+    // --- Strategy 2: Prose merge (hyphenation / sentence continuation) ---
+    // Collect consecutive short blocks that form a prose paragraph.
+    // Stop conditions: no more blocks, block is long, block is a real heading,
+    // block is a statblock, or accumulated text already looks like a complete paragraph.
+    if (isShort && !hasPartialAttrs && !isRealHeading(currentText) && i + 1 < blocks.length) {
+      const isAlreadyHeadingLike = isRealHeading(currentText);
+      const isStatblock = /\b(MU|KL|IN|CH|LeP|FF|GE|KO|KK)\s+\d{1,2}/.test(currentText)
+        && /\b(MU|KL|IN|CH|LeP|AT|SK|ZK)\s+\d{1,2}/.test(currentText);
+
+      if (!isAlreadyHeadingLike && !isStatblock) {
+        const group: AdventurePdfBlockV1[] = [current];
+        const textParts: string[] = [currentText];
+        let j = i + 1;
+
+        while (j < blocks.length) {
+          const candidate = blocks[j];
+          const candidateText = normalizeText(candidate.textRaw);
+
+          // Never merge blocks from different pages — they're independent
+          if (candidate.pageNumber !== current.pageNumber) break;
+
+          // Stop if candidate is clearly a standalone element
+          if (isRealHeading(candidateText)) break;
+          if (/\b(MU|KL|IN|CH|LeP|FF|GE|KO|KK)\s+\d{1,2}/.test(candidateText)) break; // statblock
+          if (candidateText.length > 200) break; // long block = standalone paragraph
+          if (textParts.join(' ').length + candidateText.length > 600) break; // accumulated too long
+
+          group.push(candidate);
+          textParts.push(candidateText);
+          j++;
+        }
+
+        if (group.length >= 2) {
+          const combinedText = textParts.join('\n');
+          merged.push({
+            ...current,
+            textRaw: combinedText,
+            textNormalized: normalizeBlockText(combinedText),
+            confidence: Math.max(...group.map((b) => b.confidence)),
+            sourceBlockIds: group.flatMap((b) => b.sourceBlockIds),
+            provenance: { producer: 'heuristics_classification', rule: 'prose_merge.v1' },
+          });
+          i = j;
+          continue;
+        }
+      }
+    }
+
+    merged.push(current);
+    i += 1;
+  }
+
+  return merged;
+}
+
+/**
+ * Determines if a text is a genuine heading (not just a short prose fragment
+ * that the heuristics might misclassify).
+ */
+function isRealHeading(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return false;
+  // Numbered headings like "1. Die Abreise", "3.2 Der Weg", or "1 der Weg"
+  if (/^\d+([.\s]|\.\d+)*\s+\S/.test(trimmed)) return true;
+  // ALL UPPERCASE and short (e.g. "NSC", "KAMPF")
+  if (trimmed === trimmed.toUpperCase() && trimmed.length <= 40 && trimmed.length > 1) return true;
+  // Known DSA section markers
+  if (/^(Kapitel|Szene|Szenario|Ort|Personen|NSC|Meisterwissen|Hintergrundwissen|Ausrüstung|Kampf|Magie)\b/i.test(trimmed)) return true;
+  return false;
+}
+
+function normalizeBlockText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
 export function classifyAdventurePdfIr(
   sourcePath: string,
   blocks: AdventurePdfBlockV1[],
   sections: AdventurePdfSectionV1[],
 ): PdfHeuristicsResult {
+  // Step 0: Merge block fragments that were split across block boundaries
+  const mergedBlocks = mergeBlockFragments(blocks);
+
   const classifiedBlocks: AdventurePdfBlockV1[] = [];
   const entityCandidates: AdventurePdfEntityCandidateV1[] = [];
   const entityStubs: AdventurePdfEntityStubV1[] = [];
   const blockById = new Map<string, AdventurePdfBlockV1>();
 
-  for (const block of blocks) {
+  for (const block of mergedBlocks) {
     const text = normalizeText(block.textRaw);
     const headingScore = scoreHeading(text);
     const illustrationScore = scoreIllustration(text);
@@ -263,7 +392,7 @@ function scoreHeading(text: string): HeuristicScore {
     return { score: 0, rule: 'heading_empty.v1', entityType: 'scene' };
   }
 
-  if (/^\d+(\.\d+)*\s+/.test(text)) {
+  if (/^\d+([.\s]|\.\d+)*\s+\S/.test(text)) {
     return { score: 0.9, rule: 'heading_numbered.v1', entityType: 'scene' };
   }
 

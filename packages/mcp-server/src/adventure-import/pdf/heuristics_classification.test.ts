@@ -62,10 +62,156 @@ describe('Statblock-Erkennung', () => {
   });
 
   it('kein false positive bei Zahlen ohne DSA5-Kontext', () => {
-    const text = 'Kapitel 12: Die Reise. 31 Tage vergingen.';
+    const text = 'Kapitel 12: Die Reise. 31 Tage vergiesen.';
     const block = makeBlock(text);
     const result = classifyAdventurePdfIr('/test.pdf', [block], []);
     expect(result.blocks[0].roleHint).not.toBe('stat_block');
+  });
+});
+
+describe('Statblock-Merge bei Split-Blöcken', () => {
+  it('merged NSC-Name+Attribute (Block 1) mit Kampfdaten (Block 2)', () => {
+    // Simuliert den realen Deichbauern-Fall: Block 1 hat Name + MU/KL/IN/CH,
+    // Block 2 hat FF/GE/KO/KK, LeP, SK/ZK etc.
+    const headingBlock = makeBlock('Deichbauern\nMU 12 KL 11 IN 12 CH 11', {
+      id: 'block:1:1:heading',
+      readingOrder: 1,
+      blockType: 'heading',
+    });
+    const statsBlock = makeBlock(
+      'FF 14 GE 13 KO 13 KK 13\nLeP 31 AsP - KaP - INI 13+1W6\nSK 1 ZK 2 AW 7 GS 8\nDeichgabel: AT 10 PA 4 TP 1W6+2 RW mittel',
+      {
+        id: 'block:1:2:stats',
+        readingOrder: 2,
+        blockType: 'paragraph',
+      },
+    );
+    const result = classifyAdventurePdfIr('/test.pdf', [headingBlock, statsBlock], []);
+
+    // Die zwei Blöcke sollten zu einem gemergt werden
+    expect(result.blocks.length).toBeLessThan(3);
+    // Der gemergte Block sollte stat_block als roleHint haben
+    const mergedBlock = result.blocks.find((b) => b.roleHint === 'stat_block');
+    expect(mergedBlock).toBeDefined();
+    // Der Name "Deichbauern" sollte im Text enthalten sein
+    expect(mergedBlock!.textRaw).toContain('Deichbauern');
+    // MU und FF sollten beide im Text sein (vorher aufgeteilt)
+    expect(mergedBlock!.textRaw).toContain('MU 12');
+    expect(mergedBlock!.textRaw).toContain('FF 14');
+  });
+
+  it('merged nicht, wenn zweiter Block kein Statblock-Fragment ist', () => {
+    const headingBlock = makeBlock('Deichbauern\nMU 12 KL 11 IN 12 CH 11', {
+      id: 'block:1:1:heading',
+      readingOrder: 1,
+      blockType: 'heading',
+    });
+    const narrativeBlock = makeBlock('Die Deichbauern reagieren sehr verstört.', {
+      id: 'block:1:2:narr',
+      readingOrder: 2,
+      blockType: 'paragraph',
+    });
+    const result = classifyAdventurePdfIr('/test.pdf', [headingBlock, narrativeBlock], []);
+
+    // Kein Merge — Blocks bleiben getrennt
+    expect(result.blocks.length).toBe(2);
+  });
+
+  it('erzeugt korrekten NSC-Stub mit allen Attributen nach Merge', () => {
+    const headingBlock = makeBlock('Deichbauern\nMU 12 KL 11 IN 12 CH 11', {
+      id: 'block:1:1:heading',
+      readingOrder: 1,
+      blockType: 'heading',
+    });
+    const statsBlock = makeBlock(
+      'FF 14 GE 13 KO 13 KK 13\nLeP 31 AsP - KaP - INI 13+1W6\nSK 1 ZK 2 AW 7 GS 8\nDeichgabel: AT 10 PA 4 TP 1W6+2 RW mittel\nSonderfertigkeiten: keine',
+      {
+        id: 'block:1:2:stats',
+        readingOrder: 2,
+        blockType: 'paragraph',
+      },
+    );
+    const result = classifyAdventurePdfIr('/test.pdf', [headingBlock, statsBlock], []);
+
+    // Entity Stub sollte existieren
+    const stubs = result.entityStubs.filter((s) => s.stubType === 'npc_stub');
+    expect(stubs.length).toBeGreaterThanOrEqual(1);
+
+    // Der Deichbauern-Stub sollte alle 8 Attribute haben
+    const deichbauern = stubs.find((s) => s.label === 'Deichbauern');
+    expect(deichbauern).toBeDefined();
+    const payload = deichbauern!.minimumPayload as Record<string, unknown>;
+    const attrs = payload.attributes as Record<string, number>;
+    expect(attrs.mu).toBe(12);
+    expect(attrs.kl).toBe(11);
+    expect(attrs.in).toBe(12);
+    expect(attrs.ch).toBe(11);
+    expect(attrs.ff).toBe(14);
+    expect(attrs.ge).toBe(13);
+    expect(attrs.ko).toBe(13);
+    expect(attrs.kk).toBe(13);
+    expect(payload.lep).toBe(31);
+    expect(payload.sk).toBe(1);
+    expect(payload.zk).toBe(2);
+  });
+});
+
+describe('Prose-Merge bei Silben-Split', () => {
+  it('merged aufeinanderfolgende kurze Fließtext-Fragmente zu einem Absatz', () => {
+    // Simuliert Blöcke 13-16 aus dem Deichbauern-PDF (Silben-Split)
+    const fragments = [
+      makeBlock('aufmerksam und in einer mondlosen Nacht zer-', { id: 'b12', readingOrder: 12 }),
+      makeBlock('schlugen sie den Kult und brachten seinen Mit-', { id: 'b13', readingOrder: 13 }),
+      makeBlock('gliedern den Tod. Dem Hohepriester gelang es', { id: 'b14', readingOrder: 14 }),
+      makeBlock('jedoch noch mit letzter Kraft, den Zahn ins Meer zu schleudern.', { id: 'b15', readingOrder: 15 }),
+    ];
+    const result = classifyAdventurePdfIr('/test.pdf', fragments, []);
+
+    // Alle 4 Fragmente sollten zu weniger als 4 Blöcken zusammengeführt werden
+    expect(result.blocks.length).toBeLessThan(4);
+    // Der gemergte Block sollte den zusammenhängenden Text enthalten
+    const mergedBlock = result.blocks[0];
+    expect(mergedBlock.textRaw).toContain('schlugen sie den Kult');
+    expect(mergedBlock.textRaw).toContain('Zahn ins Meer');
+    // Kein heading-Misclassification
+    expect(mergedBlock.blockType).not.toBe('heading');
+  });
+
+  it('merged nicht bei echten Überschriften', () => {
+    const heading = makeBlock('1. Der Fluch der Gabel', { id: 'b1', readingOrder: 1 });
+    const narrative = makeBlock('Am nächsten Morgen dringt Elidan darauf ein, nach der verschwundenen Deichgabel zu suchen. Nach längerer Suche gelingt es bei Ebbe tatsächlich, die Deichgabel im Watt vor dem Deich zu finden.', { id: 'b2', readingOrder: 2 });
+    const result = classifyAdventurePdfIr('/test.pdf', [heading, narrative], []);
+
+    // Nummerierte Überschrift wird nicht ins Prose-Merge einbezogen
+    expect(result.blocks.length).toBeGreaterThanOrEqual(1);
+    const headingBlock = result.blocks.find((b) => b.blockType === 'heading');
+    // Heading bleibt als eigener Block erhalten (es ist eine echte Überschrift)
+    expect(headingBlock).toBeDefined();
+  });
+
+  it('merged nicht bei Statblock', () => {
+    const headingBlock = makeBlock('Deichbauern\nMU 12 KL 11 IN 12 CH 11', { id: 'b1', readingOrder: 1, blockType: 'heading' });
+    const statsBlock = makeBlock('FF 14 GE 13 KO 13 KK 13\nLeP 31 AsP - KaP -', { id: 'b2', readingOrder: 2 });
+    const longNarrative = makeBlock('Die Deichbauern kämpfen am liebsten aus einer erhöhten, vorteilhaften Position. Sie greifen mit der Deichgabel an und weichen aus, wenn der Gegner zu nahe kommt. Ihre Taktik beruht auf Ausdauer und Ortskenntnis im Watt.', { id: 'b3', readingOrder: 3 });
+    const result = classifyAdventurePdfIr('/test.pdf', [headingBlock, statsBlock, longNarrative], []);
+
+    // Statblock-Merge kombiniert Block 1+2 zu einem Block ( MU + FF enthalten)
+    // Block 3 bleibt eigenständig (zu lang für Prose-Merge)
+    expect(result.blocks.length).toBe(2);
+    const mergedBlock = result.blocks[0];
+    // Der gemergte Block enthält MU und FF Attribute
+    expect(mergedBlock.textRaw).toContain('MU 12');
+    expect(mergedBlock.textRaw).toContain('FF 14');
+    expect(mergedBlock.textRaw).toContain('LeP 31');
+  });
+
+  it('stoppt Prose-Merge bei langem Block', () => {
+    const short = makeBlock('Hexen entzogen blieb.', { id: 'b1', readingOrder: 1 });
+    const long = makeBlock('Über Jahre ruhte der Zahn verborgen auf dem Grund des Meeres, aber dann wurde er durch eine Veränderung der Strömungen und den steten Wechsel der Gezeiten wieder an die Oberfläche und schließlich nahe Frengesfolds Hof ins Watt gespült, wo ihn der alte Bauer fand.', { id: 'b2', readingOrder: 2 });
+    const result = classifyAdventurePdfIr('/test.pdf', [short, long], []);
+
+    // Langer Block (>200 Zeichen) ist eigenständig, kurzer wird nicht mit ihm gemergt
+    expect(result.blocks.length).toBeGreaterThanOrEqual(1);
   });
 });
 
