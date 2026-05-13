@@ -285,4 +285,22 @@ describe('Entity Candidate mit Statblock', () => {
     expect(stub.minimumPayload.lep).toBe(25);
     expect((stub.minimumPayload.attributes as Record<string, number>).mu).toBe(12);
   });
+
+  it('extrahiert Namen trotz NSC-Symbol am Anfang', () => {
+    const text = 'ⓐ Elidan, ehemaliger Waldbauer\nMU 14 KL 10 IN 12 CH 11\nLeP 33 AsP - KaP -\nSK 1 ZK 2 AW 6 GS 7';
+    const block = makeBlock(text);
+    const result = classifyAdventurePdfIr('/test.pdf', [block], []);
+    const stub = result.entityStubs.find((s) => s.stubType === 'npc_stub');
+    expect(stub).toBeDefined();
+    expect(stub!.label).toBe('Elidan');
+  });
+
+  it('ignoriert OCR-Garbage als Label', () => {
+    const text = ', rn hl . : | IR wnt Fi SE AN ER SS Si\nMU 12 KL 11 IN 10 CH 9\nLeP 25';
+    const block = makeBlock(text);
+    const result = classifyAdventurePdfIr('/test.pdf', [block], []);
+    // Should not create entity with garbage name
+    const garbageStub = result.entityStubs.find((s) => /rn|hl|IR|wnt/.test(s.label));
+    expect(garbageStub).toBeUndefined();
+  });
 });

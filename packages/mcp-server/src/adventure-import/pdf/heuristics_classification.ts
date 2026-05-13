@@ -581,8 +581,16 @@ function extractProperName(text: string): string | undefined {
 }
 
 function isOcrGarbage(text: string): boolean {
-  // Nur Sonderzeichen, Zahlen, Whitespace = OCR-Müll
-  return /^[\W\d\s]+$/.test(text);
+  // Hoher Anteil an Sonderzeichen / Nicht-Buchstaben = OCR-Müll
+  const stripped = text.replace(/\s/g, '');
+  if (stripped.length === 0) return true;
+  const meaningfulChars = stripped.replace(/[^a-zA-ZäöüßÄÖÜ]/g, '').length;
+  return meaningfulChars / stripped.length < 0.3;
+}
+
+function stripNscSymbols(text: string): string {
+  // Entfernt Publisher-NSC-Symbole am Zeilenanfang: ⓐ, A, 2, £, &, ⊕, etc.
+  return text.replace(/^[ⓐⒶⒷⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ\d\p{Sc}\p{So}\s]+/u, '').trim();
 }
 
 function extractLabel(
@@ -590,7 +598,9 @@ function extractLabel(
   entityType: 'npc' | 'location' | 'scene',
 ): string | undefined {
   const normalized = normalizeText(text);
-  const line = normalized.split('\n')[0]?.trim() ?? '';
+  const rawLine = normalized.split('\n')[0]?.trim() ?? '';
+  // Strip NSC symbols before extraction
+  const line = stripNscSymbols(rawLine);
   if (!line || line.length < 2) {
     return undefined;
   }
