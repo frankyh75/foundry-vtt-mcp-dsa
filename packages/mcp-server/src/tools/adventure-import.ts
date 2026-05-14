@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { z } from 'zod';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
@@ -30,18 +32,14 @@ export class AdventureImportTools {
   getToolDefinitions() {
     return [
       {
-        name: 'import-dsa5-adventure-from-text',
-        description: 'Extract a DSA5 adventure from text, validate it against the adventure schema, and optionally import journals and actors into Foundry VTT.',
+        name: 'import-dsa5-adventure-from-file',
+        description: 'Import a DSA5 adventure from a local JSON file. The file must contain a valid adventure payload matching the adventure schema. The LLM only needs to provide the file path.',
         inputSchema: {
           type: 'object',
           properties: {
-            title: {
+            filePath: {
               type: 'string',
-              description: 'Adventure title used for extraction, validation and the journal entry title',
-            },
-            sourceText: {
-              type: 'string',
-              description: 'Converted adventure text or OCR-free text from a PDF',
+              description: 'Absolute or relative path to the JSON file containing the adventure payload',
             },
             mode: {
               type: 'string',
@@ -64,17 +62,229 @@ export class AdventureImportTools {
               description: 'Add link references between Journal content and created Actors (default: true)',
               default: true,
             },
-            languageHint: {
-              type: 'string',
-              description: 'Optional language hint for the extractor (e.g. de, en)',
+            sections: {
+              type: 'array',
+              items: {
+                type: 'string',
+                enum: ['scenes', 'npcs', 'items', 'journal', 'all'],
+              },
+              description: 'Which sections to import. Default: ["all"]',
+              default: ['all'],
             },
           },
-          required: ['title', 'sourceText'],
+          required: ['filePath'],
+        },
+      },
+      {
+        name: 'import-dsa5-adventure-chunk',
+        description: 'Import a single chunk of adventure data (one scene, one NPC, one journal entry). Use for incremental imports when the full adventure JSON is too large.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['scene', 'npc', 'item', 'journal', 'combat'],
+              description: 'Type of chunk to import',
+            },
+            data: {
+              type: 'object',
+              description: 'The chunk data object — must match the adventure schema for this type',
+            },
+            mode: {
+              type: 'string',
+              enum: ['dry-run', 'import'],
+              description: 'Dry-run creates a preview only; import writes data into Foundry',
+              default: 'dry-run',
+            },
+            createActors: {
+              type: 'boolean',
+              description: 'For NPC chunks: create Actor (default: true)',
+              default: true,
+            },
+            createJournals: {
+              type: 'boolean',
+              description: 'For scene/journal chunks: create Journal entry (default: true)',
+              default: true,
+            },
+            linkNpcs: {
+              type: 'boolean',
+              description: 'Add link references (default: true)',
+              default: true,
+            },
+          },
+          required: ['type', 'data'],
         },
       },
     ];
   }
 
+  async handleImportAdventureFromFile(args: unknown): Promise<any> {
+    const requestSchema = z.object({
+      filePath: z.string().min(1, 'filePath is required'),
+      mode: z.enum(['dry-run', 'import']).default('dry-run'),
+      createActors: z.boolean().default(true),
+      createJournals: z.boolean().default(true),
+      linkNpcs: z.boolean().default(true),
+      sections: z.array(z.enum(['scenes', 'npcs', 'items', 'journal', 'all'])).default(['all']),
+    });
+
+    const request = requestSchema.parse(args);
+    const resolvedPath = resolve(request.filePath);
+
+    this.logger.info('Adventure import from file requested', {
+      filePath: resolvedPath,
+      mode: request.mode,
+      sections: request.sections,
+    });
+
+    // Read and parse JSON file
+    let fileContent: string;
+    try {
+      fileContent = readFileSync(resolvedPath, 'utf-8');
+    } catch (error) {
+      this.logger.error('Failed to read adventure file', { filePath: resolvedPath, error });
+      throw new Error(`Cannot read file at ${resolvedPath}: ${(error as Error).message}`);
+    }
+
+    let parsedPayload: unknown;
+    try {
+      parsedPayload = JSON.parse(fileContent);
+    } catch (error) {
+      this.logger.error('Failed to parse adventure JSON', { filePath: resolvedPath, error });
+      throw new Error(`Invalid JSON in file ${resolvedPath}: ${(error as Error).message}`);
+    }
+
+    // Validate against schema
+    const validated = adventureImportSchema.parse(parsedPayload) as AdventureImportPayload;
+
+    // Filter sections if requested
+    if (!request.sections.includes('all')) {
+      if (!request.sections.includes('scenes')) {
+        validated.scenes = [];
+      }
+      if (!request.sections.includes('npcs')) {
+        validated.npcs = [];
+      }
+      if (!request.sections.includes('items')) {
+        validated.items = [];
+      }
+      if (!request.sections.includes('journal')) {
+        validated.journal = [];
+      }
+    }
+
+    const importerOptions = {
+      createActors: request.createActors,
+      createJournals: request.createJournals,
+      linkNpcs: request.linkNpcs,
+    };
+
+    if (request.mode === 'dry-run') {
+      const preview = await this.importer.dryRun(validated, importerOptions);
+      return {
+        success: true,
+        mode: 'dry-run',
+        title: validated.metadata.title,
+        filePath: resolvedPath,
+        extractedWarnings: validated.warnings ?? [],
+        plan: preview.plan,
+        summary: preview.summary,
+        warnings: preview.warnings,
+        unresolvedReferences: preview.unresolvedReferences,
+        createdEntityIds: preview.createdEntityIds,
+      };
+    }
+
+    const result = await this.importer.importAdventure(validated, importerOptions);
+    return {
+      success: result.success,
+      mode: result.mode,
+      title: result.title,
+      filePath: resolvedPath,
+      summary: result.summary,
+      warnings: result.warnings,
+      unresolvedReferences: result.unresolvedReferences,
+      createdEntityIds: result.createdEntityIds,
+      journal: result.journal,
+      actors: result.actors,
+      plan: result.plan,
+    };
+  }
+
+  async handleImportAdventureChunk(args: unknown): Promise<any> {
+    const requestSchema = z.object({
+      type: z.enum(['scene', 'npc', 'item', 'journal', 'combat']),
+      data: z.record(z.any()),
+      mode: z.enum(['dry-run', 'import']).default('dry-run'),
+      createActors: z.boolean().default(true),
+      createJournals: z.boolean().default(true),
+      linkNpcs: z.boolean().default(true),
+    });
+
+    const request = requestSchema.parse(args);
+
+    this.logger.info('Adventure chunk import requested', {
+      type: request.type,
+      mode: request.mode,
+    });
+
+    // Build a minimal payload from the chunk
+    const chunkPayload: AdventureImportPayload = {
+      metadata: {
+        title: `Chunk: ${request.type}`,
+        type: 'chunk',
+        language: 'de',
+        // Additional metadata fields via passthrough
+        genre: '',
+        complexity: '',
+        playerCount: '',
+        locations: [],
+        timeframe: '',
+        description: '',
+      } as any,
+      scenes: request.type === 'scene' ? [request.data as any] : [],
+      npcs: request.type === 'npc' ? [request.data as any] : [],
+      items: request.type === 'item' ? [request.data as any] : [],
+      locations: [],
+      journal: request.type === 'journal' ? [request.data as any] : [],
+      combatEncounters: request.type === 'combat' ? [request.data as any] : [],
+    };
+
+    const validated = adventureImportSchema.parse(chunkPayload) as AdventureImportPayload;
+
+    const importerOptions = {
+      createActors: request.createActors,
+      createJournals: request.createJournals,
+      linkNpcs: request.linkNpcs,
+    };
+
+    if (request.mode === 'dry-run') {
+      const preview = await this.importer.dryRun(validated, importerOptions);
+      return {
+        success: true,
+        mode: 'dry-run',
+        chunkType: request.type,
+        plan: preview.plan,
+        summary: preview.summary,
+        warnings: preview.warnings,
+        createdEntityIds: preview.createdEntityIds,
+      };
+    }
+
+    const result = await this.importer.importAdventure(validated, importerOptions);
+    return {
+      success: result.success,
+      mode: result.mode,
+      chunkType: request.type,
+      summary: result.summary,
+      warnings: result.warnings,
+      createdEntityIds: result.createdEntityIds,
+      journal: result.journal,
+      actors: result.actors,
+    };
+  }
+
+  // Legacy handler — keep for backward compatibility but mark as deprecated
   async handleImportAdventureFromText(args: unknown): Promise<any> {
     const requestSchema = z.object({
       title: z.string().min(1, 'title is required'),
@@ -88,7 +298,7 @@ export class AdventureImportTools {
 
     const request = requestSchema.parse(args);
 
-    this.logger.info('Adventure import requested', {
+    this.logger.warn('import-dsa5-adventure-from-text is deprecated. Use import-dsa5-adventure-from-file or import-dsa5-adventure-chunk for better performance.', {
       title: request.title,
       mode: request.mode,
       sourceLength: request.sourceText.length,

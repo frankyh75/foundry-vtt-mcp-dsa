@@ -1657,6 +1657,18 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'import-dsa5-adventure-from-file':
+
+                  result = await adventureImportTools.handleImportAdventureFromFile(args);
+
+                  break;
+
+                case 'import-dsa5-adventure-chunk':
+
+                  result = await adventureImportTools.handleImportAdventureChunk(args);
+
+                  break;
+
                 case 'import-dsa5-adventure-from-text':
 
                   result = await adventureImportTools.handleImportAdventureFromText(args);

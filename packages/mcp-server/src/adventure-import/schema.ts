@@ -2,11 +2,17 @@ import { z } from 'zod';
 
 const adventureMetadataSchema = z.object({
   title: z.string().min(1),
-  type: z.string().min(1),
-  language: z.string().min(1),
+  type: z.string().min(1).optional(),
+  language: z.string().min(1).optional(),
   subtitle: z.string().optional(),
   source: z.string().optional(),
   system: z.string().optional(),
+  genre: z.string().optional(),
+  complexity: z.string().optional(),
+  playerCount: z.string().optional(),
+  locations: z.array(z.string()).optional(),
+  timeframe: z.string().optional(),
+  description: z.string().optional(),
 }).passthrough();
 
 const adventureChapterSchema = z.object({
@@ -39,10 +45,13 @@ const adventureNpcSchema = z.object({
 
 export const adventureImportSchema = z.object({
   metadata: adventureMetadataSchema,
+  scenes: z.array(z.record(z.any())).optional(),
   chapters: z.array(adventureChapterSchema).default([]),
   npcs: z.array(adventureNpcSchema).default([]),
   items: z.array(z.record(z.any())).optional(),
   locations: z.array(z.record(z.any())).optional(),
+  journal: z.array(z.record(z.any())).optional(),
+  combatEncounters: z.array(z.record(z.any())).optional(),
   imports: z.record(z.any()).optional(),
   warnings: z.array(z.string()).default([]),
 }).passthrough();
