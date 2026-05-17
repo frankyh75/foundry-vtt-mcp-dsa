@@ -1,6 +1,6 @@
 # Foundry VTT MCP Bridge
 
-Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition and Pathfinder Second Edition. The majority of MCP tools are system agnostic but character creation and compendium tools are only able to work with D&D5e and PF2E.
+Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition, Pathfinder Second Edition, Das Schwarze Augen Fifth Edition, & Cosmere RPG System. The majority of MCP tools are system agnostic or have features that are aware of the system it is working with, excluding some DSA 5 specific tools. 
 
 ## Overview
 
@@ -163,8 +163,8 @@ Once connected, ask Claude Desktop:
 - **31** cancel-map-job
 - **32** switch-scene  
 - **33** create-actor-from-compendium
-- **34** list-dsa5-archetypes
-- **35** create-dsa5-character-from-archetype
+- **34** list-dsa5-archetypes (DSA5 Only)
+- **35** create-dsa5-character-from-archetype (DSA5 Only)
 - **36** create-campaign-dashboard
 - **37** add-actor-items
 
