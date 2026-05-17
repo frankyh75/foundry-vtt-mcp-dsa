@@ -30,9 +30,50 @@ function Test-JsonValid {
     }
 }
 
+function Get-ClaudeConfigTargets {
+    # Returns the list of Claude Desktop config directories to configure.
+    #
+    # Standalone Claude Desktop reads %APPDATA%\Claude\.
+    # The Microsoft Store (MSIX) build is filesystem-virtualised and reads
+    # from a sandboxed container instead:
+    #   %LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalCache\Roaming\Claude\
+    # Writing only to %APPDATA% silently fails for Store installs (issue #40),
+    # so we configure every location that exists (or plausibly should).
+
+    $targets = [System.Collections.Generic.List[object]]::new()
+
+    # 1. Standard standalone path (always a candidate)
+    $standardDir = Join-Path $env:APPDATA "Claude"
+    $targets.Add([PSCustomObject]@{
+        Kind   = "Standalone"
+        Dir    = $standardDir
+        Create = $true   # safe to create if missing — standalone reads it
+    })
+
+    # 2. MSIX virtualised path(s). The package family name contains "Claude"
+    #    but the exact id varies, so glob for it.
+    $packagesRoot = Join-Path $env:LOCALAPPDATA "Packages"
+    if (Test-Path $packagesRoot) {
+        $claudePackages = Get-ChildItem -Path $packagesRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "*Claude*" }
+        foreach ($pkg in $claudePackages) {
+            $virtualDir = Join-Path $pkg.FullName "LocalCache\Roaming\Claude"
+            $targets.Add([PSCustomObject]@{
+                Kind   = "MSIX ($($pkg.Name))"
+                Dir    = $virtualDir
+                # Only create if the package's LocalCache\Roaming exists — that
+                # confirms it's a real installed Claude container, not noise.
+                Create = (Test-Path (Join-Path $pkg.FullName "LocalCache\Roaming"))
+            })
+        }
+    }
+
+    return $targets
+}
+
 function Get-ConfigFileState {
     param([string]$ConfigPath)
-    
+
     if (-not (Test-Path $ConfigPath)) {
         return "Missing"
     }
@@ -67,55 +108,21 @@ function Get-ConfigFileState {
     }
 }
 
-try {
-    Write-LogMessage "=============================================="
-    Write-LogMessage "Starting Claude Desktop configuration..."
-    Write-LogMessage "=============================================="
-    Write-LogMessage "Log file location: $LogFile"
-    Write-LogMessage "PowerShell version: $($PSVersionTable.PSVersion)"
-    Write-LogMessage "Current user: $($env:USERNAME)"
-    Write-LogMessage "Install directory: $InstallDir"
-    Write-LogMessage "APPDATA: $($env:APPDATA)"
-    Write-LogMessage "Script parameters: $($PSBoundParameters | ConvertTo-Json)"
-    
-    # Validate installation directory exists
-    if (-not (Test-Path $InstallDir)) {
-        throw "Installation directory does not exist: $InstallDir"
-    }
-    
-    # Validate required files exist
-    $nodeExe = Join-Path $InstallDir "node.exe"
-    $mcpServer = Join-Path $InstallDir "foundry-mcp-server\packages\mcp-server\dist\index.cjs"
-    
-    if (-not (Test-Path $nodeExe)) {
-        throw "Node.js executable not found: $nodeExe"
-    }
-    
-    if (-not (Test-Path $mcpServer)) {
-        throw "MCP server not found: $mcpServer"
-    }
-    
-    Write-LogMessage "Installation files validated"
-    
-    # Determine Claude Desktop config path
-    $claudeConfigDir = Join-Path $env:APPDATA "Claude"
-    $configPath = Join-Path $claudeConfigDir "claude_desktop_config.json"
-    
-    Write-LogMessage "Claude config path: $configPath"
-    
-    # Ensure Claude directory exists
-    if (-not (Test-Path $claudeConfigDir)) {
-        Write-LogMessage "Creating Claude Desktop directory..."
-        New-Item -ItemType Directory -Path $claudeConfigDir -Force | Out-Null
-    }
-    
+
+function Set-FoundryMcpConfig {
+    param(
+        [Parameter(Mandatory=$true)][string]$ConfigPath,
+        [Parameter(Mandatory=$true)][string]$NodeExe,
+        [Parameter(Mandatory=$true)][string]$McpServer
+    )
+
     # Analyze and handle existing configuration
     $config = $null
     $backupPath = $null
-    
-    $fileState = Get-ConfigFileState $configPath
+
+    $fileState = Get-ConfigFileState $ConfigPath
     Write-LogMessage "Claude config file state: $fileState"
-    
+
     switch ($fileState) {
         "Missing" {
             Write-LogMessage "No existing configuration found, creating new..."
@@ -236,10 +243,98 @@ try {
         }
         throw "Written configuration file is invalid: $($_.Exception.Message)"
     }
+
+    Write-LogMessage "Configuration written and verified for: $configPath"
+}
+try {
+    Write-LogMessage "=============================================="
+    Write-LogMessage "Starting Claude Desktop configuration..."
+    Write-LogMessage "=============================================="
+    Write-LogMessage "Log file location: $LogFile"
+    Write-LogMessage "PowerShell version: $($PSVersionTable.PSVersion)"
+    Write-LogMessage "Current user: $($env:USERNAME)"
+    Write-LogMessage "Install directory: $InstallDir"
+    Write-LogMessage "APPDATA: $($env:APPDATA)"
+    Write-LogMessage "Script parameters: $($PSBoundParameters | ConvertTo-Json)"
     
+    # Validate installation directory exists
+    if (-not (Test-Path $InstallDir)) {
+        throw "Installation directory does not exist: $InstallDir"
+    }
+    
+    # Validate required files exist
+    $nodeExe = Join-Path $InstallDir "node.exe"
+    $mcpServer = Join-Path $InstallDir "foundry-mcp-server\packages\mcp-server\dist\index.cjs"
+    
+    if (-not (Test-Path $nodeExe)) {
+        throw "Node.js executable not found: $nodeExe"
+    }
+    
+    if (-not (Test-Path $mcpServer)) {
+        throw "MCP server not found: $mcpServer"
+    }
+    
+    Write-LogMessage "Installation files validated"
+
+    # Determine all Claude Desktop config locations (standalone + MSIX/Store)
+    $targets = Get-ClaudeConfigTargets
+    Write-LogMessage "Discovered $($targets.Count) potential Claude config location(s)"
+
+    $configuredCount = 0
+    $skippedCount = 0
+    $failures = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($target in $targets) {
+        $claudeConfigDir = $target.Dir
+        $configPath = Join-Path $claudeConfigDir "claude_desktop_config.json"
+
+        Write-LogMessage "----------------------------------------------"
+        Write-LogMessage "Target: $($target.Kind)"
+        Write-LogMessage "Claude config path: $configPath"
+
+        $dirExists = Test-Path $claudeConfigDir
+        if (-not $dirExists) {
+            if (-not $target.Create) {
+                Write-LogMessage "Directory missing and not eligible for creation, skipping this target."
+                $skippedCount++
+                continue
+            }
+            Write-LogMessage "Creating Claude Desktop directory..."
+            try {
+                New-Item -ItemType Directory -Path $claudeConfigDir -Force | Out-Null
+            }
+            catch {
+                Write-LogMessage "Failed to create directory: $($_.Exception.Message)" "ERROR"
+                $failures.Add("$($target.Kind): could not create config directory")
+                continue
+            }
+        }
+
+        try {
+            Set-FoundryMcpConfig -ConfigPath $configPath -NodeExe $nodeExe -McpServer $mcpServer
+            $configuredCount++
+            Write-LogMessage "Configured: $($target.Kind)"
+        }
+        catch {
+            Write-LogMessage "Failed to configure $($target.Kind): $($_.Exception.Message)" "ERROR"
+            $failures.Add("$($target.Kind): $($_.Exception.Message)")
+        }
+    }
+
+    Write-LogMessage "=============================================="
+    Write-LogMessage "Configured $configuredCount location(s), skipped $skippedCount."
+
+    if ($configuredCount -eq 0) {
+        throw "No Claude Desktop configuration locations could be configured. Failures: $($failures -join '; ')"
+    }
+
+    if ($failures.Count -gt 0) {
+        Write-LogMessage "Some locations failed but at least one succeeded: $($failures -join '; ')" "WARN"
+    }
+
     Write-LogMessage "Claude Desktop configuration completed successfully"
     Write-LogMessage "Please restart Claude Desktop to load the new configuration"
-    
+
     exit 0
 }
 catch {
@@ -251,7 +346,7 @@ catch {
     Write-LogMessage "=============================================="
     Write-LogMessage "For detailed error information, check: $LogFile" "ERROR"
     Write-LogMessage "=============================================="
-    
+
     # Provide concise error message for NSIS/user display
     $shortError = switch -Wildcard ($errorMsg) {
         "*MCP server not found*" { "MCP server files missing from installation" }
@@ -262,7 +357,7 @@ catch {
         "*Access*denied*" { "Permission denied accessing Claude Desktop configuration" }
         Default { "Claude Desktop configuration failed" }
     }
-    
+
     Write-Error "$shortError. Details in log: $LogFile"
     exit 1
 }
