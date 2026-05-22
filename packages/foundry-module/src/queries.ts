@@ -547,6 +547,7 @@ export class QueryHandlers {
         name: data.name,
         content: data.content,
         additionalPages: data.additionalPages,
+        folderName: data.folderName,
       });
     } catch (error) {
       throw new Error(
