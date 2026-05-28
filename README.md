@@ -138,7 +138,7 @@ This fork adds DSA5-focused workflows on top of the base bridge:
 
 ## Features
 
-- **36 MCP Tools** for MCP clients (Claude, Codex/OpenAI Agents, local LLM clients)
+- **37 MCP Tools** for MCP clients (Claude, Codex/OpenAI Agents, local LLM clients)
 - **Character Management**: Access stats, abilities, inventory, and detailed entity information
 - **Token Manipulation**: Move, update, delete tokens and manage status conditions
 - **Enhanced Compendium Search**: Instant filtering by CR, type, abilities, and more
@@ -187,8 +187,8 @@ This fork adds DSA5-focused workflows on top of the base bridge:
 - **31** cancel-map-job 
 - **32** switch-scene  
 - **33** create-actor-from-compendium 
-- **34** list-dsa5-archetypes 
-- **35** create-dsa5-character-from-archetype 
+- **34** list-dsa5-archetypes (DSA5 Only)
+- **35** create-dsa5-character-from-archetype (DSA5 Only)
 - **36** create-campaign-dashboard
 - **37** manage-world-items (create / list / update world items, add items to actor)
 
