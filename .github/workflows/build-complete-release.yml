@@ -450,7 +450,9 @@ jobs:
 
           Complete multi-platform distribution for Foundry MCP Server - AI-powered campaign management for Foundry VTT using Claude Desktop.
 
-          ### 📦 Installation Options
+          **Compatible with Foundry VTT v13 and v14.**
+
+          ### Installation Options
 
           **Windows Users:**
           - Download `FoundryMCPServer-Setup-${{ github.ref_name }}.exe`
@@ -473,14 +475,14 @@ jobs:
           - Install directly from Foundry's module browser
           - Or use manifest: `https://raw.githubusercontent.com/adambdooley/foundry-vtt-mcp/master/packages/foundry-module/module.json`
 
-          ### 🚀 Quick Start
+          ### Quick Start
           1. Choose your installation method above
           2. Install MCP Bridge module in Foundry VTT
           3. Restart Claude Desktop
           4. Start creating AI-powered campaigns!
 
-          ### 📋 Features
-          - 25 MCP tools for comprehensive Foundry VTT integration
+          ### Features
+          - 36 MCP tools for comprehensive Foundry VTT integration
           - Actor creation with natural language processing
           - Quest management with HTML generation and updates
           - Campaign system with multi-part structure and progress tracking

@@ -21,7 +21,7 @@ This project was built with the assistance of Claude Code. If you like this proj
 
 ### Prerequisites
 
-- **Foundry VTT v13** 
+- **Foundry VTT v13 or v14**
 - **MCP-capable client** (Claude Desktop, Codex/OpenAI Agents, or local clients like LM Studio)
 - **Windows** (for automated installer) or **Node.js 18+** for manual installation
 
@@ -51,7 +51,7 @@ This project was built with the assistance of Claude Code. If you like this proj
 ### Option 3: Manual Installation
 
 #### Install the Foundry Module
-1. Open Foundry VTT v13
+1. Open Foundry VTT (v13 or v14)
 2. Select install module in the Foundry Add-ons menu
 2. At the bottom of the window, add the Manifest URL as: https://github.com/adambdooley/foundry-vtt-mcp/blob/master/packages/foundry-module/module.json and click install
 3. Enable "Foundry MCP Bridge" in Module Management

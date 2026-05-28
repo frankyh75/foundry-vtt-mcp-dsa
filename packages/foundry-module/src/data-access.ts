@@ -1165,19 +1165,24 @@ export class FoundryDataAccess {
           system: this.sanitizeData(item.system),
         };
       }),
-      effects: actor.effects.map(effect => ({
-        id: effect.id,
-        name: (effect as any).name || (effect as any).label || 'Unknown Effect',
-        ...((effect as any).img ? { icon: (effect as any).img } : {}),
-        disabled: (effect as any).disabled,
-        ...(((effect as any).duration) ? {
-          duration: {
-            type: (effect as any).duration.type || 'none',
-            duration: (effect as any).duration.duration,
-            remaining: (effect as any).duration.remaining,
-          }
-        } : {}),
-      })),
+      effects: actor.effects.map(effect => {
+        const eff = effect as any;
+        const dur = eff.duration;
+        const durRaw = eff._source?.duration;
+        return {
+          id: effect.id,
+          name: eff.name || eff.label || 'Unknown Effect',
+          ...(eff.icon ? { icon: eff.icon } : {}),
+          disabled: eff.disabled,
+          ...(dur ? {
+            duration: {
+              type: dur.units ?? durRaw?.type ?? 'none',
+              duration: dur.seconds ?? durRaw?.duration,
+              remaining: dur.remaining,
+            }
+          } : {}),
+        };
+      }),
     };
 
     // Add PF2e-specific data if available
@@ -1367,7 +1372,8 @@ export class FoundryDataAccess {
       // Spell-specific fields
       if (item.type === 'spell') {
         result.level = itemSystem?.level?.value ?? itemSystem?.level ?? itemSystem?.rank ?? 0;
-        result.prepared = itemSystem?.preparation?.prepared ?? itemSystem?.location?.prepared;
+        const itemRaw = (item as any)._source?.system;
+        result.prepared = itemSystem?.prepared ?? itemRaw?.preparation?.prepared ?? itemSystem?.location?.prepared;
         result.expended = itemSystem?.location?.expended;
 
         // Get targeting info
@@ -1642,7 +1648,11 @@ export class FoundryDataAccess {
 
       for (const spell of spellItems) {
         const spellSystem = spell.system as any;
-        const sourceClass = spellSystem?.sourceClass || 'general';
+        const spellRaw = (spell as any)._source?.system || spellSystem;
+        const sourceItem = spellSystem?.sourceItem;
+        const sourceClass = (sourceItem
+          ? (typeof sourceItem === 'string' ? sourceItem : (sourceItem.identifier || sourceItem.id))
+          : spellRaw?.sourceClass) || 'general';
 
         if (!spellsByClass[sourceClass]) {
           spellsByClass[sourceClass] = [];
@@ -1653,7 +1663,7 @@ export class FoundryDataAccess {
           id: spell.id || '',
           name: spell.name || '',
           level: spellSystem?.level || 0,
-          prepared: spellSystem?.preparation?.prepared ?? true,
+          prepared: spellSystem?.prepared ?? spellRaw?.preparation?.prepared ?? true,
           traits: [], // D&D 5e doesn't use traits the same way
           actionCost: spellSystem?.activation?.type || undefined,
           range: targeting.range,
@@ -2823,7 +2833,7 @@ export class FoundryDataAccess {
       id: scene.id,
       name: scene.name,
       img: scene.img || undefined,
-      background: scene.background?.src || undefined,
+      background: scene._source?.background?.src || undefined,
       width: scene.width,
       height: scene.height,
       padding: scene.padding,
@@ -2976,20 +2986,37 @@ export class FoundryDataAccess {
 
       // Create a new sanitized object
       const sanitized: any = {};
-      
-      for (const [key, value] of Object.entries(obj)) {
+
+      // Use Object.keys (does not invoke getters) so we can filter deprecated
+      // accessor properties before reading their values.
+      const keys = Object.keys(obj);
+
+      // dnd5e 5.3 moved senses.darkvision/blindsight/tremorsense/truesight to
+      // senses.ranges.*. The legacy keys remain as deprecated getters that
+      // log a warning when read. Detect this shape and skip the legacy keys.
+      const DEPRECATED_DND5E_SENSE_KEYS = ['darkvision', 'blindsight', 'tremorsense', 'truesight'];
+      const isDnd5eSensesShape = keys.includes('ranges') &&
+        keys.some(k => DEPRECATED_DND5E_SENSE_KEYS.includes(k));
+
+      for (const key of keys) {
         // Skip sensitive and problematic fields entirely
         if (this.isSensitiveOrProblematicField(key)) {
           continue;
         }
 
-        // Skip most private properties except essential ones
-        if (key.startsWith('_') && !['_id', '_stats', '_source'].includes(key)) {
+        // Skip most private properties except essential ones.
+        // _stats (Foundry document audit metadata) and _source (raw stored data
+        // duplicate) are bloat in tool output; we keep only _id.
+        if (key.startsWith('_') && key !== '_id') {
           continue;
         }
 
-        // Recursively sanitize the value
-        sanitized[key] = this.removeSensitiveFields(value, visited, depth + 1);
+        if (isDnd5eSensesShape && DEPRECATED_DND5E_SENSE_KEYS.includes(key)) {
+          continue;
+        }
+
+        // Recursively sanitize the value (read only after filter to avoid getter-triggered warnings)
+        sanitized[key] = this.removeSensitiveFields((obj as any)[key], visited, depth + 1);
       }
 
       return sanitized;
@@ -3011,7 +3038,10 @@ export class FoundryDataAccess {
 
     const problematicKeys = [
       'parent', '_parent', 'collection', 'apps', 'document', '_document',
-      'constructor', 'prototype', '__proto__', 'valueOf', 'toString'
+      'constructor', 'prototype', '__proto__', 'valueOf', 'toString',
+      // dnd5e item leveling metadata; full of cycles back to the actor and other items.
+      // Not gameplay-relevant for LLM consumers.
+      'advancement'
     ];
 
     // Skip deprecated ability save properties that trigger warnings
@@ -5290,7 +5320,7 @@ export class FoundryDataAccess {
           height: scene.dimensions?.height || (scene as any).height || 0
         },
         gridSize: scene.grid?.size || 100,
-        background: scene.background?.src || scene.img || '',
+        background: scene._source?.background?.src || scene.img || '',
         walls: scene.walls?.size || 0,
         tokens: scene.tokens?.size || 0,
         lighting: scene.lights?.size || 0,

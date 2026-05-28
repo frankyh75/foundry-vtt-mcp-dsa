@@ -27,7 +27,7 @@ This guide covers the complete installation of the Foundry VTT AI Model Integrat
 ### Option 2: Manual Installation
 
 #### Install the Foundry Module
-1. Open Foundry VTT v13
+1. Open Foundry VTT (v13 or v14)
 2. Select install module in the Foundry Add-ons menu
 2. At the bottom of the window, add the Manifest URL as: https://github.com/adambdooley/foundry-vtt-mcp/blob/master/packages/foundry-module/module.json and click install
 3. Enable "Foundry MCP Bridge" in Module Management

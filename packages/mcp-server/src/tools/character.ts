@@ -558,10 +558,19 @@ export class CharacterTools {
     }
 
     // Race/ancestry information
+    // dnd5e 4.x+ stores race as an embedded item document; collapse to just the
+    // identifying name to avoid dumping the full item (HTML description, advancement,
+    // circular refs). Older data may store a plain string, which we pass through.
     if (system.details?.race) {
-      basicInfo.race = system.details.race;
+      const race = system.details.race;
+      basicInfo.race = typeof race === 'string'
+        ? race
+        : (race.name || race.identifier || race._id || 'Unknown');
     } else if (system.details?.ancestry) {
-      basicInfo.ancestry = system.details.ancestry;
+      const ancestry = system.details.ancestry;
+      basicInfo.ancestry = typeof ancestry === 'string'
+        ? ancestry
+        : (ancestry.name || ancestry.identifier || ancestry._id || 'Unknown');
     }
 
     return basicInfo;

@@ -263,9 +263,9 @@ fi
 echo "🗑️  Removing package receipts..."
 
 PKG_IDS=(
-    "com.foundry-mcp.server.core"
-    "com.foundry-mcp.server.foundry-module"
-    "com.foundry-mcp.server.comfyui"
+    "com.foundry-mcp.core"
+    "com.foundry-mcp.foundry-module"
+    "com.foundry-mcp.comfyui"
 )
 
 REMOVED_PKG_COUNT=0

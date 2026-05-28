@@ -116,7 +116,7 @@ function downloadFile(url, dest, displayName) {
     log(`📥 Downloading ${displayName}...`);
     log(`   URL: ${url}`);
 
-    const curlCommand = `curl -L -o "${dest}" "${url}" --fail --max-time 600`;
+    const curlCommand = `curl -L -o "${dest}" "${url}" --fail --connect-timeout 30 --speed-time 60 --speed-limit 10240`;
 
     try {
       log(`   Starting download...`);
