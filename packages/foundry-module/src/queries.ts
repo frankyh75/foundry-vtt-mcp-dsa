@@ -101,6 +101,9 @@ export class QueryHandlers {
     // Character search queries
     CONFIG.queries[`${modulePrefix}.searchCharacterItems`] = this.handleSearchCharacterItems.bind(this);
 
+    // World-level item creation
+    CONFIG.queries[`${modulePrefix}.createWorldItems`] = this.handleCreateWorldItems.bind(this);
+
     // Phase 7: Token manipulation queries
     CONFIG.queries[`${modulePrefix}.move-token`] = this.handleMoveToken.bind(this);
     CONFIG.queries[`${modulePrefix}.update-token`] = this.handleUpdateToken.bind(this);
@@ -1467,4 +1470,72 @@ export class QueryHandlers {
     }
   }
 
+  private async handleAddActorItems(data: {
+    actorIdentifier: string;
+    items: Array<{
+      name: string;
+      type: string;
+      img?: string;
+      system?: Record<string, any>;
+    }>;
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation - writes to actor sheets are GM-only
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data?.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      if (!Array.isArray(data?.items) || data.items.length === 0) {
+        throw new Error('items array is required and must contain at least one entry');
+      }
+
+      return await this.dataAccess.addActorItems({
+        actorIdentifier: data.actorIdentifier,
+        items: data.items,
+      });
+    } catch (error) {
+      throw new Error(
+        `Failed to add actor items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleCreateWorldItems(data: {
+    items: Array<{
+      name: string;
+      type: string;
+      img?: string;
+      system?: Record<string, any>;
+    }>;
+    folder?: string;
+  }): Promise<any> {
+    try {
+      // SECURITY: World item creation is GM-only
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!Array.isArray(data?.items) || data.items.length === 0) {
+        throw new Error('items array is required and must contain at least one entry');
+      }
+
+      return await this.dataAccess.createWorldItems({
+        items: data.items,
+        ...(data.folder !== undefined ? { folder: data.folder } : {}),
+      });
+    } catch (error) {
+      throw new Error(
+        `Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
 }
