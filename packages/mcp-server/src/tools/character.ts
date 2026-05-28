@@ -484,6 +484,46 @@ export class CharacterTools {
     }
   }
 
+  async handleCreateWorldItems(args: any): Promise<any> {
+    const itemSchema = z.object({
+      name: z.string().min(1, 'Item name cannot be empty'),
+      type: z.string().min(1, 'Item type cannot be empty'),
+      img: z.string().optional(),
+      system: z.record(z.any()).optional(),
+    });
+
+    const schema = z.object({
+      items: z.array(itemSchema).min(1, 'At least one item is required'),
+      folder: z.string().optional(),
+    });
+
+    const { items, folder } = schema.parse(args);
+
+    this.logger.info('Creating world items', {
+      count: items.length,
+      folder: folder ?? null,
+      types: items.map(i => i.type),
+    });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.createWorldItems', {
+        items,
+        folder,
+      });
+
+      this.logger.debug('Successfully created world items', {
+        folderId: result.folderId,
+        created: result.created?.length ?? 0,
+      });
+
+      return result;
+
+    } catch (error) {
+      this.logger.error('Failed to create world items', error);
+      throw new Error(`Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   async handleSearchCharacterItems(args: any): Promise<any> {
     const schema = z.object({
       characterIdentifier: z.string().min(1, 'Character identifier cannot be empty'),
