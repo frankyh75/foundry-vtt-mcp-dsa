@@ -115,76 +115,59 @@ export class CharacterTools {
         },
       },
       {
-        name: 'add-actor-items',
+        name: 'manage-world-items',
         description:
-          'Add one or more freshly-authored Item documents (talents, actions, powers, equipment, etc.) to an existing actor. Items are constructed from the supplied data — no compendium lookup is performed. Each item requires a non-empty "name" and a "type" valid for the active game system (e.g. Cosmere RPG: "action", "talent", "power", "weapon", "armor", "equipment", "loot", "ancestry", "culture", "path", "specialty", "trait", "injury", "connection", "goal", "talent_tree"). Pass system-specific data via the optional "system" object — Foundry\'s DataModel layer fills defaults and validates required sub-fields. GM-only. Returns the created item IDs so callers can update or roll them next.',
+          'Manage Item documents in Foundry VTT. Specify the operation with "action":\n' +
+          '- "create": Create world-level Items in the sidebar (not actor-attached). Good for reusable libraries. GM-only.\n' +
+          '- "list": List world-level Items with optional type/folder/name filters.\n' +
+          '- "update": Update existing world-level Items by ID. GM-only.\n' +
+          '- "add-to-actor": Create and attach Items directly to an existing actor. GM-only.',
         inputSchema: {
           type: 'object',
           properties: {
-            actorIdentifier: {
+            action: {
               type: 'string',
-              description: 'Actor name or ID to receive the items',
+              enum: ['create', 'list', 'update', 'add-to-actor'],
+              description:
+                'Operation to perform: "create" world items, "list" world items, "update" world items by id, or "add-to-actor" to attach items to an actor.',
             },
             items: {
               type: 'array',
               minItems: 1,
-              description: 'One or more items to create on the actor sheet',
+              description:
+                'Required for "create" and "add-to-actor". One or more items to create. Each item requires a name and a type valid for the active game system (e.g. "action", "talent", "weapon"). For Cosmere RPG add-to-actor, pass system-specific data via the "system" field.',
               items: {
                 type: 'object',
                 properties: {
-                  name: {
-                    type: 'string',
-                    description: 'Display name of the item',
-                  },
+                  name: { type: 'string', description: 'Display name of the item' },
                   type: {
                     type: 'string',
-                    description:
-                      'Item type valid for the active system (e.g. "action", "talent", "weapon")',
+                    description: 'Item type valid for the active system (e.g. "action", "talent", "weapon")',
                   },
                   img: {
                     type: 'string',
-                    description:
-                      'Optional icon path (e.g. "icons/svg/explosion.svg" or a system-bundled path)',
+                    description: 'Optional icon path (e.g. "icons/svg/explosion.svg")',
                   },
                   system: {
                     type: 'object',
-                    description:
-                      'System-specific data (free-form). For Cosmere actions: { activation: { type: "utility", cost: { value: 1, type: "act" }, consume: [{ type: "resource", resource: "foc", value: { min: 2, max: 2 } }] }, description: { value: "<p>HTML</p>" } }',
+                    description: 'System-specific data (free-form). Passed through to Foundry\'s DataModel layer.',
                     additionalProperties: true,
                   },
                 },
                 required: ['name', 'type'],
               },
             },
-          },
-          required: ['actorIdentifier', 'items'],
-        },
-      },
-      {
-        name: 'update-world-items',
-        description: 'Update one or more existing world-level Item documents in Foundry\'s Items sidebar. Accepts an array of patches — each entry must include the item\'s id and at least one field to change (name, img, system, folder). system data is merged at the top level by Foundry\'s DataModel. Folder may be a name or id; a missing folder is created automatically. GM-only. Use list-world-items first to obtain item IDs.',
-        inputSchema: {
-          type: 'object',
-          properties: {
             updates: {
               type: 'array',
               minItems: 1,
-              description: 'One or more item patches to apply',
+              description:
+                'Required for "update". One or more item patches. Each entry must include "id" plus at least one field to change (name, img, system, folder).',
               items: {
                 type: 'object',
                 properties: {
-                  id: {
-                    type: 'string',
-                    description: 'ID of the world Item to update',
-                  },
-                  name: {
-                    type: 'string',
-                    description: 'New display name',
-                  },
-                  img: {
-                    type: 'string',
-                    description: 'New icon path',
-                  },
+                  id: { type: 'string', description: 'ID of the world Item to update' },
+                  name: { type: 'string', description: 'New display name' },
+                  img: { type: 'string', description: 'New icon path' },
                   system: {
                     type: 'object',
                     description: 'System-specific fields to update (merged into existing system data)',
@@ -198,71 +181,25 @@ export class CharacterTools {
                 required: ['id'],
               },
             },
-          },
-          required: ['updates'],
-        },
-      },
-      {
-        name: 'list-world-items',
-        description: 'List world-level Item documents from Foundry\'s Items sidebar (not actor-embedded items). Supports optional filtering by item type, folder name/ID, or a case-insensitive name substring. Returns id, name, type, img, and folder info for each match. Useful for checking what library items already exist before calling create-world-items.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            type: {
-              type: 'string',
-              description: 'Filter by item type (e.g. "action", "talent", "weapon"). Omit to return all types.',
-            },
             folder: {
               type: 'string',
-              description: 'Filter to items inside this folder (name or ID). Returns empty array if the folder does not exist.',
+              description:
+                'For "create": folder name/ID to place items in (created if absent). For "list": filter to items inside this folder.',
+            },
+            type: {
+              type: 'string',
+              description: 'For "list": filter by item type (e.g. "action", "talent"). Omit to return all types.',
             },
             nameFilter: {
               type: 'string',
-              description: 'Case-insensitive substring match on item name.',
+              description: 'For "list": case-insensitive substring match on item name.',
             },
-          },
-        },
-      },
-      {
-        name: 'create-world-items',
-        description: 'Creates world-level Item documents in Foundry\'s Items sidebar. Items are NOT attached to any actor — the GM (or players, if owned) can drag-and-drop from the sidebar onto any actor sheet. Use this for reusable libraries (spell lists, action collections, gear catalogs). For items that should live on a specific actor, use add-actor-items instead. GM-only.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            items: {
-              type: 'array',
-              minItems: 1,
-              description: 'One or more items to create in the world Items sidebar',
-              items: {
-                type: 'object',
-                properties: {
-                  name: {
-                    type: 'string',
-                    description: 'Display name of the item',
-                  },
-                  type: {
-                    type: 'string',
-                    description: 'Item type valid for the active system (e.g. "action", "talent", "weapon")',
-                  },
-                  img: {
-                    type: 'string',
-                    description: 'Optional icon path (e.g. "icons/svg/explosion.svg" or a system-bundled path)',
-                  },
-                  system: {
-                    type: 'object',
-                    description: 'System-specific data (free-form). Passed through unchanged to Foundry\'s DataModel layer.',
-                    additionalProperties: true,
-                  },
-                },
-                required: ['name', 'type'],
-              },
-            },
-            folder: {
+            actorIdentifier: {
               type: 'string',
-              description: 'Optional folder name or ID. If the folder does not exist it will be created. Omit to place items at the sidebar root.',
+              description: 'For "add-to-actor": actor name or ID to receive the items.',
             },
           },
-          required: ['items'],
+          required: ['action'],
         },
       },
       {
@@ -648,6 +585,21 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to create world items', error);
       throw new Error(`Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async handleManageWorldItems(args: any): Promise<any> {
+    const { action } = z.object({ action: z.enum(['create', 'list', 'update', 'add-to-actor']) }).parse(args);
+
+    switch (action) {
+      case 'create':
+        return this.handleCreateWorldItems(args);
+      case 'list':
+        return this.handleListWorldItems(args);
+      case 'update':
+        return this.handleUpdateWorldItems(args);
+      case 'add-to-actor':
+        return this.handleAddActorItems(args);
     }
   }
 
