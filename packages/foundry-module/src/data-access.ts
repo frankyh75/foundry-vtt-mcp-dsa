@@ -4130,97 +4130,65 @@ export class FoundryDataAccess {
   }
 
   /**
-   * Create one or more world-level Item documents (Items sidebar, not embedded on an actor).
-   *
-   * Uses Item.createDocuments() with no parent so items appear in the Foundry
-   * Items sidebar and can be dragged onto any actor sheet. Optionally places
-   * items inside a named/id-resolved folder, creating the folder if necessary.
+   * Add items to an actor
    */
-  async createWorldItems(params: {
+  async addActorItems(params: {
+    actorIdentifier: string;
     items: Array<{
       name: string;
       type: string;
       img?: string;
       system?: Record<string, any>;
     }>;
-    folder?: string;
-  }): Promise<{
-    folderId: string | null;
-    folderName: string | null;
-    created: Array<{ id: string; name: string; type: string }>;
-  }> {
+  }): Promise<any> {
     this.validateFoundryState();
 
-    const { items, folder } = params;
+    const { actorIdentifier, items } = params;
 
+    if (!actorIdentifier || typeof actorIdentifier !== 'string') {
+      throw new Error('actorIdentifier is required and must be a non-empty string');
+    }
     if (!Array.isArray(items) || items.length === 0) {
       throw new Error('items array is required and must contain at least one entry');
     }
 
-    const itemDocTypes = (game as any).system?.documentTypes?.Item;
-    const validTypes: string[] | null =
-      itemDocTypes && typeof itemDocTypes === 'object' ? Object.keys(itemDocTypes) : null;
-
-    const payload = items.map((it, idx) => {
-      if (!it || typeof it.name !== 'string' || it.name.trim().length === 0) {
-        throw new Error(`items[${idx}]: "name" is required and must be a non-empty string`);
-      }
-      if (typeof it.type !== 'string' || it.type.trim().length === 0) {
-        throw new Error(`items[${idx}] ("${it.name}"): "type" is required`);
-      }
-      if (validTypes && !validTypes.includes(it.type)) {
-        throw new Error(
-          `items[${idx}] ("${it.name}"): unknown type "${it.type}" for system "${(game.system as any)?.id}". ` +
-            `Valid Item types: ${validTypes.join(', ')}`
-        );
-      }
-
-      const doc: Record<string, any> = { name: it.name, type: it.type };
-      if (it.img) doc.img = it.img;
-      if (it.system && typeof it.system === 'object') doc.system = it.system;
-      return doc;
-    });
-
-    // Resolve or create the target folder
-    let folderDoc: any = null;
-    if (folder && folder.trim().length > 0) {
-      const folderTrimmed = folder.trim();
-      folderDoc = (game as any).folders?.find(
-        (f: any) => f.type === 'Item' && (f.name === folderTrimmed || f.id === folderTrimmed)
-      ) ?? null;
-
-      if (!folderDoc) {
-        folderDoc = await (Folder as any).create({ name: folderTrimmed, type: 'Item', parent: null });
-      }
-
-      for (const doc of payload) {
-        doc.folder = folderDoc.id;
-      }
+    const actor = game.actors.get(actorIdentifier) || game.actors.find((a: any) => a.name === actorIdentifier);
+    if (!actor) {
+      throw new Error(`Actor "${actorIdentifier}" not found`);
     }
 
-    try {
-      const created = await (Item as any).createDocuments(payload);
+    const itemPayload = items.map((item, idx) => {
+      if (!item.name || typeof item.name !== 'string' || item.name.trim().length === 0) {
+        throw new Error(`items[${idx}]: "name" is required and must be a non-empty string`);
+      }
+      if (!item.type || typeof item.type !== 'string' || item.type.trim().length === 0) {
+        throw new Error(`items[${idx}] ("${item.name}"): "type" is required`);
+      }
+      return { name: item.name, type: item.type, ...(item.img ? { img: item.img } : {}), ...(item.system ? { system: item.system } : {}) };
+    });
 
-      const result = {
-        folderId: folderDoc ? folderDoc.id : null,
-        folderName: folderDoc ? folderDoc.name : null,
-        created: (created || []).map((doc: any) => ({
+    try {
+      const added = await (actor as any).createEmbeddedDocuments('Item', itemPayload);
+
+      this.auditLog(
+        'addActorItems',
+        { actorIdentifier, count: itemPayload.length },
+        'success'
+      );
+
+      return {
+        actorName: actor.name,
+        actorId: actor.id,
+        added: (added || []).map((doc: any) => ({
           id: doc.id,
           name: doc.name,
           type: doc.type,
         })),
       };
-
-      this.auditLog(
-        'createWorldItems',
-        { folder: folder ?? null, count: payload.length },
-        'success'
-      );
-      return result;
     } catch (error) {
       this.auditLog(
-        'createWorldItems',
-        { folder: folder ?? null, count: payload.length },
+        'addActorItems',
+        { actorIdentifier, count: itemPayload.length },
         'failure',
         error instanceof Error ? error.message : 'Unknown error'
       );
