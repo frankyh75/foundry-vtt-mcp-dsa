@@ -123,8 +123,14 @@ export class QuestCreationTools {
                 },
                 required: ['name', 'content']
               },
-              description: 'Optional additional pages to create alongside the main quest page. Use for multi-page journals with separate sections like Player Handout, GM Notes, etc.'
-            }
+              description:
+                'Optional additional pages to create alongside the main quest page. Use for multi-page journals with separate sections like Player Handout, GM Notes, etc.',
+            },
+            folderName: {
+              type: 'string',
+              description:
+                'Optional folder name to organize the journal into. The folder is created automatically if it does not exist.',
+            },
           },
           required: ['questTitle', 'questDescription']
         }
@@ -266,10 +272,15 @@ export class QuestCreationTools {
         questGiver: z.string().optional(),
         npcName: z.string().optional(),
         rewards: z.string().optional(),
-        additionalPages: z.array(z.object({
-          name: z.string().min(1),
-          content: z.string().min(1),
-        })).optional()
+        additionalPages: z
+          .array(
+            z.object({
+              name: z.string().min(1),
+              content: z.string().min(1),
+            })
+          )
+          .optional(),
+        folderName: z.string().optional(),
       });
 
       const request = requestSchema.parse(args);
@@ -282,6 +293,7 @@ export class QuestCreationTools {
         name: request.questTitle,
         content: questContent,
         additionalPages: request.additionalPages,
+        ...(request.folderName ? { folderName: request.folderName } : {}),
       });
 
       if (!result || result.error) {

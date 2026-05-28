@@ -3869,97 +3869,155 @@ export class FoundryDataAccess {
   }
 
   /**
-   * Add one or more freshly-authored Item documents to an existing Actor.
-   *
-   * Unlike `createActorFromCompendium*`, the items here are constructed from
-   * caller-supplied data — no compendium lookup. This is the path used to
-   * push planner-authored content (talents, actions, powers, custom gear)
-   * onto a PC or NPC sheet.
-   *
-   * Validation is intentionally light: name + type are required, and the
-   * type is checked against the active system's declared Item document
-   * types when available. Everything else (system schema validation,
-   * required sub-fields) is delegated to Foundry's DataModel layer, which
-   * will fill defaults or throw a meaningful error.
+   * List world-level Item documents from the Items sidebar.
+   * Optionally filters by type, folder (name or id), or a case-insensitive name substring.
    */
-  async addActorItems(params: {
-    actorIdentifier: string;
-    items: Array<{
+  async listWorldItems(params: { type?: string; folder?: string; nameFilter?: string }): Promise<
+    Array<{
+      id: string;
       name: string;
       type: string;
       img?: string;
+      folderId: string | null;
+      folderName: string | null;
+    }>
+  > {
+    this.validateFoundryState();
+
+    const { type, folder, nameFilter } = params;
+    const nameLower = nameFilter ? nameFilter.toLowerCase() : null;
+
+    // Resolve folder filter to an id if a name/id was provided
+    let folderId: string | null = null;
+    if (folder && folder.trim().length > 0) {
+      const folderTrimmed = folder.trim();
+      const folderDoc =
+        (game as any).folders?.find(
+          (f: any) => f.type === 'Item' && (f.name === folderTrimmed || f.id === folderTrimmed)
+        ) ?? null;
+      if (!folderDoc) {
+        return [];
+      }
+      folderId = folderDoc.id;
+    }
+
+    const result: Array<{
+      id: string;
+      name: string;
+      type: string;
+      img?: string;
+      folderId: string | null;
+      folderName: string | null;
+    }> = [];
+
+    for (const item of (game as any).items) {
+      if (type && item.type !== type) continue;
+      if (folderId && item.folder?.id !== folderId) continue;
+      if (nameLower && !(item.name ?? '').toLowerCase().includes(nameLower)) continue;
+
+      result.push({
+        id: item.id ?? '',
+        name: item.name ?? '',
+        type: item.type,
+        ...(item.img ? { img: item.img } : {}),
+        folderId: item.folder?.id ?? null,
+        folderName: item.folder?.name ?? null,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Update one or more existing world-level Item documents.
+   *
+   * Each entry must supply an `id` plus at least one field to change (name,
+   * img, system, folder). Uses Item.updateDocuments() for a single batched
+   * write. Folder may be supplied as a name or id; if a name is given that
+   * does not exist, it is created automatically (same behaviour as
+   * createWorldItems).
+   */
+  async updateWorldItems(params: {
+    updates: Array<{
+      id: string;
+      name?: string;
+      img?: string;
       system?: Record<string, any>;
+      folder?: string;
     }>;
   }): Promise<{
-    actorId: string;
-    actorName: string;
-    created: Array<{ id: string; name: string; type: string }>;
+    updated: Array<{ id: string; name: string; type: string }>;
   }> {
     this.validateFoundryState();
 
-    const { actorIdentifier, items } = params;
+    const { updates } = params;
 
-    if (!actorIdentifier) {
-      throw new Error('actorIdentifier is required');
-    }
-    if (!Array.isArray(items) || items.length === 0) {
-      throw new Error('items array is required and must contain at least one entry');
+    if (!Array.isArray(updates) || updates.length === 0) {
+      throw new Error('updates array is required and must contain at least one entry');
     }
 
-    const actor = this.findActorByIdentifier(actorIdentifier);
-    if (!actor) {
-      throw new Error(`Actor not found: ${actorIdentifier}`);
+    // Cache folder resolutions so we only look up / create each folder once
+    const folderCache = new Map<string, string>(); // folder param → folder id
+
+    const resolveFolderId = async (folder: string): Promise<string> => {
+      if (folderCache.has(folder)) return folderCache.get(folder)!;
+      const folderTrimmed = folder.trim();
+      let folderDoc =
+        (game as any).folders?.find(
+          (f: any) => f.type === 'Item' && (f.name === folderTrimmed || f.id === folderTrimmed)
+        ) ?? null;
+      if (!folderDoc) {
+        folderDoc = await (Folder as any).create({
+          name: folderTrimmed,
+          type: 'Item',
+          parent: null,
+        });
+      }
+      folderCache.set(folder, folderDoc.id);
+      return folderDoc.id;
+    };
+
+    const payload: Array<Record<string, any>> = [];
+
+    for (let idx = 0; idx < updates.length; idx++) {
+      const upd = updates[idx];
+      if (!upd || typeof upd.id !== 'string' || upd.id.trim().length === 0) {
+        throw new Error(`updates[${idx}]: "id" is required and must be a non-empty string`);
+      }
+
+      const item = (game as any).items?.get(upd.id);
+      if (!item) {
+        throw new Error(`updates[${idx}]: Item "${upd.id}" not found in world`);
+      }
+
+      const patch: Record<string, any> = { _id: upd.id };
+      if (upd.name !== undefined) patch.name = upd.name;
+      if (upd.img !== undefined) patch.img = upd.img;
+      if (upd.system !== undefined) patch.system = upd.system;
+      if (upd.folder !== undefined && upd.folder.trim().length > 0) {
+        patch.folder = await resolveFolderId(upd.folder.trim());
+      }
+
+      payload.push(patch);
     }
-
-    // Discover the active system's declared Item types so we can give a
-    // useful error before sending the doc to Foundry's DataModel layer.
-    const itemDocTypes = (game as any).system?.documentTypes?.Item;
-    const validTypes: string[] | null =
-      itemDocTypes && typeof itemDocTypes === 'object' ? Object.keys(itemDocTypes) : null;
-
-    const payload = items.map((it, idx) => {
-      if (!it || typeof it.name !== 'string' || it.name.trim().length === 0) {
-        throw new Error(`items[${idx}]: "name" is required and must be a non-empty string`);
-      }
-      if (typeof it.type !== 'string' || it.type.trim().length === 0) {
-        throw new Error(`items[${idx}] ("${it.name}"): "type" is required`);
-      }
-      if (validTypes && !validTypes.includes(it.type)) {
-        throw new Error(
-          `items[${idx}] ("${it.name}"): unknown type "${it.type}" for system "${(game.system as any)?.id}". ` +
-            `Valid Item types: ${validTypes.join(', ')}`
-        );
-      }
-
-      const doc: Record<string, any> = { name: it.name, type: it.type };
-      if (it.img) doc.img = it.img;
-      if (it.system && typeof it.system === 'object') doc.system = it.system;
-      return doc;
-    });
 
     try {
-      const created = await actor.createEmbeddedDocuments('Item', payload);
+      const updated = await (Item as any).updateDocuments(payload);
 
       const result = {
-        actorId: actor.id,
-        actorName: actor.name,
-        created: (created || []).map((doc: any) => ({
+        updated: (updated || []).map((doc: any) => ({
           id: doc.id,
           name: doc.name,
           type: doc.type,
         })),
       };
 
-      this.auditLog(
-        'addActorItems',
-        { actorIdentifier, actorId: actor.id, count: payload.length },
-        'success'
-      );
+      this.auditLog('updateWorldItems', { count: payload.length }, 'success');
       return result;
     } catch (error) {
       this.auditLog(
-        'addActorItems',
-        { actorIdentifier, actorId: actor.id, count: payload.length },
+        'updateWorldItems',
+        { count: payload.length },
         'failure',
         error instanceof Error ? error.message : 'Unknown error'
       );
@@ -4023,12 +4081,17 @@ export class FoundryDataAccess {
     let folderDoc: any = null;
     if (folder && folder.trim().length > 0) {
       const folderTrimmed = folder.trim();
-      folderDoc = (game as any).folders?.find(
-        (f: any) => f.type === 'Item' && (f.name === folderTrimmed || f.id === folderTrimmed)
-      ) ?? null;
+      folderDoc =
+        (game as any).folders?.find(
+          (f: any) => f.type === 'Item' && (f.name === folderTrimmed || f.id === folderTrimmed)
+        ) ?? null;
 
       if (!folderDoc) {
-        folderDoc = await (Folder as any).create({ name: folderTrimmed, type: 'Item', parent: null });
+        folderDoc = await (Folder as any).create({
+          name: folderTrimmed,
+          type: 'Item',
+          parent: null,
+        });
       }
 
       for (const doc of payload) {

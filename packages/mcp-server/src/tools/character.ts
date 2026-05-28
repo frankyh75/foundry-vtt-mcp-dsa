@@ -161,6 +161,69 @@ export class CharacterTools {
         },
       },
       {
+        name: 'update-world-items',
+        description: 'Update one or more existing world-level Item documents in Foundry\'s Items sidebar. Accepts an array of patches — each entry must include the item\'s id and at least one field to change (name, img, system, folder). system data is merged at the top level by Foundry\'s DataModel. Folder may be a name or id; a missing folder is created automatically. GM-only. Use list-world-items first to obtain item IDs.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            updates: {
+              type: 'array',
+              minItems: 1,
+              description: 'One or more item patches to apply',
+              items: {
+                type: 'object',
+                properties: {
+                  id: {
+                    type: 'string',
+                    description: 'ID of the world Item to update',
+                  },
+                  name: {
+                    type: 'string',
+                    description: 'New display name',
+                  },
+                  img: {
+                    type: 'string',
+                    description: 'New icon path',
+                  },
+                  system: {
+                    type: 'object',
+                    description: 'System-specific fields to update (merged into existing system data)',
+                    additionalProperties: true,
+                  },
+                  folder: {
+                    type: 'string',
+                    description: 'Move item into this folder (name or ID). Created if absent.',
+                  },
+                },
+                required: ['id'],
+              },
+            },
+          },
+          required: ['updates'],
+        },
+      },
+      {
+        name: 'list-world-items',
+        description: 'List world-level Item documents from Foundry\'s Items sidebar (not actor-embedded items). Supports optional filtering by item type, folder name/ID, or a case-insensitive name substring. Returns id, name, type, img, and folder info for each match. Useful for checking what library items already exist before calling create-world-items.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              description: 'Filter by item type (e.g. "action", "talent", "weapon"). Omit to return all types.',
+            },
+            folder: {
+              type: 'string',
+              description: 'Filter to items inside this folder (name or ID). Returns empty array if the folder does not exist.',
+            },
+            nameFilter: {
+              type: 'string',
+              description: 'Case-insensitive substring match on item name.',
+            },
+          },
+        },
+      },
+      {
         name: 'create-world-items',
         description: 'Creates world-level Item documents in Foundry\'s Items sidebar. Items are NOT attached to any actor — the GM (or players, if owned) can drag-and-drop from the sidebar onto any actor sheet. Use this for reusable libraries (spell lists, action collections, gear catalogs). For items that should live on a specific actor, use add-actor-items instead. GM-only.',
         inputSchema: {
@@ -481,6 +544,70 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to create world items', error);
       throw new Error(`Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async handleUpdateWorldItems(args: any): Promise<any> {
+    const updateEntrySchema = z.object({
+      id: z.string().min(1, 'Item id cannot be empty'),
+      name: z.string().optional(),
+      img: z.string().optional(),
+      system: z.record(z.any()).optional(),
+      folder: z.string().optional(),
+    });
+
+    const schema = z.object({
+      updates: z.array(updateEntrySchema).min(1, 'At least one update entry is required'),
+    });
+
+    const { updates } = schema.parse(args);
+
+    this.logger.info('Updating world items', {
+      count: updates.length,
+      ids: updates.map(u => u.id),
+    });
+
+    try {
+      const result = await this.foundryClient.query('foundry-mcp-bridge.updateWorldItems', { updates });
+
+      this.logger.debug('Successfully updated world items', { count: result.updated?.length ?? 0 });
+
+      return result;
+
+    } catch (error) {
+      this.logger.error('Failed to update world items', error);
+      throw new Error(`Failed to update world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async handleListWorldItems(args: any): Promise<any> {
+    const schema = z.object({
+      type: z.string().optional(),
+      folder: z.string().optional(),
+      nameFilter: z.string().optional(),
+    });
+
+    const { type, folder, nameFilter } = schema.parse(args);
+
+    this.logger.info('Listing world items', { type: type ?? null, folder: folder ?? null, nameFilter: nameFilter ?? null });
+
+    try {
+      const items = await this.foundryClient.query('foundry-mcp-bridge.listWorldItems', {
+        ...(type !== undefined ? { type } : {}),
+        ...(folder !== undefined ? { folder } : {}),
+        ...(nameFilter !== undefined ? { nameFilter } : {}),
+      });
+
+      this.logger.debug('Successfully listed world items', { count: items?.length ?? 0 });
+
+      return {
+        items: items ?? [],
+        total: items?.length ?? 0,
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to list world items', error);
+      throw new Error(`Failed to list world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
