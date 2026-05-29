@@ -3522,6 +3522,29 @@ export class FoundryDataAccess {
   }
 
   /**
+   * Retrieve the full index for a compendium pack.
+   */
+  async getPackIndex(packId: string): Promise<any[]> {
+    try {
+      const pack = game.packs.get(packId);
+      if (!pack) {
+        throw new Error(`Compendium pack "${packId}" not found`);
+      }
+
+      if (!pack.indexed) {
+        await pack.getIndex({});
+      }
+
+      const indexArray = Array.from(pack.index.values());
+      console.log(`[${this.moduleId}] Retrieved pack index for ${packId}: ${indexArray.length} entries`);
+      return indexArray;
+    } catch (error) {
+      console.error(`[${this.moduleId}] Failed to get pack index for ${packId}:`, error);
+      throw new Error(`Failed to get pack index for ${packId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Sanitize data to remove sensitive information and make it JSON-safe
    */
   private sanitizeData(data: any): any {
@@ -4332,6 +4355,131 @@ export class FoundryDataAccess {
    * required sub-fields) is delegated to Foundry's DataModel layer, which
    * will fill defaults or throw a meaningful error.
    */
+  async createActorFromData(request: {
+    actorData: Record<string, unknown>;
+    addToScene?: boolean;
+    updateExisting?: boolean;
+    existingActorIdentifier?: string;
+    preserveItemTypes?: string[];
+    placement?: {
+      type: 'random' | 'grid' | 'center' | 'coordinates';
+      coordinates?: { x: number; y: number }[];
+    };
+  }): Promise<{
+    success: boolean;
+    actor?: { id: string; name: string; type: string };
+    updatedExisting?: boolean;
+    tokensPlaced?: number;
+    errors?: string[];
+  }> {
+    this.validateFoundryState();
+
+    const permissionCheck = permissionManager.checkWritePermission('createActor', { quantity: 1 });
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+    permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
+
+    try {
+      const actorData = foundry.utils.deepClone(request.actorData) as any;
+
+      delete actorData._id;
+      delete actorData.sort;
+
+      if (!actorData.name || typeof actorData.name !== 'string') {
+        throw new Error('actorData.name is required and must be a string');
+      }
+      if (!actorData.type || typeof actorData.type !== 'string') {
+        actorData.type = 'character';
+      }
+      if (!actorData.system || typeof actorData.system !== 'object') {
+        actorData.system = {};
+      }
+
+      if (Array.isArray(actorData.items)) {
+        actorData.items = actorData.items
+          .filter((item: any) => item && typeof item === 'object')
+          .map((item: any) => {
+            const clonedItem = foundry.utils.deepClone(item);
+            delete clonedItem._id;
+            delete clonedItem.folder;
+            delete clonedItem.sort;
+            return clonedItem;
+          });
+      } else {
+        actorData.items = [];
+      }
+
+      if (Array.isArray(actorData.effects)) {
+        actorData.effects = actorData.effects
+          .filter((effect: any) => effect && typeof effect === 'object')
+          .map((effect: any) => {
+            const clonedEffect = foundry.utils.deepClone(effect);
+            delete clonedEffect._id;
+            delete clonedEffect.folder;
+            delete clonedEffect.sort;
+            return clonedEffect;
+          });
+      } else {
+        actorData.effects = [];
+      }
+
+      if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
+        actorData.prototypeToken.texture.src = null;
+      }
+
+      if (!actorData.folder) {
+        const folderId = await this.getOrCreateFolder('Foundry MCP Imported Actors', 'Actor');
+        if (folderId) {
+          actorData.folder = folderId;
+        }
+      }
+
+      const incomingItems = actorData.items;
+      const incomingEffects = actorData.effects;
+      delete actorData.items;
+      delete actorData.effects;
+
+      const createdActor = await Actor.create(actorData as any);
+      if (!createdActor) {
+        throw new Error(`Failed to create actor "${actorData.name}"`);
+      }
+
+      if (Array.isArray(incomingItems) && incomingItems.length > 0) {
+        await createdActor.createEmbeddedDocuments('Item', incomingItems as any[]);
+      }
+      if (Array.isArray(incomingEffects) && incomingEffects.length > 0) {
+        await createdActor.createEmbeddedDocuments('ActiveEffect', incomingEffects as any[]);
+      }
+
+      let tokensPlaced = 0;
+      if (request.addToScene) {
+        const scene = game.scenes?.current;
+        if (scene) {
+          const placement = request.placement || { type: 'center' };
+          const position = this.calculateTokenPosition(placement, scene);
+          const tokenData = {
+            actorId: createdActor.id,
+            x: position.x,
+            y: position.y,
+          };
+          await scene.createEmbeddedDocuments('Token', [tokenData], {});
+          tokensPlaced = 1;
+        }
+      }
+
+      return {
+        success: true,
+        actor: { id: createdActor.id as string, name: createdActor.name as string, type: createdActor.type },
+        tokensPlaced,
+      };
+
+    } catch (error) {
+      this.auditLog('createActorFromData', request, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
   async addActorItems(params: {
     actorIdentifier: string;
     items: Array<{
@@ -4803,7 +4951,7 @@ export class FoundryDataAccess {
         }
       }
 
-      const createdTokens = await scene.createEmbeddedDocuments('Token', tokenData);
+      const createdTokens = await scene.createEmbeddedDocuments('Token', tokenData, {});
 
       // Track token creation for rollback if transaction is active
       if (transactionId && createdTokens.length > 0) {
@@ -6183,6 +6331,40 @@ export class FoundryDataAccess {
   /**
    * List all scenes with filtering options
    */
+  async createScenePlaceholder(data: {
+    name: string;
+    description?: string;
+    backgroundImageUrl?: string;
+    gridSize?: number;
+    width?: number;
+    height?: number;
+  }): Promise<{ sceneId: string; name: string; success: boolean }> {
+    const sceneData: Record<string, unknown> = {
+      name: data.name,
+      active: false,
+      navigation: true,
+    };
+
+    if (data.backgroundImageUrl) {
+      sceneData.background = { src: data.backgroundImageUrl };
+    }
+
+    if (data.description) {
+      sceneData.description = data.description;
+    }
+
+    sceneData.grid = { size: data.gridSize ?? 100 };
+    sceneData.width = data.width ?? 4000;
+    sceneData.height = data.height ?? 3000;
+
+    const scene = await Scene.create(sceneData as any);
+    if (!scene) {
+      throw new Error(`Failed to create scene "${data.name}"`);
+    }
+
+    return { sceneId: scene.id as string, name: scene.name as string, success: true };
+  }
+
   async listScenes(
     options: { filter?: string; include_active_only?: boolean } = {}
   ): Promise<any[]> {

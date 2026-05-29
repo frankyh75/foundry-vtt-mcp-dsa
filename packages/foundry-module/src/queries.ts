@@ -1476,42 +1476,6 @@ export class QueryHandlers {
     }
   }
 
-  private async handleAddActorItems(data: {
-    actorIdentifier: string;
-    items: Array<{
-      name: string;
-      type: string;
-      img?: string;
-      system?: Record<string, any>;
-    }>;
-  }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation - writes to actor sheets are GM-only
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
-      if (!data?.actorIdentifier) {
-        throw new Error('actorIdentifier is required');
-      }
-      if (!Array.isArray(data?.items) || data.items.length === 0) {
-        throw new Error('items array is required and must contain at least one entry');
-      }
-
-      return await this.dataAccess.addActorItems({
-        actorIdentifier: data.actorIdentifier,
-        items: data.items,
-      });
-    } catch (error) {
-      throw new Error(
-        `Failed to add actor items: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
   private async handleUpdateWorldItems(data: {
     updates: Array<{
       id: string;
