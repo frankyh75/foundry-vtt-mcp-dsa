@@ -1,0 +1,11 @@
+  async createActorFromData(request: {
+    actorData: Record<string, unknown>;
+    addToScene?: boolean;
+    updateExisting?: boolean;
+    existingActorIdentifier?: string;
+    preserveItemTypes?: string[];
+    placement?: {
+      type: 'random' | 'grid' | 'center' | 'coordinates';
+      coordinates?: { x: number; y: number }[];
+    };
+  }

@@ -1,0 +1,8 @@
+  async createScenePlaceholder(data: {
+    name: string;
+    description?: string;
+    backgroundImageUrl?: string;
+    gridSize?: number;
+    width?: number;
+    height?: number;
+  }
