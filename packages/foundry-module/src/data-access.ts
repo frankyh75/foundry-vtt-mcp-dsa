@@ -4454,10 +4454,10 @@ export class FoundryDataAccess {
 
       let tokensPlaced = 0;
       if (request.addToScene) {
-        const scene = game.scenes?.current;
+        const scene = (game.scenes as any).active;
         if (scene) {
           const placement = request.placement || { type: 'center' };
-          const position = this.calculateTokenPosition(placement, scene);
+          const position = this.calculateTokenPosition(placement.type, scene, 0);
           const tokenData = {
             actorId: createdActor.id,
             x: position.x,
