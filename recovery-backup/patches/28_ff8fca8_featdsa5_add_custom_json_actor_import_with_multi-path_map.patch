@@ -1,0 +1,1318 @@
+From ff8fca8218b2abce6231347099f9dacad9c3afc3 Mon Sep 17 00:00:00 2001
+From: Frank Hermann <frank@hermann-essen.de>
+Date: Tue, 17 Feb 2026 17:10:11 +0100
+Subject: [PATCH] feat(dsa5): add custom json actor import with multi-path
+ mapping
+
+---
+ docs/custom-json-import-research.md           | 150 +++++
+ docs/custom-json-import-tool.md               |  50 ++
+ packages/foundry-module/src/data-access.ts    | 127 ++++
+ packages/foundry-module/src/queries.ts        |  46 ++
+ packages/mcp-server/src/backend.ts            |   9 +
+ packages/mcp-server/src/systems/dsa5/index.ts |   1 +
+ .../systems/dsa5/json-actor-importer.test.ts  | 107 +++
+ .../src/systems/dsa5/json-actor-importer.ts   | 622 ++++++++++++++++++
+ .../mcp-server/src/utils/error-handler.ts     |   8 +-
+ scripts/test-import-dsa5-json.mjs             |  58 ++
+ 10 files changed, 1177 insertions(+), 1 deletion(-)
+ create mode 100644 docs/custom-json-import-research.md
+ create mode 100644 docs/custom-json-import-tool.md
+ create mode 100644 packages/mcp-server/src/systems/dsa5/json-actor-importer.test.ts
+ create mode 100644 packages/mcp-server/src/systems/dsa5/json-actor-importer.ts
+ create mode 100644 scripts/test-import-dsa5-json.mjs
+
+diff --git a/docs/custom-json-import-research.md b/docs/custom-json-import-research.md
+new file mode 100644
+index 0000000..aec9030
+--- /dev/null
++++ b/docs/custom-json-import-research.md
+@@ -0,0 +1,150 @@
++﻿# Custom JSON Actor Import Research (DSA5)
++
++Date: 2026-02-17
++Branch: `feat/dsa5-custom-json-actor-import`
++
++## Goal
++
++Evaluate multiple import paths for custom DSA5 JSON actor files.
++Primary source: `Loreley.json`.
++Secondary fallback reference: `Loreley -Charbogen.pdf`.
++
++## Inputs Reviewed
++
++- `c:\Users\Frank\iCloudDrive\Documents\DSA_\Charactere\aktuell\loreley\Loreley.json`
++- DSA5 Optolith package page: <https://foundryvtt.com/packages/dsa5-optolith>
++- Foundry Actor API root: <https://foundryvtt.com/api/#actor>
++- Foundry Actor class docs: <https://foundryvtt.com/api/classes/foundry.documents.Actor.html>
++- Foundry Actors collection docs: <https://foundryvtt.com/api/classes/foundry.documents.collections.Actors.html>
++
++## Key Finding About Loreley JSON
++
++`Loreley.json` is a custom, German-labeled domain format with semantic fields, e.g.:
++
++- `attribute.mut|klugheit|intuition|...`
++- `vorteile`, `nachteile`, `sonderfertigkeiten`
++- `talente`, `kampftechniken`, `zauberUndLiturgien`
++- `nahkampfwaffen`, `fernkampfwaffen`, `gegenstände`
++
++This is not in native Foundry document shape and not in Optolith export shape.
++
++## Evaluated Paths
++
++### Path A: Directly reuse `dsa5-optolith`
++
++Assessment: **Not viable as direct import path for Loreley.json**.
++
++Reasoning:
++
++- The module parser expects Optolith-structured keys (`r`, `c`, `p`, `attr.values`, `talents`, `ct`, etc.), not Loreley schema.
++- The module is primarily UI/file-dialog driven (`openDialog()`), not exposed as a stable automation API for MCP.
++- It is useful as a reference for lookup/mapping patterns, but not as a drop-in importer for this custom JSON format.
++
++Conclusion: Reuse concepts only, not direct runtime dependency for custom JSON import.
++
++### Path B: Native Foundry Actor API only
++
++Assessment: **Viable** for persistence, but requires robust mapping.
++
++Reasoning:
++
++- Actor creation/update is naturally handled via Actor document APIs.
++- Clean ownership and compatibility with Foundry data lifecycle.
++- Still requires heavy system-specific mapping from Loreley schema to DSA5 actor/items.
++
++Conclusion: Good persistence layer, but not sufficient by itself.
++
++### Path C: Hybrid (recommended)
++
++Assessment: **Best option**.
++
++Approach:
++
++1. Parse + validate custom JSON in MCP server (DSA5 system layer).
++2. Map semantic fields to canonical actor creation payload (actor + embedded items).
++3. Persist via Foundry actor creation APIs through bridge query handlers.
++4. Return structured `warnings` and `unmappedFields`.
++
++Why best:
++
++- Lowest data-loss risk for custom format.
++- Clear testability in MCP server.
++- Uses native Foundry persistence while keeping import intelligence in DSA5 layer.
++
++### Path D: Full custom persistence logic in Foundry module
++
++Assessment: **Not preferred**.
++
++Reasoning:
++
++- Pushes too much domain logic to browser-side module.
++- Harder to test and maintain.
++- Increases coupling and upgrade risk.
++
++## Decision
++
++Choose **Path C (Hybrid)**.
++
++- Import intelligence in `packages/mcp-server/src/systems/dsa5/`.
++- Persistence through Foundry Actor document APIs via bridge.
++- Keep `packages/foundry-module/src/data-access.ts` changes minimal and generic.
++
++## Proposed MVP Contract
++
++Tool: `import-dsa5-actor-from-json`
++
++Input:
++
++- `jsonPayload` (string | object) required
++- `mode` (`create` | `upsertByName`, default `create`)
++- `sourceLabel` optional
++
++Output:
++
++- `success` boolean
++- `actorId`, `actorName`
++- `createdItems`, `updatedItems`
++- `warnings[]`
++- `unmappedFields[]`
++- `errors[]` (path-aware)
++
++## Mapping Strategy (MVP)
++
++1. Actor core:
++- `name`, species/culture/profession, social status, AP totals
++- characteristics and energy values
++
++2. Embedded items (best-effort by name lookup):
++- advantages/disadvantages/special abilities
++- skills/combat techniques/spells
++- weapons/equipment
++
++3. Non-blocking warnings for unmapped/unknown entries.
++
++## Validation and Error Handling
++
++- Fail fast for malformed JSON and missing required roots.
++- Semantic validation for numeric ranges and required character core fields.
++- Distinguish `bridge_not_connected` from `validation_failed`.
++- Never report domain errors as transport hangs.
++
++## Test Plan (MVP)
++
++1. Unit tests:
++- parser and schema validation
++- DSA5 mapping functions
++
++2. Integration tests:
++- tool call with `Loreley.json`
++- bridge disconnected path returns explicit bridge error
++
++3. Smoke tests (with Foundry world):
++- actor created
++- essential characteristics/energies correct
++- expected warnings for unmapped fields only
++
++## Open Questions
++
++1. Should import try strict compendium matching first or fuzzy matching immediately?
++2. Should upsert default to by name only or include uid hash strategy?
++3. Which Loreley fields are allowed to remain informational-only in MVP?
+diff --git a/docs/custom-json-import-tool.md b/docs/custom-json-import-tool.md
+new file mode 100644
+index 0000000..23b0747
+--- /dev/null
++++ b/docs/custom-json-import-tool.md
+@@ -0,0 +1,50 @@
++﻿# import-dsa5-actor-from-json
++
++## Purpose
++
++Imports custom DSA5 actor JSON through MCP using a multi-path strategy:
++
++- `custom_dsa5` for German custom exports like `Loreley.json`
++- `optolith_like` for Optolith-shaped exports
++- `raw_foundry` for already Foundry-shaped actor documents
++- `auto` to detect format and choose a path
++
++## Tool Input
++
++- `jsonPayload`: `object | string` (optional when `filePath` is provided)
++- `filePath`: local path to JSON file (optional when `jsonPayload` is provided)
++- `strategy`: `auto | custom_dsa5 | optolith_like | raw_foundry` (default `auto`)
++- `resolveItems`: boolean (default `true`)
++- `addToScene`: boolean (default `false`)
++- `strict`: boolean (default `false`)
++
++## Behavior
++
++1. Load payload from `jsonPayload` or `filePath`.
++2. Detect format (unless strategy is explicitly set).
++3. Map core actor fields.
++4. Optionally resolve item-like names via compendium lookups.
++5. Create actor through bridge query `foundry-mcp-bridge.createActorFromData`.
++6. Return structured warnings and unresolved names.
++
++## Notes
++
++- Successful `tools/list` does not guarantee bridge connectivity.
++- Actor creation requires active Foundry world + enabled Foundry MCP Bridge module.
++- With `strict: true`, unresolved item names abort import.
++
++## Smoke Test
++
++```bash
++node scripts/test-import-dsa5-json.mjs
++```
++
++Environment overrides:
++
++```bash
++DSA5_IMPORT_FILE=/path/to/file.json
++DSA5_IMPORT_STRATEGY=auto
++DSA5_IMPORT_RESOLVE_ITEMS=true
++DSA5_IMPORT_STRICT=false
++DSA5_IMPORT_ADD_TO_SCENE=false
++```
+diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
+index 92ab4c6..495d871 100644
+--- a/packages/foundry-module/src/data-access.ts
++++ b/packages/foundry-module/src/data-access.ts
+@@ -3514,6 +3514,133 @@ export class FoundryDataAccess {
+     }
+   }
+ 
++  /**
++   * Create an actor directly from provided actor data (generic import path).
++   * Intended for system-specific importers that already mapped source JSON to Foundry actor shape.
++   */
++  async createActorFromData(request: {
++    actorData: Record<string, unknown>;
++    addToScene?: boolean;
++    placement?: {
++      type: 'random' | 'grid' | 'center' | 'coordinates';
++      coordinates?: { x: number; y: number }[];
++    };
++  }): Promise<{
++    success: boolean;
++    actor?: { id: string; name: string; type: string };
++    tokensPlaced?: number;
++    errors?: string[];
++  }> {
++    this.validateFoundryState();
++
++    const permissionCheck = permissionManager.checkWritePermission('createActor', { quantity: 1 });
++    if (!permissionCheck.allowed) {
++      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
++    }
++    permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
++
++    try {
++      const actorData = foundry.utils.deepClone(request.actorData) as any;
++
++      delete actorData._id;
++      delete actorData.sort;
++
++      if (!actorData.name || typeof actorData.name !== 'string') {
++        throw new Error('actorData.name is required and must be a string');
++      }
++      if (!actorData.type || typeof actorData.type !== 'string') {
++        actorData.type = 'character';
++      }
++      if (!actorData.system || typeof actorData.system !== 'object') {
++        actorData.system = {};
++      }
++
++      if (Array.isArray(actorData.items)) {
++        actorData.items = actorData.items
++          .filter((item: any) => item && typeof item === 'object')
++          .map((item: any) => {
++            const clonedItem = foundry.utils.deepClone(item);
++            delete clonedItem._id;
++            delete clonedItem.folder;
++            delete clonedItem.sort;
++            return clonedItem;
++          });
++      } else {
++        actorData.items = [];
++      }
++
++      if (Array.isArray(actorData.effects)) {
++        actorData.effects = actorData.effects
++          .filter((effect: any) => effect && typeof effect === 'object')
++          .map((effect: any) => {
++            const clonedEffect = foundry.utils.deepClone(effect);
++            delete clonedEffect._id;
++            delete clonedEffect.folder;
++            delete clonedEffect.sort;
++            return clonedEffect;
++          });
++      } else {
++        actorData.effects = [];
++      }
++
++      if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
++        actorData.prototypeToken.texture.src = null;
++      }
++
++      if (!actorData.folder) {
++        const folderId = await this.getOrCreateFolder('Foundry MCP Imported Actors', 'Actor');
++        if (folderId) {
++          actorData.folder = folderId;
++        }
++      }
++
++      const createdActor = await Actor.create(actorData);
++      if (!createdActor) {
++        throw new Error('Failed to create actor from provided data');
++      }
++
++      let tokensPlaced = 0;
++      const errors: string[] = [];
++      if (request.addToScene) {
++        try {
++          const sceneResult = await this.addActorsToScene({
++            actorIds: [createdActor.id],
++            placement: request.placement?.type || 'grid',
++            hidden: false,
++            ...(request.placement?.coordinates ? { coordinates: request.placement.coordinates } : {}),
++          });
++          tokensPlaced = sceneResult.success ? sceneResult.tokensCreated : 0;
++        } catch (error) {
++          errors.push(`Failed to add actor to scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
++        }
++      }
++
++      const result: {
++        success: boolean;
++        actor: { id: string; name: string; type: string };
++        tokensPlaced: number;
++        errors?: string[];
++      } = {
++        success: true,
++        actor: {
++          id: createdActor.id,
++          name: createdActor.name,
++          type: createdActor.type,
++        },
++        tokensPlaced,
++      };
++      if (errors.length > 0) {
++        result.errors = errors;
++      }
++
++      this.auditLog('createActorFromData', request, 'success');
++      return result;
++    } catch (error) {
++      this.auditLog('createActorFromData', request, 'failure', error instanceof Error ? error.message : 'Unknown error');
++      throw error;
++    }
++  }
++
+   /**
+    * Get full compendium document with all embedded data
+    */
+diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
+index 72ccf33..982fffe 100644
+--- a/packages/foundry-module/src/queries.ts
++++ b/packages/foundry-module/src/queries.ts
+@@ -51,6 +51,7 @@ export class QueryHandlers {
+ 
+     // Phase 2 & 3: Write operation queries
+     CONFIG.queries[`${modulePrefix}.createActorFromCompendium`] = this.handleCreateActorFromCompendium.bind(this);
++    CONFIG.queries[`${modulePrefix}.createActorFromData`] = this.handleCreateActorFromData.bind(this);
+     CONFIG.queries[`${modulePrefix}.getCompendiumDocumentFull`] = this.handleGetCompendiumDocumentFull.bind(this);
+     CONFIG.queries[`${modulePrefix}.addActorsToScene`] = this.handleAddActorsToScene.bind(this);
+     CONFIG.queries[`${modulePrefix}.validateWritePermissions`] = this.handleValidateWritePermissions.bind(this);
+@@ -416,6 +417,51 @@ export class QueryHandlers {
+     }
+   }
+ 
++  /**
++   * Handle actor creation from raw actor data payload
++   */
++  private async handleCreateActorFromData(data: {
++    actorData: Record<string, unknown>;
++    addToScene?: boolean;
++    placement?: {
++      type: 'random' | 'grid' | 'center' | 'coordinates';
++      coordinates?: { x: number; y: number }[];
++    };
++  }): Promise<any> {
++    try {
++      // SECURITY: Silent GM validation
++      const gmCheck = this.validateGMAccess();
++      if (!gmCheck.allowed) {
++        return { error: 'Access denied', success: false };
++      }
++
++      this.dataAccess.validateFoundryState();
++
++      if (!data?.actorData || typeof data.actorData !== 'object') {
++        throw new Error('actorData object is required');
++      }
++
++      const requestData: {
++        actorData: Record<string, unknown>;
++        addToScene?: boolean;
++        placement?: {
++          type: 'random' | 'grid' | 'center' | 'coordinates';
++          coordinates?: { x: number; y: number }[];
++        };
++      } = {
++        actorData: data.actorData,
++        addToScene: data.addToScene ?? false,
++      };
++      if (data.placement) {
++        requestData.placement = data.placement;
++      }
++
++      return await this.dataAccess.createActorFromData(requestData);
++    } catch (error) {
++      throw new Error(`Failed to create actor from data: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
+   /**
+    * Handle get compendium document full request
+    */
+diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
+index bfe6d44..29d92f5 100644
+--- a/packages/mcp-server/src/backend.ts
++++ b/packages/mcp-server/src/backend.ts
+@@ -23,6 +23,7 @@ import { SceneTools } from './tools/scene.js';
+ import { ActorCreationTools } from './tools/actor-creation.js';
+ 
+ import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
++import { DSA5JsonActorImporter } from './systems/dsa5/json-actor-importer.js';
+ 
+ import { QuestCreationTools } from './tools/quest-creation.js';
+ 
+@@ -1145,6 +1146,7 @@ async function startBackend(): Promise<void> {
+ 
+   // DSA5-specific character creation tools
+   const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
++  const dsa5JsonActorImporter = new DSA5JsonActorImporter({ foundryClient, logger });
+ 
+   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
+ 
+@@ -1376,6 +1378,7 @@ async function startBackend(): Promise<void> {
+     ...actorCreationTools.getToolDefinitions(),
+ 
+     ...dsa5CharacterCreator.getToolDefinitions(),
++    ...dsa5JsonActorImporter.getToolDefinitions(),
+ 
+     ...questCreationTools.getToolDefinitions(),
+ 
+@@ -1574,6 +1577,12 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
++                case 'import-dsa5-actor-from-json':
++
++                  result = await dsa5JsonActorImporter.handleImportActorFromJson(args);
++
++                  break;
++
+                 // Quest creation tools
+ 
+                 case 'create-quest-journal':
+diff --git a/packages/mcp-server/src/systems/dsa5/index.ts b/packages/mcp-server/src/systems/dsa5/index.ts
+index b510f20..d5a57ad 100644
+--- a/packages/mcp-server/src/systems/dsa5/index.ts
++++ b/packages/mcp-server/src/systems/dsa5/index.ts
+@@ -16,6 +16,7 @@ export { DSA5Adapter } from './adapter.js';
+ 
+ // Character creator (runs in MCP server Node.js context)
+ export { DSA5CharacterCreator } from './character-creator.js';
++export { DSA5JsonActorImporter } from './json-actor-importer.js';
+ 
+ // Filter system
+ export {
+diff --git a/packages/mcp-server/src/systems/dsa5/json-actor-importer.test.ts b/packages/mcp-server/src/systems/dsa5/json-actor-importer.test.ts
+new file mode 100644
+index 0000000..7b5d7fc
+--- /dev/null
++++ b/packages/mcp-server/src/systems/dsa5/json-actor-importer.test.ts
+@@ -0,0 +1,107 @@
++﻿import { describe, expect, it } from 'vitest';
++import {
++  detectDSA5ImportFormat,
++  mapCustomDsa5Payload,
++  mapOptolithLikePayload,
++} from './json-actor-importer.js';
++
++describe('DSA5 JSON actor importer mapper', () => {
++  it('detects custom_dsa5 format', () => {
++    const format = detectDSA5ImportFormat({
++      name: 'Loreley',
++      attribute: { mut: 10 },
++      talente: [],
++    });
++
++    expect(format).toBe('custom_dsa5');
++  });
++
++  it('detects optolith_like format', () => {
++    const format = detectDSA5ImportFormat({
++      name: 'Opto',
++      r: 'species_1',
++      c: 'culture_1',
++      p: 'profession_1',
++      attr: { values: [{ id: 'ATTR_1', value: 14 }] },
++    });
++
++    expect(format).toBe('optolith_like');
++  });
++
++  it('detects raw_foundry format', () => {
++    const format = detectDSA5ImportFormat({
++      name: 'Raw Actor',
++      type: 'character',
++      system: {},
++    });
++
++    expect(format).toBe('raw_foundry');
++  });
++
++  it('maps custom DSA5 payload into actor core fields', () => {
++    const result = mapCustomDsa5Payload({
++      name: 'Loreley',
++      spezies: 'Halbelf',
++      kultur: 'Nostria',
++      profession: 'Zauberin',
++      sozialstatus: 'II',
++      abenteuerpunkteGesammelt: 1200,
++      abenteuerpunkteAusgegeben: 1190,
++      abenteuerpunkteGesamt: 10,
++      attribute: {
++        mut: 10,
++        klugheit: 15,
++        intuition: 15,
++        charisma: 15,
++        fingerfertigkeit: 16,
++        gewandheit: 12,
++        konstitution: 11,
++        körperkraft: 8,
++      },
++      energien: {
++        lebensenergie: 27,
++        astralenergie: 22,
++        karmaenergie: 0,
++        schicksalspunkte: 3,
++      },
++      vorteile: [{ name: 'Zauberer' }],
++      talente: [{ name: 'Sinnesschärfe' }],
++    });
++
++    expect(result.actorData.name).toBe('Loreley');
++    expect((result.actorData.system as any).details.species.value).toBe('Halbelf');
++    expect((result.actorData.system as any).characteristics.mu.advances).toBe(2);
++    expect((result.actorData.system as any).status.wounds.value).toBe(27);
++    expect(result.candidateItemNames).toContain('Zauberer');
++    expect(result.candidateItemNames).toContain('Sinnesschärfe');
++  });
++
++  it('maps optolith-like payload into actor core fields', () => {
++    const result = mapOptolithLikePayload({
++      name: 'Optolith Hero',
++      sex: 'male',
++      attr: {
++        lp: 2,
++        ae: 4,
++        kp: 1,
++        values: [
++          { id: 'ATTR_1', value: 14 },
++          { id: 'ATTR_2', value: 13 },
++        ],
++      },
++      pers: {
++        age: '25',
++        family: 'Unknown',
++      },
++      ap: {
++        total: 1500,
++      },
++    });
++
++    expect(result.actorData.name).toBe('Optolith Hero');
++    expect((result.actorData.system as any).characteristics.mu.advances).toBe(6);
++    expect((result.actorData.system as any).status.astralenergy.advances).toBe(4);
++    expect((result.actorData.system as any).details.experience.total).toBe(1500);
++    expect(result.warnings.length).toBeGreaterThan(0);
++  });
++});
+diff --git a/packages/mcp-server/src/systems/dsa5/json-actor-importer.ts b/packages/mcp-server/src/systems/dsa5/json-actor-importer.ts
+new file mode 100644
+index 0000000..6d00a04
+--- /dev/null
++++ b/packages/mcp-server/src/systems/dsa5/json-actor-importer.ts
+@@ -0,0 +1,622 @@
++﻿import { promises as fs } from 'node:fs';
++import { z } from 'zod';
++import { FoundryClient } from '../../foundry-client.js';
++import { Logger } from '../../logger.js';
++import { ErrorHandler } from '../../utils/error-handler.js';
++
++export interface DSA5JsonActorImporterOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++type JsonRecord = Record<string, unknown>;
++
++export type DSA5ImportFormat = 'raw_foundry' | 'optolith_like' | 'custom_dsa5' | 'unknown';
++
++export type DSA5ImportStrategy = 'auto' | 'raw_foundry' | 'optolith_like' | 'custom_dsa5';
++
++interface MappingResult {
++  actorData: JsonRecord;
++  candidateItemNames: string[];
++  warnings: string[];
++  unmappedFields: string[];
++}
++
++const isRecord = (value: unknown): value is JsonRecord =>
++  typeof value === 'object' && value !== null && !Array.isArray(value);
++
++const toNumber = (value: unknown): number | undefined => {
++  if (typeof value === 'number' && Number.isFinite(value)) return value;
++  if (typeof value === 'string') {
++    const parsed = Number.parseFloat(value);
++    if (Number.isFinite(parsed)) return parsed;
++  }
++  return undefined;
++};
++
++const toStringValue = (value: unknown): string | undefined => {
++  if (typeof value === 'string') {
++    const trimmed = value.trim();
++    return trimmed.length > 0 ? trimmed : undefined;
++  }
++  return undefined;
++};
++
++const getByKeys = (source: JsonRecord, keys: string[]): unknown => {
++  for (const key of keys) {
++    if (key in source) return source[key];
++  }
++  return undefined;
++};
++
++const getNested = (source: JsonRecord, path: string): unknown => {
++  const parts = path.split('.');
++  let current: unknown = source;
++  for (const part of parts) {
++    if (!isRecord(current) || !(part in current)) return undefined;
++    current = current[part];
++  }
++  return current;
++};
++
++const characteristicAdvance = (value: unknown): number | undefined => {
++  const numeric = toNumber(value);
++  if (numeric === undefined) return undefined;
++  return Math.round(numeric) - 8;
++};
++
++const normalizeName = (name: string): string =>
++  name
++    .toLowerCase()
++    .normalize('NFKD')
++    .replace(/[\u0300-\u036f]/g, '')
++    .replace(/\s+/g, ' ')
++    .trim();
++
++const uniqueNames = (names: string[]): string[] => {
++  const seen = new Set<string>();
++  const result: string[] = [];
++  for (const name of names) {
++    const normalized = normalizeName(name);
++    if (normalized.length === 0 || seen.has(normalized)) continue;
++    seen.add(normalized);
++    result.push(name.trim());
++  }
++  return result;
++};
++
++const sanitizeEmbeddedDocuments = (docs: unknown): JsonRecord[] => {
++  if (!Array.isArray(docs)) return [];
++  return docs
++    .filter((entry): entry is JsonRecord => isRecord(entry))
++    .map((entry) => {
++      const cloned = { ...entry };
++      delete cloned._id;
++      delete cloned.folder;
++      delete cloned.sort;
++      return cloned;
++    });
++};
++
++export const detectDSA5ImportFormat = (payload: JsonRecord): DSA5ImportFormat => {
++  if (isRecord(payload.system) && typeof payload.type === 'string') {
++    return 'raw_foundry';
++  }
++
++  const attr = payload.attr;
++  const optolithLike =
++    isRecord(attr) &&
++    Array.isArray(attr.values) &&
++    (typeof payload.r === 'string' || typeof payload.c === 'string' || typeof payload.p === 'string');
++  if (optolithLike) return 'optolith_like';
++
++  const customLike =
++    isRecord(payload.attribute) ||
++    Array.isArray(payload.vorteile) ||
++    Array.isArray(payload.talente) ||
++    Array.isArray(payload.kampftechniken);
++  if (customLike) return 'custom_dsa5';
++
++  return 'unknown';
++};
++
++export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
++  const attribute = isRecord(payload.attribute) ? payload.attribute : {};
++  const energien = isRecord(payload.energien) ? payload.energien : {};
++
++  const species = toStringValue(payload.spezies);
++  const culture = toStringValue(payload.kultur);
++  const profession = toStringValue(payload.profession);
++  const socialStatus = toStringValue(payload.sozialstatus);
++
++  const actorData: JsonRecord = {
++    name: toStringValue(payload.name) ?? 'Imported DSA5 Character',
++    type: 'character',
++    system: {
++      characteristics: {
++        mu: { advances: characteristicAdvance(attribute.mut) ?? 0 },
++        kl: { advances: characteristicAdvance(attribute.klugheit) ?? 0 },
++        in: { advances: characteristicAdvance(attribute.intuition) ?? 0 },
++        ch: { advances: characteristicAdvance(attribute.charisma) ?? 0 },
++        ff: { advances: characteristicAdvance(attribute.fingerfertigkeit) ?? 0 },
++        ge: { advances: characteristicAdvance(attribute.gewandheit) ?? 0 },
++        ko: { advances: characteristicAdvance(attribute.konstitution) ?? 0 },
++        kk: {
++          advances:
++            characteristicAdvance(getByKeys(attribute, ['körperkraft', 'koerperkraft', 'kÃ¶rperkraft'])) ?? 0,
++        },
++      },
++      status: {
++        wounds: {
++          value: toNumber(energien.lebensenergie) ?? 0,
++          max: toNumber(energien.lebensenergie) ?? 0,
++        },
++        astralenergy: {
++          value: toNumber(energien.astralenergie) ?? 0,
++          max: toNumber(energien.astralenergie) ?? 0,
++        },
++        karmaenergy: {
++          value: toNumber(energien.karmaenergie) ?? 0,
++          max: toNumber(energien.karmaenergie) ?? 0,
++        },
++        fatePoints: {
++          value: toNumber(energien.schicksalspunkte) ?? 0,
++          max: toNumber(energien.schicksalspunkte) ?? 0,
++        },
++      },
++      details: {
++        species: { value: species ?? '' },
++        culture: { value: culture ?? '' },
++        career: { value: profession ?? '' },
++        socialstate: { value: socialStatus ?? '' },
++        experience: {
++          total: toNumber(payload.abenteuerpunkteGesammelt) ?? 0,
++          spent: toNumber(payload.abenteuerpunkteAusgegeben) ?? 0,
++          available: toNumber(payload.abenteuerpunkteGesamt) ?? 0,
++        },
++      },
++    },
++  };
++
++  const nameBuckets: string[] = [];
++  const pushNames = (value: unknown) => {
++    if (!Array.isArray(value)) return;
++    for (const entry of value) {
++      if (isRecord(entry)) {
++        const entryName = toStringValue(entry.name);
++        if (entryName) nameBuckets.push(entryName);
++      } else if (typeof entry === 'string' && entry.trim().length > 0) {
++        nameBuckets.push(entry.trim());
++      }
++    }
++  };
++
++  pushNames(payload.vorteile);
++  pushNames(payload.nachteile);
++  pushNames(payload.sonderfertigkeiten);
++  pushNames(payload.talente);
++  pushNames(payload.kampftechniken);
++  pushNames(payload.zauberUndLiturgien);
++  pushNames(payload.nahkampfwaffen);
++  pushNames(payload.fernkampfwaffen);
++  pushNames(payload.gegenstände);
++  pushNames(payload.sprachen);
++  pushNames(payload.schriften);
++
++  const warnings: string[] = [];
++  if (!species) warnings.push('No species in payload; actor will be created with empty species field.');
++  if (!culture) warnings.push('No culture in payload; actor will be created with empty culture field.');
++  if (!profession) warnings.push('No profession in payload; actor will be created with empty profession field.');
++
++  const knownRoots = new Set([
++    'uid',
++    'grösse',
++    'größe',
++    'grÃ¶sse',
++    'name',
++    'geschlecht',
++    'spezies',
++    'region',
++    'kultur',
++    'kulturpaket',
++    'profession',
++    'sozialstatus',
++    'abenteuerpunkteGesammelt',
++    'abenteuerpunkteAusgegeben',
++    'abenteuerpunkteGesamt',
++    'hintergrund',
++    'attribute',
++    'abgeleiteteWerte',
++    'energien',
++    'vorteile',
++    'nachteile',
++    'sonderfertigkeiten',
++    'berufsgeheimnisse',
++    'sprachen',
++    'schriften',
++    'talente',
++    'kampftechniken',
++    'zauberUndLiturgien',
++    'objektrituale',
++    'rüstungen',
++    'nahkampfwaffen',
++    'fernkampfwaffen',
++    'gegenstände',
++  ]);
++
++  const unmappedFields = Object.keys(payload).filter((key) => !knownRoots.has(key));
++
++  return {
++    actorData,
++    candidateItemNames: uniqueNames(nameBuckets),
++    warnings,
++    unmappedFields,
++  };
++};
++
++export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
++  const attr = isRecord(payload.attr) ? payload.attr : {};
++  const details = isRecord(payload.pers) ? payload.pers : {};
++
++  const characteristics: Record<string, { advances: number }> = {
++    mu: { advances: 0 },
++    kl: { advances: 0 },
++    in: { advances: 0 },
++    ch: { advances: 0 },
++    ff: { advances: 0 },
++    ge: { advances: 0 },
++    ko: { advances: 0 },
++    kk: { advances: 0 },
++  };
++
++  const attrValues = Array.isArray(attr.values) ? attr.values : [];
++  const mappingKeys = ['mu', 'kl', 'in', 'ch', 'ff', 'ge', 'ko', 'kk'] as const;
++  for (const entry of attrValues) {
++    if (!isRecord(entry)) continue;
++    const idRaw = toStringValue(entry.id);
++    const value = toNumber(entry.value);
++    if (!idRaw || value === undefined) continue;
++    const idParts = idRaw.split('_');
++    const idx = Number.parseInt(idParts[idParts.length - 1] ?? '', 10) - 1;
++    if (idx >= 0 && idx < mappingKeys.length) {
++      characteristics[mappingKeys[idx]] = { advances: Math.round(value) - 8 };
++    }
++  }
++
++  const actorData: JsonRecord = {
++    name: toStringValue(payload.name) ?? 'Imported Optolith Character',
++    type: 'character',
++    system: {
++      characteristics,
++      status: {
++        wounds: {
++          advances: toNumber(attr.lp) ?? 0,
++        },
++        astralenergy: {
++          advances: toNumber(attr.ae) ?? 0,
++          permanentLoss: toNumber(getNested(attr, 'permanentAE.lost')) ?? 0,
++          rebuy: toNumber(getNested(attr, 'permanentAE.redeemed')) ?? 0,
++        },
++        karmaenergy: {
++          advances: toNumber(attr.kp) ?? 0,
++          permanentLoss: toNumber(getNested(attr, 'permanentKP.lost')) ?? 0,
++          rebuy: toNumber(getNested(attr, 'permanentKP.redeemed')) ?? 0,
++        },
++      },
++      details: {
++        age: { value: toStringValue(details.age) ?? '' },
++        gender: { value: toStringValue(payload.sex) ?? '' },
++        home: { value: toStringValue(details.placeofbirth) ?? '' },
++        family: { value: toStringValue(details.family) ?? '' },
++        experience: {
++          total: toNumber((isRecord(payload.ap) ? payload.ap.total : undefined)) ?? 0,
++        },
++      },
++    },
++  };
++
++  const warnings = [
++    'Optolith-like payload detected. This importer currently maps core fields only and skips ID-based item translation.',
++  ];
++
++  return {
++    actorData,
++    candidateItemNames: [],
++    warnings,
++    unmappedFields: [],
++  };
++};
++
++const sanitizeActorPayload = (payload: JsonRecord): JsonRecord => {
++  const actorData: JsonRecord = { ...payload };
++
++  delete actorData._id;
++  delete actorData.folder;
++  delete actorData.sort;
++
++  actorData.items = sanitizeEmbeddedDocuments(actorData.items);
++  actorData.effects = sanitizeEmbeddedDocuments(actorData.effects);
++
++  if (!actorData.name || typeof actorData.name !== 'string') {
++    actorData.name = 'Imported Actor';
++  }
++
++  if (!actorData.type || typeof actorData.type !== 'string') {
++    actorData.type = 'character';
++  }
++
++  if (!isRecord(actorData.system)) {
++    actorData.system = {};
++  }
++
++  const prototypeToken = isRecord(actorData.prototypeToken) ? actorData.prototypeToken : undefined;
++  const texture = prototypeToken && isRecord(prototypeToken.texture) ? prototypeToken.texture : undefined;
++  const src = texture && typeof texture.src === 'string' ? texture.src : undefined;
++  if (src && src.startsWith('http')) {
++    texture!.src = null;
++  }
++
++  return actorData;
++};
++
++const extractPayload = async (jsonPayload: unknown, filePath: string | undefined): Promise<JsonRecord> => {
++  let parsed: unknown = jsonPayload;
++
++  if (!parsed && filePath) {
++    const content = await fs.readFile(filePath, 'utf8');
++    parsed = JSON.parse(content);
++  }
++
++  if (typeof parsed === 'string') {
++    parsed = JSON.parse(parsed);
++  }
++
++  if (!isRecord(parsed)) {
++    throw new Error('Payload must resolve to a JSON object.');
++  }
++
++  return parsed;
++};
++
++interface ResolvedItemsResult {
++  items: JsonRecord[];
++  unresolvedNames: string[];
++  resolvedCount: number;
++}
++
++export class DSA5JsonActorImporter {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++  private errorHandler: ErrorHandler;
++
++  constructor({ foundryClient, logger }: DSA5JsonActorImporterOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'DSA5JsonActorImporter' });
++    this.errorHandler = new ErrorHandler(this.logger);
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'import-dsa5-actor-from-json',
++        description:
++          'Import a custom DSA5 actor JSON using multiple strategies (auto/custom_dsa5/optolith_like/raw_foundry). Supports file path or inline JSON payload. Best-effort item resolution is performed via compendium name lookup and unresolved entries are returned as warnings.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            jsonPayload: {
++              oneOf: [
++                { type: 'string' },
++                { type: 'object' },
++              ],
++              description:
++                'Inline JSON content as object or string. Optional if filePath is provided.',
++            },
++            filePath: {
++              type: 'string',
++              description:
++                'Local file path to a JSON file readable by the MCP server process. Optional if jsonPayload is provided.',
++            },
++            strategy: {
++              type: 'string',
++              enum: ['auto', 'custom_dsa5', 'optolith_like', 'raw_foundry'],
++              default: 'auto',
++              description:
++                'Import strategy. auto detects format and chooses mapping path.',
++            },
++            resolveItems: {
++              type: 'boolean',
++              default: true,
++              description:
++                'Try resolving item-like entries by name from compendiums and embed them into the created actor.',
++            },
++            addToScene: {
++              type: 'boolean',
++              default: false,
++              description: 'Add created actor to active scene as token.',
++            },
++            strict: {
++              type: 'boolean',
++              default: false,
++              description:
++                'If true, unresolved item names abort the import instead of returning warnings.',
++            },
++          },
++        },
++      },
++    ];
++  }
++
++  async handleImportActorFromJson(args: unknown): Promise<Record<string, unknown>> {
++    const schema = z
++      .object({
++        jsonPayload: z.union([z.string(), z.record(z.unknown())]).optional(),
++        filePath: z.string().optional(),
++        strategy: z.enum(['auto', 'custom_dsa5', 'optolith_like', 'raw_foundry']).default('auto'),
++        resolveItems: z.boolean().default(true),
++        addToScene: z.boolean().default(false),
++        strict: z.boolean().default(false),
++      })
++      .refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
++        message: 'Either jsonPayload or filePath is required.',
++      });
++
++    const { jsonPayload, filePath, strategy, resolveItems, addToScene, strict } = schema.parse(args);
++
++    try {
++      const payload = await extractPayload(jsonPayload, filePath);
++      const detectedFormat = detectDSA5ImportFormat(payload);
++      const selectedFormat = strategy === 'auto' ? detectedFormat : strategy;
++
++      let mappingResult: MappingResult;
++      switch (selectedFormat) {
++        case 'raw_foundry':
++          mappingResult = {
++            actorData: sanitizeActorPayload(payload),
++            candidateItemNames: [],
++            warnings: [],
++            unmappedFields: [],
++          };
++          break;
++        case 'optolith_like':
++          mappingResult = mapOptolithLikePayload(payload);
++          break;
++        case 'custom_dsa5':
++          mappingResult = mapCustomDsa5Payload(payload);
++          break;
++        default:
++          throw new Error(
++            `Could not detect supported JSON format. Detected format: ${detectedFormat}. Use strategy override if needed.`
++          );
++      }
++
++      const warnings = [...mappingResult.warnings];
++      const unresolvedItemNames: string[] = [];
++
++      if (resolveItems && mappingResult.candidateItemNames.length > 0) {
++        const resolved = await this.resolveItemsByName(mappingResult.candidateItemNames);
++        unresolvedItemNames.push(...resolved.unresolvedNames);
++        if (resolved.items.length > 0) {
++          const existingItems = Array.isArray(mappingResult.actorData.items)
++            ? sanitizeEmbeddedDocuments(mappingResult.actorData.items)
++            : [];
++          mappingResult.actorData.items = [...existingItems, ...resolved.items];
++        }
++
++        if (resolved.unresolvedNames.length > 0) {
++          warnings.push(
++            `Unresolved item names (${resolved.unresolvedNames.length}): ${resolved.unresolvedNames.join(', ')}`
++          );
++        }
++      }
++
++      if (strict && unresolvedItemNames.length > 0) {
++        throw new Error(
++          `Strict import aborted because ${unresolvedItemNames.length} item names could not be resolved.`
++        );
++      }
++
++      const creationResult = await this.foundryClient.query('foundry-mcp-bridge.createActorFromData', {
++        actorData: sanitizeActorPayload(mappingResult.actorData),
++        addToScene,
++      });
++
++      const actor = isRecord(creationResult) && isRecord(creationResult.actor)
++        ? creationResult.actor
++        : {};
++
++      return {
++        success: true,
++        summary: `Imported actor "${String(actor.name ?? mappingResult.actorData.name)}" using ${selectedFormat}.`,
++        import: {
++          selectedFormat,
++          detectedFormat,
++          strategy,
++          resolveItems,
++          strict,
++          source: filePath ? `file:${filePath}` : 'jsonPayload',
++        },
++        actor,
++        warnings,
++        unmappedFields: mappingResult.unmappedFields,
++        unresolvedItemNames,
++        message:
++          `Import completed via ${selectedFormat}.\n` +
++          `Warnings: ${warnings.length}\n` +
++          `Unmapped root fields: ${mappingResult.unmappedFields.length}`,
++      };
++    } catch (error) {
++      this.errorHandler.handleToolError(error, 'import-dsa5-actor-from-json', 'JSON import');
++    }
++  }
++
++  private async resolveItemsByName(itemNames: string[]): Promise<ResolvedItemsResult> {
++    const unique = uniqueNames(itemNames).slice(0, 120);
++    const resolvedItems: JsonRecord[] = [];
++    const unresolved: string[] = [];
++
++    for (const candidateName of unique) {
++      try {
++        const searchResponse = await this.foundryClient.query('foundry-mcp-bridge.searchCompendium', {
++          query: candidateName,
++          packType: 'Item',
++        });
++
++        if (!Array.isArray(searchResponse) || searchResponse.length === 0) {
++          unresolved.push(candidateName);
++          continue;
++        }
++
++        const exact = searchResponse.find((entry: unknown) => {
++          if (!isRecord(entry)) return false;
++          const name = toStringValue(entry.name);
++          if (!name) return false;
++          return normalizeName(name) === normalizeName(candidateName);
++        });
++
++        const selected = (exact ?? searchResponse[0]) as unknown;
++        if (!isRecord(selected)) {
++          unresolved.push(candidateName);
++          continue;
++        }
++
++        const packId = toStringValue(selected.pack);
++        const itemId = toStringValue(selected.id);
++        if (!packId || !itemId) {
++          unresolved.push(candidateName);
++          continue;
++        }
++
++        const full = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
++          packId,
++          documentId: itemId,
++        });
++
++        if (!isRecord(full) || !isRecord(full.fullData)) {
++          unresolved.push(candidateName);
++          continue;
++        }
++
++        const itemData = sanitizeEmbeddedDocuments([full.fullData])[0];
++        if (!itemData) {
++          unresolved.push(candidateName);
++          continue;
++        }
++
++        resolvedItems.push(itemData);
++      } catch (error) {
++        this.logger.warn('Item resolution failed during import', {
++          candidateName,
++          error: error instanceof Error ? error.message : String(error),
++        });
++        unresolved.push(candidateName);
++      }
++    }
++
++    return {
++      items: resolvedItems,
++      unresolvedNames: unresolved,
++      resolvedCount: resolvedItems.length,
++    };
++  }
++}
+diff --git a/packages/mcp-server/src/utils/error-handler.ts b/packages/mcp-server/src/utils/error-handler.ts
+index 4d98d67..151e12b 100644
+--- a/packages/mcp-server/src/utils/error-handler.ts
++++ b/packages/mcp-server/src/utils/error-handler.ts
+@@ -38,7 +38,13 @@ export class ErrorHandler {
+     }
+ 
+     // Connection errors
+-    if (errorLower.includes('connection') || errorLower.includes('websocket') || errorLower.includes('timeout')) {
++    if (
++      errorLower.includes('connection') ||
++      errorLower.includes('websocket') ||
++      errorLower.includes('timeout') ||
++      errorLower.includes('not connected') ||
++      errorLower.includes('module not connected')
++    ) {
+       return {
+         type: 'connection',
+         message: 'Connection to Foundry VTT failed',
+diff --git a/scripts/test-import-dsa5-json.mjs b/scripts/test-import-dsa5-json.mjs
+new file mode 100644
+index 0000000..66f311e
+--- /dev/null
++++ b/scripts/test-import-dsa5-json.mjs
+@@ -0,0 +1,58 @@
++﻿#!/usr/bin/env node
++
++import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
++import { Client } from '@modelcontextprotocol/sdk/client/index.js';
++
++const DEFAULT_FILE_PATH =
++  'C:/Users/Frank/iCloudDrive/Documents/DSA_/Charactere/aktuell/loreley/Loreley.json';
++
++const filePath = process.env.DSA5_IMPORT_FILE || DEFAULT_FILE_PATH;
++const strategy = process.env.DSA5_IMPORT_STRATEGY || 'auto';
++const resolveItems = process.env.DSA5_IMPORT_RESOLVE_ITEMS !== 'false';
++const strict = process.env.DSA5_IMPORT_STRICT === 'true';
++const addToScene = process.env.DSA5_IMPORT_ADD_TO_SCENE === 'true';
++
++const mcpServer = new Client(
++  { name: 'dsa5-json-import-test', version: '1.0.0' },
++  { capabilities: {} }
++);
++
++const transport = new StdioClientTransport({
++  command: 'node',
++  args: ['packages/mcp-server/dist/index.js'],
++  stderr: 'inherit',
++});
++
++async function main() {
++  console.log('[START] DSA5 JSON import smoke test');
++  console.log(`[CONFIG] filePath=${filePath}`);
++  console.log(`[CONFIG] strategy=${strategy}, resolveItems=${resolveItems}, strict=${strict}, addToScene=${addToScene}`);
++
++  await mcpServer.connect(transport);
++
++  const result = await mcpServer.callTool({
++    name: 'import-dsa5-actor-from-json',
++    arguments: {
++      filePath,
++      strategy,
++      resolveItems,
++      strict,
++      addToScene,
++    },
++  });
++
++  console.log('[RESULT]');
++  console.log(JSON.stringify(result, null, 2));
++
++  await mcpServer.close();
++}
++
++main().catch(async (error) => {
++  console.error('[ERROR]', error instanceof Error ? error.message : String(error));
++  try {
++    await mcpServer.close();
++  } catch {
++    // ignore close errors
++  }
++  process.exit(1);
++});
+-- 
+2.54.0
+

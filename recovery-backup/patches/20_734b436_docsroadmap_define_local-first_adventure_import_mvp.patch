@@ -1,0 +1,191 @@
+From 734b4362007e991c7e9f3d216c8e1e1e73bf9177 Mon Sep 17 00:00:00 2001
+From: Frank Hermann <frank@hermann-essen.de>
+Date: Fri, 6 Mar 2026 12:36:52 +0100
+Subject: [PATCH] docs(roadmap): define local-first adventure import mvp
+
+---
+ AGENTS.md                        |  4 ++
+ Claude.md                        |  4 ++
+ FEATURE_ADVENTURE_SCAN_IMPORT.md | 50 +++++++++++++++++++
+ ROADMAP.md                       | 82 ++++++++++++++++++++++++++++++++
+ 4 files changed, 140 insertions(+)
+ create mode 100644 FEATURE_ADVENTURE_SCAN_IMPORT.md
+ create mode 100644 ROADMAP.md
+
+diff --git a/AGENTS.md b/AGENTS.md
+index 544ed1b..938cf7b 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -12,6 +12,10 @@
+ - Committen mit Conventional Commits (siehe unten)
+ - Bei Unklarheiten: Architektur-Constraints aus diesem File priorisieren
+ 
++### Session Start Kontext (Claude und Codex)
++- Bei jeder neuen Session zuerst `ROADMAP.md` lesen.
++- `ROADMAP.md` ist die verbindliche Quelle fuer Roadmap und priorisiertes Feature-Backlog.
++
+ ---
+ 
+ ## Project Structure & Module Organization
+diff --git a/Claude.md b/Claude.md
+index 042f32d..c5188a3 100644
+--- a/Claude.md
++++ b/Claude.md
+@@ -12,6 +12,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
+ 2. Claude schreibt einen präzisen Codex-Prompt mit: betroffenen Dateien, exakten Änderungen, Constraints
+ 3. Codex führt aus, läuft Tests, committet
+ 
++### Session Start Kontext
++- Bei jeder neuen Session zuerst `ROADMAP.md` lesen.
++- `ROADMAP.md` ist die verbindliche Quelle fuer Roadmap und priorisiertes Feature-Backlog.
++
+ ### Claude-Permissions in diesem Repo
+ - **Erlaubt ohne Rückfrage:** Read, Grep, Glob, Bash (read-only: git log/diff/show/status), TodoWrite
+ - **Nicht erlaubt:** Edit, Write, Bash (schreibend) — das ist Codex-Domäne
+diff --git a/FEATURE_ADVENTURE_SCAN_IMPORT.md b/FEATURE_ADVENTURE_SCAN_IMPORT.md
+new file mode 100644
+index 0000000..8735e05
+--- /dev/null
++++ b/FEATURE_ADVENTURE_SCAN_IMPORT.md
+@@ -0,0 +1,50 @@
++﻿# Feature: Adventure Scan and Import Pipeline
++
++## Vision
++
++Allow DSA5 Game Masters to import adventure books (PDF/image/text) into Foundry as playable structured content, then adapt that content with new ideas, while keeping the full processing stack local.
++
++## Scope Boundary
++
++- Core product: local import + structured conversion + rewrite/adaptation + safe apply flow.
++- Optional interface: OpenClaw/WhatsApp.
++- OpenClaw is not mandatory for product success.
++
++## MVP Decisions (Locked)
++
++1. MVP includes image generation for battlemaps/tokens via ComfyUI tools.
++2. Every world write requires review first (preview/diff/confirm).
++3. Journal/scene import is first implementation focus.
++4. Adventure rewrite/adaptation is part of MVP.
++5. Target communication audience includes English-only collaborators.
++
++## User Outcomes
++
++1. Import adventure text from scanned pages/PDF into journals and scenes.
++2. Generate/adapt adventure variants from GM ideas before applying.
++3. Produce battlemaps/tokens locally and link them to created content.
++4. Apply selected changes only after explicit review.
++
++## Core Pipeline
++
++1. Ingest input (PDF/image/text)
++2. OCR if needed (local)
++3. Structure extraction (NPCs, places, items, encounters, quest notes)
++4. Rewrite/adaptation pass (optional)
++5. Preview + diff
++6. Explicit apply to Foundry
++
++## Primary Tool Gaps
++
++1. `create-journal-entry`
++2. `create-scene-placeholder`
++3. `create-actor-from-description`
++4. review/apply protocol across write tools
++5. integrated ComfyUI generation entrypoint in import flow
++
++## Success Criteria
++
++- GMs can complete an end-to-end import from source material without cloud LLM dependency.
++- No write operation happens without user review.
++- Rewrites are practical and selectable before apply.
++- Map/token generation is available within MVP workflows.
+diff --git a/ROADMAP.md b/ROADMAP.md
+new file mode 100644
+index 0000000..be71051
+--- /dev/null
++++ b/ROADMAP.md
+@@ -0,0 +1,82 @@
++﻿# Roadmap
++
++This document is the single source of truth for product direction and backlog priority.
++
++## Product North Star
++
++Build a local-first DSA5 adventure import workflow for Game Masters:
++- Import adventure content from books/PDF/images
++- Convert it into structured Foundry content (journals, scenes, NPCs, items, encounters)
++- Support adventure rewriting/adaptation with new GM ideas
++- Keep all content processing local (no cloud LLM required)
++
++OpenClaw/WhatsApp is an optional interface, not a product requirement.
++
++## Non-Negotiable Product Rules
++
++1. Human review is mandatory before any world write operation.
++2. MVP must include image generation support for battlemaps/tokens via ComfyUI tools.
++3. Adventure rewrite/adaptation is part of MVP, not post-MVP.
++
++## Delivery Plan (12 Weeks)
++
++### Phase 1 (Weeks 1-4) - MVP Foundation
++
++- Review-first write pipeline (preview + diff + explicit apply)
++- Local ingestion flow for text/PDF/image inputs
++- Baseline error model for actionable recovery
++
++Release 1 (end of week 4):
++- No direct writes without review gate
++- Stable local import/review loop
++
++### Phase 2 (Weeks 5-8) - Core Import + Rewrite MVP
++
++- `create-journal-entry` for non-quest text import
++- `create-scene-placeholder` for text-first scene setup
++- Adventure rewrite workflow (variant generation + GM-selected apply)
++
++Release 2 (end of week 8):
++- Usable MVP for journal/scene import and rewrite
++
++### Phase 3 (Weeks 9-12) - Rich Content MVP
++
++- `create-actor-from-description` (free text to DSA5 actor)
++- ComfyUI-driven battlemaps/tokens integrated in import flow
++- Optional `create-custom-item` and encounter helper improvements
++
++Release 3 (end of week 12):
++- End-to-end local-first adventure import MVP with rewrite + images
++
++## Top-5 Backlog (Prioritized)
++
++1. Review-First Write Gate (`L`)
++- Value: prevents accidental world corruption and enforces GM control.
++- DoD: all write-capable tools support `preview` mode and require explicit apply/confirm step.
++
++2. Adventure Rewrite MVP (`M`)
++- Value: allows GMs to adapt imported adventures with new ideas immediately.
++- DoD: workflow can generate alternatives and apply selected changes after review.
++
++3. `create-journal-entry` (`M`)
++- Value: imports most book content without forcing quest schema.
++- DoD: supports `name`, `content`, optional category/tags.
++
++4. `create-scene-placeholder` (`M`)
++- Value: enables scene-first adventure setup without mandatory map generation.
++- DoD: creates named scene with optional description/background metadata.
++
++5. ComfyUI Image Generation in MVP (`M`)
++- Value: battlemaps/tokens generated as part of import flow.
++- DoD: generation can be requested from import/rewrite workflow and attached to scene/token pipeline.
++
++## Optional Interface Track (Not Required)
++
++- OpenClaw/WhatsApp integration
++- Other local clients (desktop/mobile)
++
++These are adapters around the same core pipeline and must not define core product scope.
++
++## Message for Adam (English)
++
++We are positioning the project around a local-first DSA5 adventure import pipeline for GMs. The core product is not OpenClaw; OpenClaw/WhatsApp is only an optional interface. MVP scope includes: (1) mandatory review-before-write, (2) adventure rewrite/adaptation workflows, and (3) local image generation for battlemaps/tokens via ComfyUI. The goal is practical import + customization of book adventures without relying on cloud LLMs, mainly due to copyright/privacy constraints.
+-- 
+2.54.0
+

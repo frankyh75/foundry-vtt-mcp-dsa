@@ -1,0 +1,89 @@
+From f3f2e6de618e9925c23df23154421f08b9c6976f Mon Sep 17 00:00:00 2001
+From: Jarvis <jarvis@local>
+Date: Fri, 29 May 2026 09:18:01 +0200
+Subject: [PATCH] docs(agents): add upstream sync protocol and agent scope
+ rules
+
+---
+ AGENTS.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 68 insertions(+)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index 938cf7b..4f31b57 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -65,3 +65,71 @@ DSA5 support is an external adapter layer. Core files (`data-access.ts`) stay up
+ ## Configuration & Security
+ - Copy `.env.example` to `.env` for local setup.
+ - Treat `MCP_AUTH_TOKEN` and OAuth secrets as sensitive; do not commit them.
++
++## Upstream Sync Protocol
++
++### Merge, never cherry-pick
++Upstream changes are synced exclusively via `git merge upstream/master`.
++Cherry-picking individual upstream commits is **forbidden** — it breaks shared
++history and causes deduplication conflicts when the real merge happens later.
++
++Sole exception: a self-contained bugfix that (a) is already in upstream/master,
++(b) touches no file we have modified, and (c) is explicitly approved by Claude.
++
++### Merge upstream BEFORE touching any shared file
++Before modifying any file outside `packages/mcp-server/src/systems/dsa5/`,
++run:
++```
++git log upstream/master..HEAD -- <file>
++```
++If upstream has commits on that file that we don't have, run
++`git merge upstream/master` first. If the merge would be non-trivial, stop
++and escalate to Claude.
++
++### Pre-merge gate (must all pass before `git merge upstream/master`)
++1. `git log --oneline master | grep -i TEMP` → must return empty
++2. `git diff HEAD upstream/master -- packages/foundry-module/src/data-access.ts`
++   → must show only Prettier/whitespace diffs, no DSA5-specific logic
++3. `npm run typecheck` on current branch → 0 errors
++
++If any gate fails, stop and escalate to Claude before proceeding.
++
++### Prettier / formatting runs
++Never run `npm run format` on files that upstream has also reformatted in a
++pending merge. Only run after a successful `git merge upstream/master`.
++
++### TEMP commits are forbidden on master
++TEMP commits belong in feature branches only. A TEMP commit on master is an
++incident — squash or drop before merging to master.
++
++---
++
++## Agent Task Scope and Escalation
++
++### What any agent may do autonomously
++- Implement DSA5 features entirely within `packages/mcp-server/src/systems/dsa5/`
++- Write or extend tests (`*.test.ts`)
++- Update `ROADMAP.md`, `SESSION.md`, `AGENTS.md`
++- Read any file, run `npm run typecheck`, `npm run test`
++- Commit and push feature branches
++
++### What requires Claude (senior agent) review before execution
++- Any `git merge upstream/master`
++- Any change to `packages/foundry-module/src/data-access.ts`
++- Any change to `packages/mcp-server/src/backend.ts` routing table
++- Any change to `shared/` types that adds a new system
++
++### Hard stop — agent must halt and write a blocking card
++If a Kanban task requires any of the "senior review" operations above, the
++agent must:
++1. Stop immediately (do not attempt the operation)
++2. Write a blocking note in the task/card describing exactly what upstream
++   state is needed and which file would be affected
++3. Mark the task blocked and wait for Claude to plan the merge sequence
++
++### Smell test for scope violations
++If you see any of the following in recent commit history, treat it as a
++scope violation and flag before pushing further:
++- Commits containing "cherry-pick" in the message
++- Commits starting with "TEMP:"
++- Commit messages containing "DSA5 merge fix" on a cherry-picked upstream commit
+-- 
+2.54.0
+

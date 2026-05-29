@@ -1,0 +1,2588 @@
+From 01661762388f61d28fe1922ea4bddd08a19b5589 Mon Sep 17 00:00:00 2001
+From: Jarvis <jarvis@local>
+Date: Sun, 12 Apr 2026 17:54:31 +0200
+Subject: [PATCH] feat(adventure-import): add local DSA5 adventure pipeline
+
+Add schema, text normalization, LLM extraction, Foundry import tooling, docs, and tests for the DSA5 adventure import flow.
+---
+ .gitignore                                    |   4 +
+ adventures/deicherbe-1-preprocessed.json      |  81 ----
+ adventures/deicherbe-2-preprocessed.json      | 204 ---------
+ docs/ADVENTURE_IMPORT_WORKFLOW.md             | 105 +++++
+ docs/IMPORT_GUIDE_DE.md                       |  10 +-
+ docs/examples/adventure-import-example.md     |  57 +++
+ docs/plans/adventure-import-pipeline.md       | 414 ++++++++++++++++++
+ .../adventure-import/foundry-importer.test.ts |  90 ++++
+ .../src/adventure-import/foundry-importer.ts  | 355 +++++++++++++++
+ .../src/adventure-import/llm-worker.test.ts   |  78 ++++
+ .../src/adventure-import/llm-worker.ts        | 179 ++++++++
+ .../mcp-server/src/adventure-import/prompt.ts |  89 ++++
+ .../src/adventure-import/schema.test.ts       |  77 ++++
+ .../mcp-server/src/adventure-import/schema.ts |  53 +++
+ .../adventure-import/text-normalizer.test.ts  |  47 ++
+ .../src/adventure-import/text-normalizer.ts   |  79 ++++
+ .../mcp-server/src/adventure-import/types.ts  |  44 ++
+ packages/mcp-server/src/backend.ts            |  12 +
+ .../src/tools/adventure-import.test.ts        | 151 +++++++
+ .../mcp-server/src/tools/adventure-import.ts  | 250 +++++++++++
+ 20 files changed, 2091 insertions(+), 288 deletions(-)
+ delete mode 100644 adventures/deicherbe-1-preprocessed.json
+ delete mode 100644 adventures/deicherbe-2-preprocessed.json
+ create mode 100644 docs/ADVENTURE_IMPORT_WORKFLOW.md
+ create mode 100644 docs/examples/adventure-import-example.md
+ create mode 100644 docs/plans/adventure-import-pipeline.md
+ create mode 100644 packages/mcp-server/src/adventure-import/foundry-importer.test.ts
+ create mode 100644 packages/mcp-server/src/adventure-import/foundry-importer.ts
+ create mode 100644 packages/mcp-server/src/adventure-import/llm-worker.test.ts
+ create mode 100644 packages/mcp-server/src/adventure-import/llm-worker.ts
+ create mode 100644 packages/mcp-server/src/adventure-import/prompt.ts
+ create mode 100644 packages/mcp-server/src/adventure-import/schema.test.ts
+ create mode 100644 packages/mcp-server/src/adventure-import/schema.ts
+ create mode 100644 packages/mcp-server/src/adventure-import/text-normalizer.test.ts
+ create mode 100644 packages/mcp-server/src/adventure-import/text-normalizer.ts
+ create mode 100644 packages/mcp-server/src/adventure-import/types.ts
+ create mode 100644 packages/mcp-server/src/tools/adventure-import.test.ts
+ create mode 100644 packages/mcp-server/src/tools/adventure-import.ts
+
+diff --git a/.gitignore b/.gitignore
+index 3aad8b6..3318ec2 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -3,6 +3,10 @@ CLAUDE.md
+ DISTRIBUTION.md  
+ RELEASE-PROCESS.md
+ 
++# Copyrighted example adventure source files - keep out of repo
++adventures/deicherbe-1-preprocessed.json
++adventures/deicherbe-2-preprocessed.json
++
+ # Dependencies
+ node_modules/
+ .pnpm-debug.log*
+diff --git a/adventures/deicherbe-1-preprocessed.json b/adventures/deicherbe-1-preprocessed.json
+deleted file mode 100644
+index 528a91d..0000000
+--- a/adventures/deicherbe-1-preprocessed.json
++++ /dev/null
+@@ -1,81 +0,0 @@
+-{
+-"metadata": {
+-"title": "Deicherbe",
+-"genre": "Abenteuer/Kurzabenteuer",
+-"complexity": "gering – gering",
+-"playerCount": "3-5",
+-"locations": ["Nostria", "Seenland"],
+-"timeframe": "1027 BF",
+-"description": "In Nostria helfen die Helden einem Bauern, dessen Hof von Fluch und Thorwalertreiben bedroht wird. Die Spur führt zu einem verfluchten Zahn im Deich und einer seltsamen Verwandlung. Ein bodenständiges Abenteuer über Loyalität, Aberglaube und den Mut einfacher Menschen."
+-},
+-"scenes": [
+-{
+-"id": 1,
+-"title": "Ein Kind in Not",
+-"type": "exploration",
+-"description": "Die Helden entdecken auf dem Rückweg ein Kind, das im Wattenmeer eingesunken ist. Der Junge steckt fest und droht zu ertrinken. Die Szene bietet Gelegenheit für Heldentum und erste Einbindung der Heldengruppe.",
+-"readAloudText": "Das Wasser ist bereits so weit zurückgekehrt, dass nur mehr Alsilios Brust und Kopf über Wasser ragen und man ihn nur noch schwimmend (oder fliegend) erreichen kann.",
+-"challenges": [
+-{
+-"type": "skill_check",
+-"skill": "Heilkunde Seele",
+-"attributes": ["MU", "IN", "CH"],
+-"modifier": 0,
+-"description": "Das Kind beruhigen, falls es in Panik gerät."
+-},
+-{
+-"type": "skill_check",
+-"skill": "Kraftakt",
+-"attributes": ["KO", "KK", "GE"],
+-"modifier": -1,
+-"description": "Kind aus dem Schlick ziehen (Ziehen & Zerren)."
+-},
+-{
+-"type": "skill_check",
+-"skill": "Schwimmen",
+-"attributes": ["GE", "KO", "KK"],
+-"modifier": 0,
+-"description": "Sicher zum Kind schwimmen und es zurückbringen."
+-}
+-],
+-"npcs": ["Alsilio"],
+-"items": [],
+-"locationDescription": "Küstenstraße mit angrenzendem Schlickfeld, nahe einem Prielen, im nostrischen Seenland",
+-"needsMap": true
+-}
+-],
+-"npcs": [
+-{
+-"name": "Alsilio",
+-"role": "minor",
+-"attributes": {
+-"MU": 8, "KL": 9, "IN": 10, "CH": 8,
+-"FF": 9, "GE": 10, "KO": 8, "KK": 7
+-},
+-"LeP": 20,
+-"AsP": null,
+-"KaP": null,
+-"skills": [
+-{"name": "Schwimmen", "value": 2},
+-{"name": "Orientierung", "value": 3}
+-],
+-"specialAbilities": [],
+-"equipment": ["Kindlicher Wanderstab", "kleiner Beutel"],
+-"description": "Alsilio ist der junge Sohn des Bauern Elidan, abenteuerlustig, etwas ungestüm und von der Suche nach Schätzen fasziniert.",
+-"motivation": "Er wollte seinen Mut beweisen, indem er allein zum Watt aufbrach, um verborgene Schätze zu finden.",
+-"secrets": "Er hat in der Vergangenheit beobachtet, wie der Vater heimlich etwas im Deich vergraben hat."
+-}
+-],
+-"locations": [
+-{
+-"name": "Nostria – Seenland am Deich",
+-"type": "coastal",
+-"description": "Ein raues, windgepeitschtes Küstengebiet mit Wattflächen, kleinen Prielen und einem alten, von Flüchen belasteten Deichbauernhof.",
+-"mapPrompt": "DSA5 battlemap: nostrian coastal deichfarm with small house, barn, dike, muddy paths and flooded fields, detailed, top-down view",
+-"size": "medium",
+-"features": ["Deich", "Wattfläche", "altes Bauernhaus", "kleiner Keller", "Schafstall"]
+-}
+-],
+-"items": [],
+-"spells": []
+-}
+\ No newline at end of file
+diff --git a/adventures/deicherbe-2-preprocessed.json b/adventures/deicherbe-2-preprocessed.json
+deleted file mode 100644
+index f532a4f..0000000
+--- a/adventures/deicherbe-2-preprocessed.json
++++ /dev/null
+@@ -1,204 +0,0 @@
+-{
+-"metadata": {
+-"title": "Deicherbe",
+-"genre": "Abenteuer/Kurzabenteuer",
+-"complexity": "gering – gering",
+-"playerCount": "3-5",
+-"locations": ["Nostria", "Salza", "Thorwal", "Küstenstraße", "Lyckwieden"],
+-"timeframe": "1027 BF",
+-"description": "Die Helden helfen dem Bauern Elidan, dessen Hof durch einen alten Fluch und einen bevorstehenden Thorwaler-Überfall bedroht ist. Dabei begegnen sie mysteriösen Ereignissen, einem Krakenmolch und einer Hexe, die Hinweise auf das Übel liefert. Das Abenteuer behandelt Loyalität, Angst und den Schutz einfacher Leute."
+-},
+-"scenes": [
+-{
+-"id": 2,
+-"title": "Auf dem Deichbauernhof",
+-"type": "exploration",
+-"description": "Die Helden erreichen das Anwesen von Elidan. Sie lernen seine Familie kennen und erhalten Einblick in das Dorfleben. Gemeinsam sollen sie beim Deichbau helfen, wobei sie auf verschiedene Probleme stoßen.",
+-"readAloudText": "Elidan steht vor seinem Haus, von wo aus man den Deich und die nahen Wiesen sehen kann. Er winkt den Helden freundlich zu und bittet sie hinein.",
+-"challenges": [
+-{
+-"type": "skill_check",
+-"skill": "Holzbearbeitung",
+-"attributes": ["FF", "KO", "KK"],
+-"modifier": -1,
+-"description": "Reparatur beschädigter Deichstellen mit Holz- und Steinmaterialien."
+-},
+-{
+-"type": "skill_check",
+-"skill": "Fährtensuchen",
+-"attributes": ["MU", "IN", "KL"],
+-"modifier": 0,
+-"description": "Spuren im Schlamm deuten auf fremde Bewegungen hin."
+-}
+-],
+-"npcs": ["Elidan", "Elidans Kinder"],
+-"items": [],
+-"locationDescription": "Ein ländlicher Deichhof nahe der Küste mit Feldern, Scheune und einfachem Wohnhaus",
+-"needsMap": true
+-},
+-{
+-"id": 3,
+-"title": "Ein nächtlicher Besuch",
+-"type": "combat",
+-"description": "In der Nacht dringt ein deformiertes Wesen in das Haus ein. Es greift die Bewohner an, bis es überwältigt wird. Später stellt sich heraus, dass es sich um einen ehemaligen Nachbarn handelt, der vom Fluch befallen war.",
+-"readAloudText": "Ein widerlicher, fauliger Geruch liegt in der Luft. Im Dämmerlicht erkennt ihr eine Kreatur mit verzerrtem Gesicht, die sich kriechend nähert – mit einer rostigen Gabel bewaffnet.",
+-"challenges": [
+-{
+-"type": "combat",
+-"skill": "Körperbeherrschung",
+-"attributes": ["KO", "GE", "FF"],
+-"modifier": 0,
+-"description": "Kampf gegen die mutierte Kreatur mit improvisierten Waffen im engen Haus."
+-}
+-],
+-"npcs": ["Deichbauer (verflucht)"],
+-"items": ["Rostige Gabel"],
+-"locationDescription": "Innenbereich des Bauernhauses, beengte Verhältnisse, Möbel und Werkzeuge",
+-"needsMap": true
+-},
+-{
+-"id": 4,
+-"title": "Der Thorwaler-Überfall",
+-"type": "combat",
+-"description": "Thorwaler greifen den Hof an, während die Flut steigt. Die Helden müssen den Bauernhof verteidigen und die Familie schützen. Möglicherweise kommt es zu einem Duell mit dem Anführer.",
+-"readAloudText": "Das Tosen der See übertönt fast das Kriegsgeschrei. Im aufgewühlten Licht der Fackeln erscheinen Thorwaler am Horizont, Äxte und Schilde bereit.",
+-"challenges": [
+-{
+-"type": "combat",
+-"skill": "Kriegsführung",
+-"attributes": ["MU", "IN", "KL"],
+-"modifier": 0,
+-"description": "Verteidigung des Hofes durch geschickte Positionierung und Taktik."
+-}
+-],
+-"npcs": ["Thorbold Vaarnason", "Thorwaler"],
+-"items": ["Streitaxt", "Thorwaler-Rüstung"],
+-"locationDescription": "Offenes Gelände um den Deichhof mit Hindernissen, Stallungen und Feldern",
+-"needsMap": true
+-},
+-{
+-"id": 5,
+-"title": "Gespräch mit der Hexe",
+-"type": "social",
+-"description": "Die Helden finden die zurückgezogen lebende Hexe Karlitha, die Hinweise zur Natur des Fluchs geben kann. Die Gespräche erfordern diplomatisches Geschick und Empathie.",
+-"readAloudText": "Karlitha sitzt ruhig in ihrer Hütte, mit einem Blick, der gleichzeitig müde und wissend wirkt. 'Ihr kommt wegen des Fluchs? Die Zeit drängt...'",
+-"challenges": [
+-{
+-"type": "skill_check",
+-"skill": "Überreden",
+-"attributes": ["MU", "CH", "IN"],
+-"modifier": 0,
+-"description": "Karlitha zur Kooperation bewegen, ohne sie zu bedrängen."
+-}
+-],
+-"npcs": ["Karlitha"],
+-"items": ["Fluchsalbe", "Kräuter"],
+-"locationDescription": "Hexenhütte im Wald, umgeben von Nebel, Tieren und Kräutergärten",
+-"needsMap": true
+-}
+-],
+-"npcs": [
+-{
+-"name": "Elidan",
+-"role": "protagonist",
+-"attributes": {
+-"MU": 12, "KL": 11, "IN": 12, "CH": 11,
+-"FF": 12, "GE": 10, "KO": 13, "KK": 13
+-},
+-"LeP": 32,
+-"AsP": null,
+-"KaP": null,
+-"skills": [
+-{"name": "Holzbearbeitung", "value": 5},
+-{"name": "Schwimmen", "value": 3},
+-{"name": "Kraftakt", "value": 4}
+-],
+-"specialAbilities": ["Zäher Hund", "Verwurzelt"],
+-"equipment": ["Arbeitskleidung", "Werkzeug"],
+-"description": "Ein bodenständiger, ehrlicher Bauer mit starkem Familiensinn, der mit den Widrigkeiten seines verfluchten Hofes kämpft.",
+-"motivation": "Er will seine Familie beschützen und den Fluch bannen, um ein neues Leben zu beginnen.",
+-"secrets": "Hat den verfluchten Zahn aus dem Watt nicht korrekt entsorgt, sondern vergraben."
+-},
+-{
+-"name": "Karlitha",
+-"role": "supporting",
+-"attributes": {
+-"MU": 13, "KL": 15, "IN": 14, "CH": 12,
+-"FF": 12, "GE": 11, "KO": 10, "KK": 8
+-},
+-"LeP": 24,
+-"AsP": 30,
+-"KaP": null,
+-"skills": [
+-{"name": "Alchimie", "value": 8},
+-{"name": "Heilkunde Seele", "value": 6},
+-{"name": "Magiekunde", "value": 7}
+-],
+-"specialAbilities": ["Zaubertrank brauen", "Vertrautentier"],
+-"equipment": ["Hexenkessel", "Rabenfeder", "Kräuter"],
+-"description": "Zurückgezogen lebende Hexe mit düsterem Ruf, aber großem Wissen über Flüche und Heilung.",
+-"motivation": "Sie will das alte Unrecht wiedergutmachen, ohne erneut in die Dorfgemeinschaft gezogen zu werden.",
+-"secrets": "Kennt den Ursprung des Fluchs und hat einst Elidans Familie nicht geholfen – aus Angst vor Vergeltung."
+-},
+-{
+-"name": "Thorbold Vaarnason",
+-"role": "antagonist",
+-"attributes": {
+-"MU": 14, "KL": 11, "IN": 12, "CH": 10,
+-"FF": 9, "GE": 13, "KO": 15, "KK": 14
+-},
+-"LeP": 40,
+-"AsP": null,
+-"KaP": null,
+-"skills": [
+-{"name": "Kriegsführung", "value": 7},
+-{"name": "Einschüchtern", "value": 6},
+-{"name": "Kraftakt", "value": 6}
+-],
+-"specialAbilities": ["Anführer der Plünderer", "Waffenmeister"],
+-"equipment": ["Thorwaler-Axt", "Lederrüstung"],
+-"description": "Ein brutaler und entschlossener Thorwaler, der durch Stärke und Furcht führt.",
+-"motivation": "Er sucht Ruhm und Beute, um seine Stellung im eigenen Clan zu sichern.",
+-"secrets": "Er hat Zweifel an seiner Mission, will aber vor seinen Männern keine Schwäche zeigen."
+-}
+-],
+-"locations": [
+-{
+-"name": "Deichbauernhof Nostria",
+-"type": "coastal",
+-"description": "Ein abgelegener Bauernhof in Küstennähe, umgeben von Feldern, Deichen und salzhaltigen Wiesen. Das einfache Wohnhaus ist Zentrum des Geschehens.",
+-"mapPrompt": "DSA5 battlemap: coastal nostrian farmhouse with deich, barn, sheep paddock, muddy paths, top-down view, detailed",
+-"size": "medium",
+-"features": ["Haus", "Scheune", "Deich", "Feldweg", "Keller"]
+-},
+-{
+-"name": "Karlithas Hexenhütte",
+-"type": "forest",
+-"description": "Versteckt im dichten Wald liegt eine alte, verwilderte Hütte mit Garten und Tierspuren. Der Ort wirkt gleichzeitig heimelig und unheimlich.",
+-"mapPrompt": "DSA5 battlemap: witch's hut in dark forest clearing with herb garden and mist, top-down view, detailed",
+-"size": "small",
+-"features": ["Hütte", "Kräutergarten", "Vogelnest", "Feuerstelle"]
+-}
+-],
+-"items": [
+-{
+-"name": "Rostige Gabel",
+-"type": "weapon",
+-"description": "Improvisierte Stichwaffe mit Alters- und Wetterschäden.",
+-"properties": {
+-"TP": "1W6+1",
+-"Bruchfaktor": 2
+-}
+-},
+-{
+-"name": "Fluchsalbe",
+-"type": "magical",
+-"description": "Eine dickflüssige, übelriechende Paste, die zur Beseitigung von Fluchspuren verwendet wird.",
+-"properties": {
+-"Anwendung": "äußerlich",
+-"Wirkung": "Löst einfache Verfluchungen bei Toten und Lebenden"
+-}
+-}
+-],
+-"spells": []
+-}
+\ No newline at end of file
+diff --git a/docs/ADVENTURE_IMPORT_WORKFLOW.md b/docs/ADVENTURE_IMPORT_WORKFLOW.md
+new file mode 100644
+index 0000000..a4c4b3b
+--- /dev/null
++++ b/docs/ADVENTURE_IMPORT_WORKFLOW.md
+@@ -0,0 +1,105 @@
++# DSA5 Adventure Import Workflow
++
++> Ziel: Aus Text aus einem konvertierten PDF oder aus einer vorbereiteten Textdatei strukturierte DSA5-Abenteuerdaten erzeugen und kontrolliert in Foundry VTT importieren.
++
++## Überblick
++
++Die aktuelle Pipeline im Repo besteht aus fünf Schritten:
++
++1. **Text vorbereiten**
++   - PDF vorher mit externem Tool in Text umwandeln.
++   - Scans/OCR sind hier nicht Teil der Pipeline.
++2. **Text normalisieren**
++   - Seitenzahlen, Kopf-/Fußzeilen und andere Störtexte entfernen.
++3. **Gemma-Extraktion**
++   - Rohtext wird in ein stabiles JSON-Schema überführt.
++4. **Validierung & Preview**
++   - Das JSON wird gegen das Adventure-Schema geprüft.
++   - Dry-Run zeigt, welche Journale und Actors angelegt würden.
++5. **Foundry-Import**
++   - Journale anlegen.
++   - NPCs als Actors anlegen.
++   - Optional: Journal mit Actor-Referenzen ergänzen.
++
++## Verfügbare Bausteine im Repo
++
++- `packages/mcp-server/src/adventure-import/text-normalizer.ts`
++- `packages/mcp-server/src/adventure-import/schema.ts`
++- `packages/mcp-server/src/adventure-import/prompt.ts`
++- `packages/mcp-server/src/adventure-import/llm-worker.ts`
++- `packages/mcp-server/src/adventure-import/foundry-importer.ts`
++- `packages/mcp-server/src/tools/adventure-import.ts`
++
++## MCP-Tool
++
++Neues Tool:
++
++- `import-dsa5-adventure-from-text`
++
++### Eingaben
++
++- `title` – Abenteuertitel
++- `sourceText` – der vorbereitete Text
++- `mode` – `dry-run` oder `import`
++- `createActors` – NPCs als Actors anlegen
++- `createJournals` – Journal/Seiten anlegen
++- `linkNpcs` – Journal mit Actor-Referenzen ergänzen
++- `languageHint` – optionaler Sprachhinweis
++
++### Ausgaben
++
++- `summary`
++- `warnings`
++- `createdEntityIds`
++- `unresolvedReferences`
++- `plan`
++
++## Empfohlener Arbeitsablauf
++
++### 1. Text vorbereiten
++
++Beispiel:
++
++```bash
++pdftotext input.pdf output.txt
++```
++
++Oder ein anderes lokales Tool deiner Wahl. Wichtig ist nur: am Ende braucht die Pipeline **Text**, nicht Pixelzauberei.
++
++### 2. Dry-Run
++
++Nutze zuerst den Dry-Run, damit du siehst, was extrahiert wurde und was später erstellt würde.
++
++### 3. Import
++
++Wenn die Vorschau passt, denselben Input im Modus `import` ausführen.
++
++### 4. Kontrolle in Foundry
++
++Prüfe danach:
++
++- Journal-Inhalt
++- zusätzliche Seiten
++- Actor-Liste
++- evtl. Warnungen oder unresolved References
++
++## Design-Prinzipien
++
++- **Local-first**: Texte bleiben lokal, solange möglich.
++- **Keine Halluzinationen**: Unsicheres gehört in `warnings`.
++- **MVP zuerst**: Journal + NPCs + Links, Szenen später.
++- **Preview vor Write**: Erst ansehen, dann schreiben.
++
++## Was noch nicht Teil des MVP ist
++
++- OCR direkt auf gescannten PDFs
++- automatische Layout-Rekonstruktion
++- vollautomatische Szenen- oder Karten-Erzeugung
++- Regelinterpretation ohne menschliche Freigabe
++
++## Nächste Ausbaustufen
++
++- PDF-Import direkt aus einer Datei statt aus Text
++- NPC-Mapping auf DSA5-Archetypen
++- Import-Preview als formatiertes Review-Gate
++- E2E-Test mit einem echten Abenteuer-Fixture
+diff --git a/docs/IMPORT_GUIDE_DE.md b/docs/IMPORT_GUIDE_DE.md
+index 6ba24b6..70c3de0 100644
+--- a/docs/IMPORT_GUIDE_DE.md
++++ b/docs/IMPORT_GUIDE_DE.md
+@@ -13,11 +13,15 @@
+ - Unterstützt DSA5 (Adapter + Filter/Indexing im MCP-Server). Quelle: `packages/mcp-server/src/systems/dsa5/README.md`.
+ - MCP-Server startet per **STDIO-Transport** (Claude Desktop startet den Server und kommuniziert via STDIO). Quelle: `packages/mcp-server/src/index.ts` (StdioServerTransport).
+ 
+-**Was das Repo nicht macht (Unklar/Fehlt im Repo):**
++**Was das Repo nicht macht:**
+ - **Kein PDF-Parsing, keine OCR, kein Bild-Extraktor für Heldenwerk-PDFs.**
+   - Erwartete Dateien/Configs: z. B. `src/import/pdf/*`, `docs/pdf-import.md`, oder CLI-Tool in `package.json` (nicht vorhanden).
+-- **Kein dedizierter DSA5-Abenteuer-Importer** (z. B. JSON-Schema für Abenteuer, Kapitel, Szenen, Handouts).
+-  - Erwartete Dateien: z. B. `schemas/adventure.json`, `examples/adventure/*`.
++- **Kein Direkt-Import aus PDF-Bildern.**
++  - Die neue Abenteuer-Pipeline arbeitet mit bereits extrahiertem Text.
++
++**Was das Repo inzwischen macht:**
++- Es gibt eine strukturierte **Adventure-Import-Pipeline** mit Schema, Text-Normalizer, LLM-Worker, Foundry-Importer und MCP-Tool.
++  - Siehe: `docs/ADVENTURE_IMPORT_WORKFLOW.md`.
+ 
+ ---
+ 
+diff --git a/docs/examples/adventure-import-example.md b/docs/examples/adventure-import-example.md
+new file mode 100644
+index 0000000..eacc4a8
+--- /dev/null
++++ b/docs/examples/adventure-import-example.md
+@@ -0,0 +1,57 @@
++# Adventure Import Example
++
++> Beispiel für die Adventure-Import-Pipeline. Das ist ein synthetisches Beispiel, keine echte Copyright-Vorlage.
++
++## Input
++
++```text
++Titel: Deiches Schatten
++
++Im Hafenviertel von Al'Anfa sprechen die Fischer von seltsamen Lichtern im Nebel.
++Die Wirtin Hilde weiß mehr, als sie zunächst zugibt.
++Ein alter Kontorraum am Kai verbirgt den eigentlichen Einstieg in die Verschwörung.
++```
++
++## Erwartete Extraktion
++
++```json
++{
++  "metadata": {
++    "title": "Deiches Schatten",
++    "type": "adventure",
++    "language": "de",
++    "source": "text-import",
++    "system": "DSA5"
++  },
++  "chapters": [
++    {
++      "title": "Einstieg am Hafen",
++      "summary": "Die Helden erfahren von merkwürdigen Lichtern im Nebel.",
++      "linkedNpcs": ["Hilde"]
++    }
++  ],
++  "npcs": [
++    {
++      "name": "Hilde",
++      "role": "Wirtin",
++      "motivation": "Schützt jemanden im Hafenviertel"
++    }
++  ],
++  "warnings": [
++    "Ort und Motiv sind aus dem Text nur indirekt ableitbar"
++  ]
++}
++```
++
++## Empfohlene Folgeaktionen
++
++1. `import-dsa5-adventure-from-text` im Modus `dry-run`
++2. Ergebnis prüfen
++3. `import-dsa5-adventure-from-text` im Modus `import`
++4. Resultat in Foundry kontrollieren
++
++## Warum das Beispiel absichtlich simpel ist
++
++- Es demonstriert die Schema-Form, nicht die ganze DSA5-Regelwelt.
++- Es vermeidet Halluzinationen von Stats oder Fertigkeiten.
++- Es eignet sich als Test-Fixture für die Pipeline.
+diff --git a/docs/plans/adventure-import-pipeline.md b/docs/plans/adventure-import-pipeline.md
+new file mode 100644
+index 0000000..10acff9
+--- /dev/null
++++ b/docs/plans/adventure-import-pipeline.md
+@@ -0,0 +1,414 @@
++# DSA5 Adventure Import Pipeline Implementation Plan
++
++> **For Hermes:** Use `subagent-driven-development` after this plan is approved.
++
++**Goal:** PDFs bzw. bereits in Text konvertierte Abenteuer so verarbeiten, dass daraus strukturierte DSA5-Abenteuerdaten entstehen und sauber in Foundry VTT importiert werden können.
++
++**Architecture:**
++Wir bauen eine mehrstufige Pipeline statt eines Monolithen: erst Extraktion aus Text/PDF, dann Normalisierung in ein stabiles JSON-Schema, dann Import nach Foundry über die vorhandenen MCP-/Foundry-APIs. Die Pipeline soll lokal-first bleiben, damit Gemma 4 als Extraktions- und Strukturierungshelfer arbeiten kann, ohne dass DSA5-Inhalte unnötig in externe Clouds wandern.
++
++**Tech Stack:**
++- TypeScript / Node.js
++- Vorhandene Foundry MCP Bridge Werkzeuge
++- Gemma 4 via lokaler Inferenz (z. B. Lemonade/Claude Code Harness)
++- JSON Schema / Zod für Validierung
++- Vitest für Parser-/Import-Tests
++- Optional später: `pdftotext` oder PDF-Parser, falls Roh-PDFs direkt unterstützt werden sollen
++
++---
++
++## Was schon da ist
++
++Vorhandene Bausteine, die wir wiederverwenden sollten:
++
++- **Journal-Import / Update vorhanden**
++  - `packages/foundry-module/src/data-access.ts`
++  - `packages/foundry-module/src/queries.ts`
++  - Unterstützt bereits:
++    - `createJournalEntry`
++    - `updateJournalContent`
++    - `getJournalContent`
++    - `getJournalPageContent`
++    - `listJournals`
++- **Actor-Import vorhanden**
++  - `packages/foundry-module/src/data-access.ts`
++  - Unterstützt bereits:
++    - `createActorFromData`
++    - `createActorFromCompendium`
++    - `addActorsToScene`
++- **DSA5-spezifische Tools vorhanden**
++  - `packages/mcp-server/src/systems/dsa5/character-creator.ts`
++  - `packages/mcp-server/src/systems/dsa5/json-actor-importer.ts`
++  - `packages/mcp-server/src/tools/quest-creation.ts`
++- **Praktische Vorarbeit / Artefakte**
++  - `import-npcs.js` als alte manuelle Import-Anleitung
++  - `DSA5_GUIDE.md` mit DSA5-Workflow und Fundstellen
++  - Beispiel-Abenteuer `deicherbe` war vorhanden, wurde aber wegen Copyright aus dem Repo entfernt und lokal gesichert
++- **Local-first Architektur bereits dokumentiert**
++  - `B_TARGET_ARCHITECTURE.md`
++  - README-Abschnitt zu local LLM setup / DSA5 capabilities
++
++**Implikation:** Wir müssen nicht bei Null anfangen. Der Kern fehlt noch: **ein klares Abenteuer-Schema plus ein Import-Workflow, der Gemma-Extraktion mit den bestehenden Foundry-Write-APIs verbindet**.
++
++---
++
++## Zielbild
++
++Die Pipeline soll diese Form haben:
++
++1. **Input**: Text aus einem konvertierten PDF oder einer bereits extrahierten Textdatei
++2. **Gemma-Extraktion**: Strukturierung in ein Abenteuer-JSON
++3. **Validierung**: Schema- und Plausibilitätsprüfung
++4. **Foundry-Import**:
++   - Journal mit mehreren Seiten anlegen
++   - NPCs als Actors erzeugen
++   - Optional Szenen/Handouts/Items anlegen
++   - NPCs mit Abenteuerseiten verlinken
++5. **Dry-Run / Review**: Vor dem Import Vorschau der geplanten Objekte
++
++---
++
++## Empfohlenes Abenteuermodell
++
++Wir brauchen ein stabiles Zielschema, z. B.:
++
++- `metadata`
++  - title
++  - subtitle
++  - type
++  - system
++  - source
++  - language
++  - difficulty
++  - playerCount
++- `chapters`
++  - scenes / abschnitte / kapitel
++  - title
++  - summary
++  - readAloudText
++  - gmNotes
++  - challenges
++  - linkedNpcs
++  - linkedItems
++  - linkedLocations
++- `npcs`
++  - name
++  - role
++  - archetypeHint
++  - attributes
++  - skills
++  - equipment
++  - secrets
++  - motivation
++- `items`
++  - name
++  - category
++  - description
++  - stats
++- `locations`
++  - name
++  - description
++  - mapPrompt
++  - sceneHint
++- `imports`
++  - journals
++  - actors
++  - scenes
++  - linkages
++- `warnings`
++  - ambiguous names
++  - uncertain mappings
++  - missing stats
++
++**Wichtig:** Das Schema muss auch dann funktionieren, wenn das PDF nur Text ohne Layoutinfos liefert.
++
++---
++
++## Task 1: Ist-Zustand sauber inventarisieren
++
++**Objective:** Alle vorhandenen Import-Fähigkeiten und Lücken einmal strukturiert dokumentieren.
++
++**Files:**
++- Read/inspect: `packages/foundry-module/src/data-access.ts`
++- Read/inspect: `packages/foundry-module/src/queries.ts`
++- Read/inspect: `packages/mcp-server/src/systems/dsa5/json-actor-importer.ts`
++- Read/inspect: `packages/mcp-server/src/systems/dsa5/character-creator.ts`
++- Read/inspect: `packages/mcp-server/src/tools/quest-creation.ts`
++- Read/inspect: `import-npcs.js`
++- Read/inspect: `DSA5_GUIDE.md`
++- Read/inspect: `adventures/deicherbe-1-preprocessed.json`
++- Read/inspect: `adventures/deicherbe-2-preprocessed.json`
++
++**Deliverable:**
++- Liste der wiederverwendbaren APIs
++- Liste der fehlenden Pipeline-Schritte
++- Entscheidung: Wo soll der neue Importer leben? (`packages/mcp-server/src/adventure-importer/*` oder eigener Workspace)
++
++**Verification:**
++- Wir können klar sagen, welche Funktion für Journal, Actor, Scene und Linking zuständig ist.
++
++---
++
++## Task 2: Adventure JSON Schema definieren
++
++**Objective:** Ein eindeutiges Zielschema festlegen, das Gemma aus Text erzeugen soll.
++
++**Files:**
++- Create: `packages/mcp-server/src/adventure-import/schema.ts`
++- Create: `packages/mcp-server/src/adventure-import/types.ts`
++- Create: `packages/mcp-server/src/adventure-import/schema.test.ts`
++
++**Step 1: Write failing tests**
++
++Test cases:
++- valid minimal adventure passes
++- chapter without title fails
++- NPC without name fails
++- unknown extra fields are either preserved in `warnings` or rejected bewusst
++- German umlauts survive normalization
++
++**Step 2: Implement minimal schema**
++
++Use Zod for runtime validation and exported TS types for downstream import.
++
++**Step 3: Verify**
++
++Run:
++```bash
++npm -w @foundry-mcp/server test -- adventure-import
++npm -w @foundry-mcp/server typecheck
++```
++
++**Expected:** tests pass, schema is stable enough for prompt output.
++
++---
++
++## Task 3: Text-Input Normalizer bauen
++
++**Objective:** Rohtext aus konvertierten PDFs in saubere, gemma-freundliche Abschnitte zerlegen.
++
++**Files:**
++- Create: `packages/mcp-server/src/adventure-import/text-normalizer.ts`
++- Create: `packages/mcp-server/src/adventure-import/text-normalizer.test.ts`
++- Optional create: `scripts/extract-adventure-text.mjs`
++
++**Scope:**
++- Entfernen von Seitenzahlen, Kopf-/Fußzeilen
++- Erkennen von Kapitelüberschriften
++- Erkennen von Listen, NPC-Namen, Ortsabschnitten
++- Chunking für LLM-Extraktion
++- Erhaltung von Referenzen wie Seitenzahlen / Abschnittsanker
++
++**Verification:**
++- Ein realer Textauszug aus einem Abenteuer wird in reproduzierbare Chunks zerlegt.
++- Keine Layout- oder OCR-Abhängigkeit, solange Text bereits vorliegt.
++
++---
++
++## Task 4: Gemma-Extraktionsprompt und Worker definieren
++
++**Objective:** Gemma soll aus Text-Chunks strukturierte Abenteuerdaten erzeugen, nicht nur lose Notizen.
++
++**Files:**
++- Create: `packages/mcp-server/src/adventure-import/prompt.ts`
++- Create: `packages/mcp-server/src/adventure-import/llm-worker.ts`
++- Create: `packages/mcp-server/src/adventure-import/llm-worker.test.ts`
++- Optional create: `docs/adventure-import-prompt.md`
++
++**Prompt-Anforderungen:**
++- Nur JSON ausgeben
++- Schema strikt einhalten
++- Unsicherheiten explizit in `warnings` / `confidence` markieren
++- Jede NPC-/Ort-/Szenen-Zuordnung begründen oder als unsicher markieren
++- Keine Halluzinationen von Stats, wenn sie nicht im Text stehen
++
++**Verification:**
++- Ein Beispieltext liefert ein valides JSON, das durch das Schema geht.
++- Bei unklaren Stellen erzeugt Gemma Warnungen statt Fantasiewerte.
++
++---
++
++## Task 5: Foundry-Import-Adapter bauen
++
++**Objective:** Das normalisierte Abenteuer-JSON in Foundry-Objekte übersetzen.
++
++**Files:**
++- Create: `packages/mcp-server/src/adventure-import/foundry-importer.ts`
++- Create: `packages/mcp-server/src/adventure-import/foundry-importer.test.ts`
++- Modify: `packages/mcp-server/src/backend.ts`
++- Optional modify: `packages/foundry-module/src/queries.ts` nur falls ein neuer Query-Endpoint sinnvoller ist
++
++**Import-Mapping:**
++- `metadata` → journal folder / top-level journal title
++- `chapters` → JournalEntry pages
++- `npcs` → Actors via vorhandenes `createActorFromData`
++- `locations` → Journals oder Szenen-Notes je nach Reifegrad
++- `items` → Journal-Anhänge oder separate Handouts / später Items
++- Links → Journal-Inhalte mit Verweisen auf Actor-IDs und Page-IDs
++
++**Wichtige Designentscheidung:**
++Erstmal **Journal + Actor + Linking** als MVP. Szenen-/Map-Automatismus erst in Phase 2.
++
++**Verification:**
++- Dry-run zeigt, welche Foundry-Objekte erstellt würden.
++- Importer nutzt vorhandene API-Funktionen statt parallel neue Foundry-Logik zu bauen.
++
++---
++
++## Task 6: MCP Tool für Adventure Import ergänzen
++
++**Objective:** Ein MCP-Tool bereitstellen, das den ganzen Prozess für Gemma/Claude/Codex bedienbar macht.
++
++**Files:**
++- Modify: `packages/mcp-server/src/backend.ts`
++- Create: `packages/mcp-server/src/tools/adventure-import.ts`
++- Optional modify: `packages/mcp-server/src/index.ts` nur falls Registrierung hier statt backend passiert
++
++**Tool-Idee:**
++- `import-dsa5-adventure-from-text`
++- Input:
++  - `title`
++  - `sourceText`
++  - `mode` (`dry-run` | `import`)
++  - `createActors` boolean
++  - `createJournals` boolean
++  - `linkNpcs` boolean
++- Output:
++  - import summary
++  - warnings
++  - created entity IDs
++  - unresolved references
++
++**Verification:**
++- Tool taucht in der MCP-Tool-Liste auf.
++- Dry-run funktioniert ohne Foundry-Schreiboperation.
++- Import-Modus erstellt echte Journale/Actors.
++
++---
++
++## Task 7: NPC-Mapping mit DSA5-Archetypen verbinden
++
++**Objective:** DSA5-Abenteuer-NPCs möglichst automatisch auf passende Archetypen mappen.
++
++**Files:**
++- Modify: `packages/mcp-server/src/systems/dsa5/character-creator.ts`
++- Optional create: `packages/mcp-server/src/adventure-import/npc-mapper.ts`
++- Optional create: `packages/mcp-server/src/adventure-import/npc-mapper.test.ts`
++
++**Ansatz:**
++- Namen, Rolle, Beruf, Kultur, Alter aus dem Abenteuer-JSON ableiten
++- passende Archetypen über vorhandene DSA5-Suche wählen
++- bei Unsicherheit Alternativen ausgeben
++- niemals stillschweigend falsche Werte erfinden
++
++**Verification:**
++- Mindestens 2–3 reale NPC-Beispiele aus `deicherbe` lassen sich konsistent mappen.
++
++---
++
++## Task 8: Import-Preview und Review-Gate
++
++**Objective:** Vor dem Foundry-Import klar zeigen, was passieren wird.
++
++**Files:**
++- Create: `packages/mcp-server/src/adventure-import/preview.ts`
++- Create: `packages/mcp-server/src/adventure-import/preview.test.ts`
++- Optional modify: README / Doku
++
++**Preview soll zeigen:**
++- Anzahl Kapitel / Journalseiten
++- Anzahl NPCs / Actors
++- Unklare Stellen
++- Welche Daten nur geschätzt sind
++- Welche Handlungen potentiell riskant sind
++
++**Verification:**
++- Preview ist lesbar und dient als Freigabe-Gate vor Import.
++
++---
++
++## Task 9: Dokumentation und Beispielpipeline
++
++**Objective:** Die Pipeline so dokumentieren, dass du und Gemma sie später wiederverwenden könnt.
++
++**Files:**
++- Modify: `README.md`
++- Create: `docs/ADVENTURE_IMPORT_WORKFLOW.md`
++- Create: `docs/examples/adventure-import-example.md`
++- Optional update: `DSA5_GUIDE.md`
++
++**Doku-Inhalte:**
++- Einlesen von Text-PDFs
++- Gemma-Extraktion
++- Validierung
++- Dry-run
++- Import in Foundry
++- Umgang mit Unsicherheiten
++
++---
++
++## Task 10: End-to-End Test mit einem echten Abenteuer
++
++**Objective:** Ein vollständiger Durchlauf mit einem echten Beispiel wie `Deicherbe`.
++
++**Files:**
++- Add test fixture(s): `tests/fixtures/adventures/deicherbe.txt` oder `.json`
++- Add integration test: `packages/mcp-server/src/adventure-import/*.test.ts`
++
++**Testziel:**
++- Text rein
++- JSON raus
++- Preview valid
++- Dry-run valid
++- Import erstellt Journale und NPCs
++- Warnings sind nachvollziehbar
++
++**Verification:**
++- Ein kompletter Durchlauf ist reproduzierbar.
++
++---
++
++## Reihenfolge / Priorität
++
++1. Ist-Zustand inventarisieren
++2. Schema festzurren
++3. Text normalisieren
++4. Gemma-Extraktion
++5. Foundry-Import
++6. MCP-Tool
++7. DSA5-Archetyp-Mapping
++8. Preview-Gate
++9. Doku
++10. E2E-Test
++
++---
++
++## Nicht in Scope für die erste Version
++
++- Direktes OCR auf gescannten PDFs
++- Automatisches Layout-Rekonstruktionstraining
++- Vollautomatische Szene-/Map-Erzeugung aus jedem Abenteuer
++- Komplette Regelinterpretation oder Abenteueranalyse ohne menschliche Freigabe
++
++---
++
++## Erfolgsdefinition für MVP
++
++Das MVP ist fertig, wenn du folgendes kannst:
++
++1. Einen Abenteuertext einlesen
++2. Mit Gemma eine saubere Struktur erzeugen
++3. Vorab eine Preview sehen
++4. Mit einem Klick/Command Journale und NPCs in Foundry erstellen
++5. Unsichere Stellen transparent markiert bekommen
++6. Das Ganze lokal-first und nachvollziehbar betreiben
++
++---
++
++## Nächster sinnvoller Schritt
++
++Wenn du willst, setze ich als nächstes **Task 1 + Task 2** um:
++- Inventarisierung der bestehenden Importpfade
++- Definition des Adventure-Schemas
++
++Danach kann Gemma auf einer festen Struktur arbeiten statt auf improvisierten Halbinformationen.
+diff --git a/packages/mcp-server/src/adventure-import/foundry-importer.test.ts b/packages/mcp-server/src/adventure-import/foundry-importer.test.ts
+new file mode 100644
+index 0000000..b3f321d
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/foundry-importer.test.ts
+@@ -0,0 +1,90 @@
++import { describe, expect, it, vi } from 'vitest';
++import { FoundryAdventureImporter } from './foundry-importer.js';
++
++const logger = {
++  child: () => logger,
++  info: vi.fn(),
++  warn: vi.fn(),
++  error: vi.fn(),
++  debug: vi.fn(),
++} as any;
++
++function createFoundryClientMock() {
++  return {
++    query: vi.fn(),
++  } as any;
++}
++
++describe('FoundryAdventureImporter', () => {
++  it('builds a useful dry-run plan', async () => {
++    const foundryClient = createFoundryClientMock();
++    const importer = new FoundryAdventureImporter(foundryClient, logger);
++
++    const payload = {
++      metadata: {
++        title: 'Deicherbe',
++        type: 'adventure',
++        language: 'de',
++        system: 'DSA5',
++      },
++      chapters: [{ title: 'Ankunft' }],
++      npcs: [{ name: 'Hilde', role: 'Wirtin' }],
++      items: [],
++      locations: [],
++      warnings: ['Quelle ist teilweise unklar'],
++    } as any;
++
++    const result = await importer.dryRun(payload, { createActors: true, createJournals: true, linkNpcs: true });
++    expect(result.mode).toBe('dry-run');
++    expect(result.plan.mode).toBe('dry-run');
++    expect(result.plan.counts.chapters).toBe(1);
++    expect(result.plan.items.some((item) => item.kind === 'journal')).toBe(true);
++
++    expect(result.plan.items.some((item) => item.kind === 'actor')).toBe(true);
++    expect(foundryClient.query).not.toHaveBeenCalled();
++  });
++
++  it('imports journals, actors and links them in Foundry', async () => {
++    const foundryClient = createFoundryClientMock();
++    foundryClient.query
++      .mockResolvedValueOnce({ id: 'journal-1', name: 'Deicherbe', pageCount: 2 })
++      .mockResolvedValueOnce({ success: true, actor: { id: 'actor-1', name: 'Hilde', type: 'character' } })
++      .mockResolvedValueOnce({ success: true });
++
++    const importer = new FoundryAdventureImporter(foundryClient, logger);
++
++    const payload = {
++      metadata: {
++        title: 'Deicherbe',
++        type: 'adventure',
++        language: 'de',
++        system: 'DSA5',
++      },
++      chapters: [
++        { title: 'Ankunft', summary: 'Die Helden treffen ein.' },
++        { title: 'Konflikt', gmNotes: 'Wichtig für den Plot.' },
++      ],
++      npcs: [{ name: 'Hilde', role: 'Wirtin' }],
++      warnings: [],
++    } as any;
++
++    const result = await importer.importAdventure(payload, { createActors: true, createJournals: true, linkNpcs: true });
++
++    expect(result.success).toBe(true);
++    expect(result.plan.mode).toBe('import');
++    expect(result.createdEntityIds.journals).toEqual(['journal-1']);
++    expect(result.createdEntityIds.actors).toEqual(['actor-1']);
++    expect(foundryClient.query).toHaveBeenNthCalledWith(1, 'foundry-mcp-bridge.createJournalEntry', expect.objectContaining({
++      name: 'Deicherbe',
++      additionalPages: expect.any(Array),
++      content: expect.stringContaining('Ankunft'),
++    }));
++    expect(foundryClient.query).toHaveBeenNthCalledWith(2, 'foundry-mcp-bridge.createActorFromData', expect.objectContaining({
++      actorData: expect.objectContaining({ name: 'Hilde', type: 'character' }),
++    }));
++    expect(foundryClient.query).toHaveBeenNthCalledWith(3, 'foundry-mcp-bridge.updateJournalContent', expect.objectContaining({
++      journalId: 'journal-1',
++      content: expect.stringContaining('Ankunft'),
++    }));
++  });
++});
+diff --git a/packages/mcp-server/src/adventure-import/foundry-importer.ts b/packages/mcp-server/src/adventure-import/foundry-importer.ts
+new file mode 100644
+index 0000000..65901b7
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/foundry-importer.ts
+@@ -0,0 +1,355 @@
++import type { FoundryClient } from '../foundry-client.js';
++import type { Logger } from '../logger.js';
++import type { AdventureImportChapter, AdventureImportMetadata, AdventureImportNpc, AdventureImportPayload } from './types.js';
++
++export interface AdventureImportOptions {
++  createActors?: boolean;
++  createJournals?: boolean;
++  linkNpcs?: boolean;
++  addActorsToScene?: boolean;
++}
++
++export interface AdventureImportPlanItem {
++  kind: 'journal' | 'actor' | 'link';
++  name: string;
++  details: string;
++}
++
++export interface AdventureImportPlan {
++  title: string;
++  mode: 'dry-run' | 'import';
++  createActors: boolean;
++  createJournals: boolean;
++  linkNpcs: boolean;
++  counts: {
++    chapters: number;
++    npcs: number;
++    items: number;
++    locations: number;
++  };
++  items: AdventureImportPlanItem[];
++  warnings: string[];
++}
++
++export interface ImportedJournalResult {
++  id: string;
++  name: string;
++  pageCount: number;
++}
++
++export interface ImportedActorResult {
++  id: string;
++  name: string;
++  type: string;
++}
++
++export interface AdventureImportResult {
++  success: boolean;
++  mode: 'dry-run' | 'import';
++  title: string;
++  summary: string;
++  warnings: string[];
++  unresolvedReferences: string[];
++  createdEntityIds: {
++    journals: string[];
++    actors: string[];
++  };
++  journal: ImportedJournalResult | undefined;
++  actors?: ImportedActorResult[];
++  plan: AdventureImportPlan;
++}
++
++const isRecord = (value: unknown): value is Record<string, unknown> =>
++  typeof value === 'object' && value !== null && !Array.isArray(value);
++
++const toText = (value: unknown): string | undefined => {
++  if (typeof value !== 'string') return undefined;
++  const trimmed = value.trim();
++  return trimmed.length > 0 ? trimmed : undefined;
++};
++
++const joinBullets = (values: string[]): string => values.map((value) => `• ${value}`).join('\n');
++
++function chapterToHtml(chapter: AdventureImportChapter): string {
++  const blocks: string[] = [];
++  blocks.push(`<h2 class="spaced">${escapeHtml(chapter.title)}</h2>`);
++  if (chapter.summary) {
++    blocks.push(`<p><strong>Zusammenfassung:</strong> ${escapeHtml(chapter.summary)}</p>`);
++  }
++  if (chapter.readAloudText) {
++    blocks.push(`<div class="readaloud"><p>${escapeHtml(chapter.readAloudText)}</p></div>`);
++  }
++  if (chapter.gmNotes) {
++    blocks.push(`<div class="gmnote"><p>${escapeHtml(chapter.gmNotes)}</p></div>`);
++  }
++  if (chapter.linkedNpcs?.length) {
++    blocks.push(`<p><strong>Verbundene NSCs:</strong> ${escapeHtml(chapter.linkedNpcs.join(', '))}</p>`);
++  }
++  if (chapter.linkedItems?.length) {
++    blocks.push(`<p><strong>Verbundene Gegenstände:</strong> ${escapeHtml(chapter.linkedItems.join(', '))}</p>`);
++  }
++  if (chapter.linkedLocations?.length) {
++    blocks.push(`<p><strong>Orte:</strong> ${escapeHtml(chapter.linkedLocations.join(', '))}</p>`);
++  }
++  return blocks.join('\n');
++}
++
++function escapeHtml(value: string): string {
++  return value
++    .replace(/&/g, '&amp;')
++    .replace(/</g, '&lt;')
++    .replace(/>/g, '&gt;')
++    .replace(/"/g, '&quot;')
++    .replace(/'/g, '&#39;');
++}
++
++function buildOverviewHtml(metadata: AdventureImportMetadata, payload: AdventureImportPayload): string {
++  const parts = [
++    `<h1 class="spaced">${escapeHtml(metadata.title)}</h1>`,
++    metadata.subtitle ? `<p><em>${escapeHtml(metadata.subtitle)}</em></p>` : '',
++    `<p><strong>Typ:</strong> ${escapeHtml(metadata.type)}</p>`,
++    `<p><strong>Sprache:</strong> ${escapeHtml(metadata.language)}</p>`,
++    metadata.source ? `<p><strong>Quelle:</strong> ${escapeHtml(metadata.source)}</p>` : '',
++    metadata.system ? `<p><strong>System:</strong> ${escapeHtml(metadata.system)}</p>` : '',
++    payload.warnings?.length ? `<div class="gmnote"><p>${escapeHtml(joinBullets(payload.warnings))}</p></div>` : '',
++  ].filter(Boolean);
++
++  return parts.join('\n');
++}
++
++function buildLinkedJournalHtml(actors: ImportedActorResult[]): string {
++  if (actors.length === 0) return '';
++
++  return [
++    '<h2 class="spaced">NSC-Verknüpfungen</h2>',
++    '<ul>',
++    ...actors.map((actor) => `<li>${escapeHtml(actor.name)} — Actor-ID: ${escapeHtml(actor.id)}</li>`),
++    '</ul>',
++  ].join('\n');
++}
++
++function buildJournalHtml(
++  metadata: AdventureImportMetadata,
++  payload: AdventureImportPayload,
++  actors: ImportedActorResult[] = [],
++): string {
++  const parts = [buildOverviewHtml(metadata, payload)];
++  const [firstChapter] = payload.chapters ?? [];
++
++  if (firstChapter) {
++    parts.push(chapterToHtml(firstChapter));
++  }
++
++  const linkedHtml = buildLinkedJournalHtml(actors);
++  if (linkedHtml) {
++    parts.push(linkedHtml);
++  }
++
++  return parts.filter(Boolean).join('\n');
++}
++
++function buildNpcActorData(npc: AdventureImportNpc): Record<string, unknown> {
++  const notes: string[] = [];
++  if (npc.role) notes.push(`Rolle: ${npc.role}`);
++  if (npc.archetypeHint) notes.push(`Archetyp-Hinweis: ${npc.archetypeHint}`);
++  if (npc.motivation) notes.push(`Motivation: ${npc.motivation}`);
++  if (npc.secrets?.length) notes.push(`Geheimnisse: ${npc.secrets.join('; ')}`);
++  if (npc.warnings?.length) notes.push(`Warnungen: ${npc.warnings.join('; ')}`);
++
++  return {
++    name: npc.name,
++    type: 'character',
++    system: {
++      notes: {
++        value: notes.join('\n'),
++      },
++      details: {
++        biography: {
++          value: [
++            npc.role ? `Rolle: ${npc.role}` : undefined,
++            npc.motivation ? `Motivation: ${npc.motivation}` : undefined,
++          ].filter(Boolean).join('\n'),
++        },
++      },
++    },
++    flags: {
++      'foundry-mcp-adventure-import': {
++        role: npc.role,
++        archetypeHint: npc.archetypeHint,
++        attributes: npc.attributes,
++        skills: npc.skills,
++        equipment: npc.equipment,
++        secrets: npc.secrets,
++        motivation: npc.motivation,
++        warnings: npc.warnings,
++      },
++    },
++  };
++}
++
++export class FoundryAdventureImporter {
++  constructor(
++    private readonly foundryClient: FoundryClient,
++    private readonly logger: Logger,
++  ) {}
++
++  buildPlan(payload: AdventureImportPayload, options: AdventureImportOptions = {}, mode: 'dry-run' | 'import' = 'dry-run'): AdventureImportPlan {
++    const title = payload.metadata.title.trim();
++    const createJournals = options.createJournals !== false;
++    const createActors = options.createActors !== false;
++    const linkNpcs = options.linkNpcs !== false;
++
++    const items: AdventureImportPlanItem[] = [];
++    if (createJournals) {
++      items.push({
++        kind: 'journal',
++        name: title,
++        details: `${payload.chapters?.length ?? 0} Kapitel werden als Journalseiten angelegt`,
++      });
++    }
++
++    if (createActors) {
++      for (const npc of payload.npcs ?? []) {
++        items.push({
++          kind: 'actor',
++          name: npc.name,
++          details: npc.role ? `NSC-Rolle: ${npc.role}` : 'NSC wird als generischer Actor erstellt',
++        });
++      }
++    }
++
++    if (linkNpcs && (payload.npcs?.length ?? 0) > 0) {
++      items.push({
++        kind: 'link',
++        name: 'NSC-Verknüpfungen',
++        details: 'Journal wird nach Actor-Erstellung mit Referenzen ergänzt',
++      });
++    }
++
++    return {
++      title,
++      mode,
++      createActors,
++      createJournals,
++      linkNpcs,
++      counts: {
++        chapters: payload.chapters?.length ?? 0,
++        npcs: payload.npcs?.length ?? 0,
++        items: payload.items?.length ?? 0,
++        locations: payload.locations?.length ?? 0,
++      },
++      items,
++      warnings: [...(payload.warnings ?? [])],
++    };
++  }
++
++  async dryRun(payload: AdventureImportPayload, options: AdventureImportOptions = {}): Promise<AdventureImportResult> {
++    const plan = this.buildPlan(payload, options, 'dry-run');
++    return {
++      success: true,
++      mode: 'dry-run',
++      title: plan.title,
++      summary: this.buildSummary(plan),
++      warnings: plan.warnings,
++      unresolvedReferences: [],
++      createdEntityIds: { journals: [], actors: [] },
++      journal: undefined,
++      plan,
++    };
++  }
++
++  async importAdventure(payload: AdventureImportPayload, options: AdventureImportOptions = {}): Promise<AdventureImportResult> {
++    const plan = this.buildPlan(payload, options, 'import');
++    const warnings = [...plan.warnings];
++    const unresolvedReferences: string[] = [];
++    const createdJournalIds: string[] = [];
++    const createdActors: ImportedActorResult[] = [];
++
++    let journal: ImportedJournalResult | undefined;
++    const createJournals = options.createJournals !== false;
++    const createActors = options.createActors !== false;
++    const linkNpcs = options.linkNpcs !== false;
++
++    if (createJournals) {
++      const additionalPages = (payload.chapters ?? []).slice(1).map((chapter) => ({
++        name: chapter.title,
++        content: chapterToHtml(chapter),
++      }));
++
++      const result = await this.foundryClient.query('foundry-mcp-bridge.createJournalEntry', {
++        name: payload.metadata.title,
++        content: buildJournalHtml(payload.metadata, payload),
++        additionalPages,
++      });
++
++      journal = {
++        id: result.id,
++        name: result.name,
++        pageCount: result.pageCount ?? (1 + additionalPages.length),
++      };
++      createdJournalIds.push(result.id);
++    }
++
++    if (createActors) {
++      for (const npc of payload.npcs ?? []) {
++        const result = await this.foundryClient.query('foundry-mcp-bridge.createActorFromData', {
++          actorData: buildNpcActorData(npc),
++          addToScene: false,
++          updateExisting: true,
++          existingActorIdentifier: npc.name,
++        });
++
++        if (!result?.actor?.id) {
++          warnings.push(`Actor konnte nicht angelegt werden: ${npc.name}`);
++          unresolvedReferences.push(npc.name);
++          continue;
++        }
++
++        createdActors.push({
++          id: result.actor.id,
++          name: result.actor.name,
++          type: result.actor.type,
++        });
++      }
++    }
++
++    if (linkNpcs && journal && createdActors.length > 0) {
++      await this.foundryClient.query('foundry-mcp-bridge.updateJournalContent', {
++        journalId: journal.id,
++        content: buildJournalHtml(payload.metadata, payload, createdActors),
++      });
++    }
++
++    if (linkNpcs && payload.npcs?.length && createdActors.length !== payload.npcs.length) {
++      warnings.push('Nicht alle NSCs konnten mit Actors verknüpft werden.');
++    }
++
++    return {
++      success: true,
++      mode: 'import',
++      title: plan.title,
++      summary: this.buildSummary(plan),
++      warnings,
++      unresolvedReferences,
++      createdEntityIds: {
++        journals: createdJournalIds,
++        actors: createdActors.map((actor) => actor.id),
++      },
++      journal,
++      actors: createdActors,
++      plan,
++    };
++  }
++
++  private buildSummary(plan: AdventureImportPlan): string {
++    return [
++      `Titel: ${plan.title}`,
++      `Kapitel: ${plan.counts.chapters}`,
++      `NSCs: ${plan.counts.npcs}`,
++      `Items: ${plan.counts.items}`,
++      `Orte: ${plan.counts.locations}`,
++      `Modus: ${plan.createJournals ? 'Journal' : 'kein Journal'} / ${plan.createActors ? 'Actors' : 'keine Actors'}`,
++      plan.warnings.length ? `Warnungen: ${plan.warnings.length}` : 'Warnungen: keine',
++    ].join('\n');
++  }
++}
+diff --git a/packages/mcp-server/src/adventure-import/llm-worker.test.ts b/packages/mcp-server/src/adventure-import/llm-worker.test.ts
+new file mode 100644
+index 0000000..60c5c68
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/llm-worker.test.ts
+@@ -0,0 +1,78 @@
++import { describe, expect, it, vi } from 'vitest';
++import { AdventureImportWorker, extractJsonCandidate } from './llm-worker.js';
++
++describe('extractJsonCandidate', () => {
++  it('extracts JSON from fenced code blocks', () => {
++    const raw = 'Hier ist dein JSON:\n```json\n{"hello": "world"}\n```';
++    expect(extractJsonCandidate(raw)).toBe('{"hello": "world"}');
++  });
++});
++
++describe('AdventureImportWorker', () => {
++  it('parses a valid JSON adventure from the model response', async () => {
++    const fetchImpl = vi.fn(async () => ({
++      ok: true,
++      status: 200,
++      statusText: 'OK',
++      json: async () => ({
++        choices: [
++          {
++            message: {
++              content: '```json\n{' +
++                '"metadata":{"title":"Deicherbe","type":"adventure","language":"de","system":"DSA5"},' +
++                '"chapters":[{"title":"Kapitel 1"}],"npcs":[{"name":"Hilde"}],"warnings":[]}' +
++                '\n```',
++            },
++          },
++        ],
++      }),
++      text: async () => '',
++    })) as unknown as typeof fetch;
++
++    const worker = new AdventureImportWorker({
++      baseUrl: 'http://localhost:1234',
++      apiKey: 'test',
++      model: 'gemma-test',
++      fetchImpl,
++      maxRetries: 0,
++    });
++
++    const result = await worker.extractAdventure({
++      title: 'Deicherbe',
++      sourceText: 'Kurzer Abenteuertext',
++      languageHint: 'de',
++    });
++
++    expect(result.payload.metadata.title).toBe('Deicherbe');
++    expect(result.payload.chapters).toHaveLength(1);
++    expect(result.payload.npcs).toHaveLength(1);
++    expect(fetchImpl).toHaveBeenCalledTimes(1);
++  });
++
++  it('fails when the model does not return JSON', async () => {
++    const fetchImpl = vi.fn(async () => ({
++      ok: true,
++      status: 200,
++      statusText: 'OK',
++      json: async () => ({
++        choices: [{ message: { content: 'Das ist leider kein JSON.' } }],
++      }),
++      text: async () => '',
++    })) as unknown as typeof fetch;
++
++    const worker = new AdventureImportWorker({
++      baseUrl: 'http://localhost:1234',
++      apiKey: 'test',
++      model: 'gemma-test',
++      fetchImpl,
++      maxRetries: 0,
++    });
++
++    await expect(
++      worker.extractAdventure({
++        title: 'Deicherbe',
++        sourceText: 'Kurzer Abenteuertext',
++      }),
++    ).rejects.toThrow(/valid JSON/i);
++  });
++});
+diff --git a/packages/mcp-server/src/adventure-import/llm-worker.ts b/packages/mcp-server/src/adventure-import/llm-worker.ts
+new file mode 100644
+index 0000000..2c358b7
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/llm-worker.ts
+@@ -0,0 +1,179 @@
++import { adventureImportSchema, type AdventureImportPayload } from './schema.js';
++import { buildAdventureExtractionMessages, type AdventureExtractionInput } from './prompt.js';
++
++export interface AdventureImportWorkerOptions {
++  baseUrl?: string;
++  apiKey?: string;
++  model?: string;
++  fetchImpl?: typeof fetch;
++  timeoutMs?: number;
++  maxRetries?: number;
++}
++
++export interface AdventureImportWorkerInput extends AdventureExtractionInput {
++  languageHint?: string;
++}
++
++export interface AdventureImportResult {
++  payload: AdventureImportPayload;
++  rawText: string;
++}
++
++const DEFAULT_BASE_URLS = [
++  process.env.ADVENTURE_IMPORT_LLM_BASE_URL,
++  process.env.OPENAI_BASE_URL,
++  process.env.ANTHROPIC_BASE_URL,
++].filter((value): value is string => Boolean(value && value.trim()));
++
++const DEFAULT_MODEL =
++  process.env.ADVENTURE_IMPORT_LLM_MODEL ||
++  process.env.OPENAI_MODEL ||
++  process.env.ADVENTURE_IMPORT_MODEL ||
++  'gemma-4';
++
++const DEFAULT_API_KEY =
++  process.env.ADVENTURE_IMPORT_LLM_API_KEY ||
++  process.env.OPENAI_API_KEY ||
++  process.env.ANTHROPIC_API_KEY ||
++  'local';
++
++function resolveBaseUrl(explicit?: string): string {
++  const baseUrl = explicit || DEFAULT_BASE_URLS[0];
++  if (!baseUrl) {
++    throw new Error('Adventure import LLM base URL is missing. Set ADVENTURE_IMPORT_LLM_BASE_URL, OPENAI_BASE_URL or ANTHROPIC_BASE_URL.');
++  }
++  return baseUrl.replace(/\/$/, '');
++}
++
++function resolveChatCompletionsUrl(baseUrl: string): string {
++  if (baseUrl.endsWith('/v1')) return `${baseUrl}/chat/completions`;
++  return `${baseUrl}/v1/chat/completions`;
++}
++
++function extractJsonCandidate(rawText: string): string {
++  const trimmed = rawText.trim();
++  if (!trimmed) {
++    throw new Error('LLM returned an empty response');
++  }
++
++  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
++  if (fenced?.[1]) {
++    return fenced[1].trim();
++  }
++
++  const firstBrace = trimmed.indexOf('{');
++  const lastBrace = trimmed.lastIndexOf('}');
++  if (firstBrace >= 0 && lastBrace > firstBrace) {
++    return trimmed.slice(firstBrace, lastBrace + 1).trim();
++  }
++
++  return trimmed;
++}
++
++function readAssistantText(response: any): string {
++  const direct = response?.choices?.[0]?.message?.content;
++  if (typeof direct === 'string') return direct;
++  if (Array.isArray(direct)) {
++    return direct
++      .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
++      .join('');
++  }
++
++  const alt = response?.output_text;
++  if (typeof alt === 'string') return alt;
++
++  return '';
++}
++
++async function delay(ms: number): Promise<void> {
++  await new Promise((resolve) => setTimeout(resolve, ms));
++}
++
++export class AdventureImportWorker {
++  private readonly baseUrl: string;
++  private readonly apiKey: string;
++  private readonly model: string;
++  private readonly fetchImpl: typeof fetch;
++  private readonly timeoutMs: number;
++  private readonly maxRetries: number;
++
++  constructor(options: AdventureImportWorkerOptions = {}) {
++    this.baseUrl = resolveBaseUrl(options.baseUrl);
++    this.apiKey = options.apiKey || DEFAULT_API_KEY;
++    this.model = options.model || DEFAULT_MODEL;
++    this.fetchImpl = options.fetchImpl || fetch;
++    this.timeoutMs = options.timeoutMs ?? 120000;
++    this.maxRetries = options.maxRetries ?? 2;
++  }
++
++  async extractAdventure(input: AdventureImportWorkerInput): Promise<AdventureImportResult> {
++    const messages = buildAdventureExtractionMessages(input);
++    const rawText = await this.callModel(messages);
++    const jsonText = extractJsonCandidate(rawText);
++
++    let parsed: unknown;
++    try {
++      parsed = JSON.parse(jsonText);
++    } catch (error) {
++      throw new Error(`LLM response is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
++    }
++
++    const payload = adventureImportSchema.parse(parsed);
++    return { payload, rawText };
++  }
++
++  private async callModel(messages: { system: string; user: string }): Promise<string> {
++    const url = resolveChatCompletionsUrl(this.baseUrl);
++    const body = {
++      model: this.model,
++      messages: [
++        { role: 'system', content: messages.system },
++        { role: 'user', content: messages.user },
++      ],
++      temperature: 0.1,
++      top_p: 0.9,
++    };
++
++    let lastError: unknown;
++    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
++      const controller = new AbortController();
++      const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
++      try {
++        const response = await this.fetchImpl(url, {
++          method: 'POST',
++          headers: {
++            'Content-Type': 'application/json',
++            Authorization: `Bearer ${this.apiKey}`,
++          },
++          body: JSON.stringify(body),
++          signal: controller.signal,
++        });
++
++        if (!response.ok) {
++          const errorText = await response.text().catch(() => '');
++          throw new Error(`LLM request failed (${response.status} ${response.statusText}): ${errorText}`);
++        }
++
++        const json = await response.json();
++        const rawText = readAssistantText(json);
++        if (!rawText) {
++          throw new Error('LLM response did not contain assistant text');
++        }
++
++        return rawText;
++      } catch (error) {
++        lastError = error;
++        if (attempt < this.maxRetries) {
++          await delay(250 * (attempt + 1));
++          continue;
++        }
++      } finally {
++        clearTimeout(timeout);
++      }
++    }
++
++    throw new Error(`Adventure extraction failed after ${this.maxRetries + 1} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
++  }
++}
++
++export { extractJsonCandidate };
+diff --git a/packages/mcp-server/src/adventure-import/prompt.ts b/packages/mcp-server/src/adventure-import/prompt.ts
+new file mode 100644
+index 0000000..8f2fdac
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/prompt.ts
+@@ -0,0 +1,89 @@
++import type { AdventureImportMetadata } from './types.js';
++
++export interface AdventureExtractionInput {
++  title: string;
++  sourceText: string;
++  sourceLabel?: string;
++  chunkIndex?: number;
++  chunkCount?: number;
++  languageHint?: string | undefined;
++  additionalContext?: string;
++}
++
++export interface AdventureExtractionMessages {
++  system: string;
++  user: string;
++}
++
++export const ADVENTURE_IMPORT_SCHEMA_REMINDER = [
++  'Top-level keys: metadata, chapters, npcs, items, locations, imports, warnings',
++  'metadata requires title, type, language; subtitle/source/system are optional',
++  'chapters must each have title and may include summary, readAloudText, gmNotes, linkedNpcs, linkedItems, linkedLocations',
++  'npcs must each have name and may include role, archetypeHint, attributes, skills, equipment, secrets, motivation, warnings',
++  'warnings should contain ambiguities, missing stats, uncertain mappings or anything that needs human review',
++].join('\n');
++
++const normalize = (value: string | undefined, fallback: string): string => {
++  const trimmed = value?.trim();
++  return trimmed && trimmed.length > 0 ? trimmed : fallback;
++};
++
++export function buildAdventureExtractionSystemPrompt(): string {
++  return [
++    'Du extrahierst DSA5-Abenteuer aus Rohtext in strikt valides JSON.',
++    'Antworte ausschließlich mit einem JSON-Objekt. Kein Markdown, keine Erklärungen, keine Backticks.',
++    'Erfinde keine Werte. Wenn etwas unklar ist, schreibe es in warnings statt zu halluzinieren.',
++    'Halte dich an das vereinbarte Abenteuer-Schema und an deutsche Umlaute / Sonderzeichen.',
++    ADVENTURE_IMPORT_SCHEMA_REMINDER,
++  ].join('\n\n');
++}
++
++export function buildAdventureExtractionUserPrompt(input: AdventureExtractionInput): string {
++  const title = normalize(input.title, 'Unbekanntes Abenteuer');
++  const sourceLabel = normalize(input.sourceLabel, 'Rohtext');
++  const chunkMeta = [
++    input.chunkIndex !== undefined || input.chunkCount !== undefined
++      ? `Chunk: ${input.chunkIndex ?? 1}/${input.chunkCount ?? 1}`
++      : undefined,
++    input.languageHint ? `Sprachhinweis: ${input.languageHint.trim()}` : undefined,
++    input.additionalContext ? `Zusatzkontext: ${input.additionalContext.trim()}` : undefined,
++  ].filter(Boolean);
++
++  return [
++    `Abenteuertitel: ${title}`,
++    `Quelle: ${sourceLabel}`,
++    ...chunkMeta,
++    '',
++    'Extrahiere daraus ein JSON mit dieser Zielstruktur:',
++    ADVENTURE_IMPORT_SCHEMA_REMINDER,
++    '',
++    'Wichtige Regeln:',
++    '- Gib nur JSON zurück.',
++    '- Nutze warnings für Unsicherheiten statt Fantasiewerte.',
++    '- Erhalte deutsche Sonderzeichen.',
++    '- Falls es nur Rohtext ist, strukturiere so gut wie möglich, aber erfinde keine Stats.',
++    '',
++    'Rohtext:',
++    input.sourceText.trim(),
++  ].join('\n');
++}
++
++export function buildAdventureExtractionMessages(input: AdventureExtractionInput): AdventureExtractionMessages {
++  return {
++    system: buildAdventureExtractionSystemPrompt(),
++    user: buildAdventureExtractionUserPrompt(input),
++  };
++}
++
++export function inferAdventureMetadata(title: string, languageHint?: string): AdventureImportMetadata {
++  const normalizedLanguage = languageHint?.trim().toLowerCase();
++  const language = normalizedLanguage?.startsWith('en') ? 'en' : 'de';
++
++  return {
++    title: title.trim() || 'Unbekanntes Abenteuer',
++    type: 'adventure',
++    language,
++    source: 'text-import',
++    system: 'DSA5',
++  };
++}
+diff --git a/packages/mcp-server/src/adventure-import/schema.test.ts b/packages/mcp-server/src/adventure-import/schema.test.ts
+new file mode 100644
+index 0000000..f3b6124
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/schema.test.ts
+@@ -0,0 +1,77 @@
++import { describe, expect, it } from 'vitest';
++import { adventureImportSchema } from './schema.js';
++
++describe('adventureImportSchema', () => {
++  it('accepts a minimal valid adventure payload', () => {
++    const payload = adventureImportSchema.parse({
++      metadata: {
++        title: 'Deicherbe',
++        type: 'adventure',
++        language: 'de',
++      },
++      chapters: [
++        {
++          title: 'Auftakt',
++          summary: 'Die Helden treffen auf ein Kind in Not.',
++        },
++      ],
++      npcs: [
++        {
++          name: 'Alsilio',
++        },
++      ],
++    });
++
++    expect(payload.metadata.title).toBe('Deicherbe');
++    expect(payload.chapters).toHaveLength(1);
++    expect(payload.npcs).toHaveLength(1);
++  });
++
++  it('rejects a chapter without a title', () => {
++    expect(() =>
++      adventureImportSchema.parse({
++        metadata: {
++          title: 'Deicherbe',
++          type: 'adventure',
++          language: 'de',
++        },
++        chapters: [
++          {
++            summary: 'Kapitel ohne Titel ist unvollständig.',
++          },
++        ],
++      })
++    ).toThrow();
++  });
++
++  it('rejects an npc without a name', () => {
++    expect(() =>
++      adventureImportSchema.parse({
++        metadata: {
++          title: 'Deicherbe',
++          type: 'adventure',
++          language: 'de',
++        },
++        npcs: [
++          {
++            role: 'protagonist',
++          },
++        ],
++      })
++    ).toThrow();
++  });
++
++  it('preserves warnings for uncertain fields', () => {
++    const payload = adventureImportSchema.parse({
++      metadata: {
++        title: 'Deicherbe',
++        type: 'adventure',
++        language: 'de',
++      },
++      chapters: [],
++      warnings: ['Ort unklar'],
++    });
++
++    expect(payload.warnings).toEqual(['Ort unklar']);
++  });
++});
+diff --git a/packages/mcp-server/src/adventure-import/schema.ts b/packages/mcp-server/src/adventure-import/schema.ts
+new file mode 100644
+index 0000000..b87d722
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/schema.ts
+@@ -0,0 +1,53 @@
++import { z } from 'zod';
++
++const adventureMetadataSchema = z.object({
++  title: z.string().min(1),
++  type: z.string().min(1),
++  language: z.string().min(1),
++  subtitle: z.string().optional(),
++  source: z.string().optional(),
++  system: z.string().optional(),
++}).passthrough();
++
++const adventureChapterSchema = z.object({
++  title: z.string().min(1),
++  summary: z.string().optional(),
++  readAloudText: z.string().optional(),
++  gmNotes: z.string().optional(),
++  linkedNpcs: z.array(z.string().min(1)).optional(),
++  linkedItems: z.array(z.string().min(1)).optional(),
++  linkedLocations: z.array(z.string().min(1)).optional(),
++}).passthrough();
++
++const adventureNpcSchema = z.object({
++  name: z.string().min(1),
++  role: z.string().optional(),
++  archetypeHint: z.string().optional(),
++  attributes: z.record(z.union([z.number(), z.string()])).optional(),
++  skills: z.array(
++    z.object({
++      name: z.string().min(1),
++      value: z.number().optional(),
++      note: z.string().optional(),
++    }).passthrough()
++  ).optional(),
++  equipment: z.array(z.string().min(1)).optional(),
++  secrets: z.array(z.string().min(1)).optional(),
++  motivation: z.string().optional(),
++  warnings: z.array(z.string().min(1)).optional(),
++}).passthrough();
++
++export const adventureImportSchema = z.object({
++  metadata: adventureMetadataSchema,
++  chapters: z.array(adventureChapterSchema).default([]),
++  npcs: z.array(adventureNpcSchema).default([]),
++  items: z.array(z.record(z.any())).optional(),
++  locations: z.array(z.record(z.any())).optional(),
++  imports: z.record(z.any()).optional(),
++  warnings: z.array(z.string()).default([]),
++}).passthrough();
++
++export type AdventureImportPayload = z.infer<typeof adventureImportSchema>;
++export type AdventureImportMetadata = z.infer<typeof adventureMetadataSchema>;
++export type AdventureImportChapter = z.infer<typeof adventureChapterSchema>;
++export type AdventureImportNpc = z.infer<typeof adventureNpcSchema>;
+diff --git a/packages/mcp-server/src/adventure-import/text-normalizer.test.ts b/packages/mcp-server/src/adventure-import/text-normalizer.test.ts
+new file mode 100644
+index 0000000..d230c45
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/text-normalizer.test.ts
+@@ -0,0 +1,47 @@
++import { describe, expect, it } from 'vitest';
++import { chunkAdventureText, normalizeAdventureText } from './text-normalizer.js';
++
++describe('normalizeAdventureText', () => {
++  it('removes repeated headers, footers and page numbers', () => {
++    const raw = [
++      'DSA5 Abenteuer: Deicherbe',
++      'Seite 1',
++      '',
++      '1. Auftakt',
++      'Die Helden sehen ein Kind im Watt.',
++      '',
++      'Seite 2',
++      'DSA5 Abenteuer: Deicherbe',
++    ].join('\n');
++
++    const cleaned = normalizeAdventureText(raw);
++
++    expect(cleaned).toContain('1. Auftakt');
++    expect(cleaned).toContain('Die Helden sehen ein Kind im Watt.');
++    expect(cleaned).not.toContain('DSA5 Abenteuer: Deicherbe');
++    expect(cleaned).not.toContain('Seite 1');
++    expect(cleaned).not.toContain('Seite 2');
++  });
++});
++
++describe('chunkAdventureText', () => {
++  it('splits text into chunks without breaking paragraphs', () => {
++    const text = [
++      '1. Auftakt',
++      'Die Helden sehen ein Kind im Watt.',
++      '',
++      '2. Hof und Familie',
++      'Elidan bittet um Hilfe.',
++      '',
++      '3. Nachtangriff',
++      'Etwas kommt aus der Dunkelheit.',
++    ].join('\n');
++
++    const chunks = chunkAdventureText(text, 60);
++
++    expect(chunks.length).toBeGreaterThan(1);
++    expect(chunks[0]).toContain('1. Auftakt');
++    expect(chunks[0]).toContain('Die Helden sehen ein Kind im Watt.');
++    expect(chunks[1]).toContain('2. Hof und Familie');
++  });
++});
+diff --git a/packages/mcp-server/src/adventure-import/text-normalizer.ts b/packages/mcp-server/src/adventure-import/text-normalizer.ts
+new file mode 100644
+index 0000000..1f98b37
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/text-normalizer.ts
+@@ -0,0 +1,79 @@
++const isPageMarker = (line: string): boolean => {
++  return /^seite\s*\d+$/i.test(line) || /^\d+$/.test(line) || /^-?\s*\d+\s*-?$/.test(line);
++};
++
++const isLikelyHeaderFooter = (line: string, count: number): boolean => {
++  if (isPageMarker(line)) return true;
++  if (count < 2) return false;
++  if (line.length > 80) return false;
++  return !/[.!?…:]$/.test(line);
++};
++
++export const normalizeAdventureText = (rawText: string): string => {
++  const lines = rawText
++    .replace(/\r\n/g, '\n')
++    .replace(/\r/g, '\n')
++    .split('\n')
++    .map((line) => line.trim());
++
++  const frequency = new Map<string, number>();
++  for (const line of lines) {
++    if (!line) continue;
++    frequency.set(line, (frequency.get(line) ?? 0) + 1);
++  }
++
++  const cleaned: string[] = [];
++  let previousBlank = false;
++
++  for (const line of lines) {
++    if (!line) {
++      if (!previousBlank && cleaned.length > 0) {
++        cleaned.push('');
++      }
++      previousBlank = true;
++      continue;
++    }
++
++    previousBlank = false;
++    const count = frequency.get(line) ?? 0;
++    if (isLikelyHeaderFooter(line, count)) continue;
++
++    cleaned.push(line);
++  }
++
++  while (cleaned.length > 0 && cleaned[0] === '') cleaned.shift();
++  while (cleaned.length > 0 && cleaned[cleaned.length - 1] === '') cleaned.pop();
++
++  return cleaned.join('\n');
++};
++
++export const chunkAdventureText = (rawText: string, maxChunkSize = 4000): string[] => {
++  const normalized = normalizeAdventureText(rawText);
++  if (!normalized.trim()) return [];
++
++  const paragraphs = normalized
++    .split(/\n{2,}/)
++    .map((paragraph) => paragraph.trim())
++    .filter(Boolean);
++
++  const chunks: string[] = [];
++  let current = '';
++
++  for (const paragraph of paragraphs) {
++    if (!current) {
++      current = paragraph;
++      continue;
++    }
++
++    const candidate = `${current}\n\n${paragraph}`;
++    if (candidate.length <= maxChunkSize) {
++      current = candidate;
++    } else {
++      chunks.push(current);
++      current = paragraph;
++    }
++  }
++
++  if (current) chunks.push(current);
++  return chunks;
++};
+diff --git a/packages/mcp-server/src/adventure-import/types.ts b/packages/mcp-server/src/adventure-import/types.ts
+new file mode 100644
+index 0000000..37c3fe8
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/types.ts
+@@ -0,0 +1,44 @@
++export type AdventureImportLanguage = 'de' | 'en' | string;
++export type AdventureImportType = 'adventure' | 'one-shot' | 'campaign' | string;
++
++export interface AdventureImportMetadata {
++  title: string;
++  type: AdventureImportType;
++  language: AdventureImportLanguage;
++  subtitle?: string;
++  source?: string;
++  system?: string;
++}
++
++export interface AdventureImportChapter {
++  title: string;
++  summary?: string;
++  readAloudText?: string;
++  gmNotes?: string;
++  linkedNpcs?: string[];
++  linkedItems?: string[];
++  linkedLocations?: string[];
++}
++
++export interface AdventureImportNpc {
++  name: string;
++  role?: string;
++  archetypeHint?: string;
++  attributes?: Record<string, number | string>;
++  skills?: Array<{ name: string; value?: number; note?: string }>;
++  equipment?: string[];
++  secrets?: string[];
++  motivation?: string;
++  warnings?: string[];
++}
++
++export interface AdventureImportPayload {
++  metadata: AdventureImportMetadata;
++  chapters?: AdventureImportChapter[];
++  npcs?: AdventureImportNpc[];
++  items?: Array<Record<string, unknown>>;
++  locations?: Array<Record<string, unknown>>;
++  imports?: Record<string, unknown>;
++  warnings?: string[];
++  [key: string]: unknown;
++}
+diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
+index 7512d6b..ffd38b4 100644
+--- a/packages/mcp-server/src/backend.ts
++++ b/packages/mcp-server/src/backend.ts
+@@ -27,6 +27,8 @@ import { DSA5JsonActorImporter } from './systems/dsa5/json-actor-importer.js';
+ 
+ import { QuestCreationTools } from './tools/quest-creation.js';
+ 
++import { AdventureImportTools } from './tools/adventure-import.js';
++
+ import { DiceRollTools } from './tools/dice-roll.js';
+ 
+ import { CampaignManagementTools } from './tools/campaign-management.js';
+@@ -1157,6 +1159,8 @@ async function startBackend(): Promise<void> {
+ 
+   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
+ 
++  const adventureImportTools = new AdventureImportTools({ foundryClient, logger });
++
+   const diceRollTools = new DiceRollTools({ foundryClient, logger });
+ 
+   const campaignManagementTools = new CampaignManagementTools(foundryClient, logger);
+@@ -1398,6 +1402,8 @@ async function startBackend(): Promise<void> {
+ 
+     ...questCreationTools.getToolDefinitions(),
+ 
++    ...adventureImportTools.getToolDefinitions(),
++
+     ...diceRollTools.getToolDefinitions(),
+ 
+     ...campaignManagementTools.getToolDefinitions(),
+@@ -1642,6 +1648,12 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
++                case 'import-dsa5-adventure-from-text':
++
++                  result = await adventureImportTools.handleImportAdventureFromText(args);
++
++                  break;
++
+                 // Dice roll tools
+ 
+                 case 'request-player-rolls':
+diff --git a/packages/mcp-server/src/tools/adventure-import.test.ts b/packages/mcp-server/src/tools/adventure-import.test.ts
+new file mode 100644
+index 0000000..3382900
+--- /dev/null
++++ b/packages/mcp-server/src/tools/adventure-import.test.ts
+@@ -0,0 +1,151 @@
++import { describe, expect, it, vi } from 'vitest';
++import { AdventureImportTools } from './adventure-import.js';
++import { AdventureImportWorker } from '../adventure-import/llm-worker.js';
++import { FoundryAdventureImporter } from '../adventure-import/foundry-importer.js';
++
++const logger = {
++  child: () => logger,
++  info: vi.fn(),
++  warn: vi.fn(),
++  error: vi.fn(),
++  debug: vi.fn(),
++} as any;
++
++function createFoundryClientMock() {
++  return {
++    query: vi.fn(),
++  } as any;
++}
++
++describe('AdventureImportTools', () => {
++  it('runs a dry-run end-to-end from text to preview', async () => {
++    const fetchImpl = vi.fn(async () => ({
++      ok: true,
++      status: 200,
++      statusText: 'OK',
++      json: async () => ({
++        choices: [
++          {
++            message: {
++              content: '{"metadata":{"title":"Deicherbe","type":"adventure","language":"de","system":"DSA5"},"chapters":[{"title":"Kapitel 1"}],"npcs":[{"name":"Hilde"}],"warnings":[]}',
++            },
++          },
++        ],
++      }),
++      text: async () => '',
++    })) as unknown as typeof fetch;
++
++    const worker = new AdventureImportWorker({
++      baseUrl: 'http://localhost:1234',
++      apiKey: 'test',
++      model: 'gemma-test',
++      fetchImpl,
++      maxRetries: 0,
++    });
++    const foundryClient = createFoundryClientMock();
++    const importer = new FoundryAdventureImporter(foundryClient, logger);
++    const tools = new AdventureImportTools({ foundryClient, logger, worker, importer });
++
++    const result = await tools.handleImportAdventureFromText({
++      title: 'Deicherbe',
++      sourceText: 'Kurzer Abenteuertext',
++      mode: 'dry-run',
++      createActors: true,
++      createJournals: true,
++      linkNpcs: true,
++    });
++
++    expect(result.success).toBe(true);
++    expect(result.mode).toBe('dry-run');
++    expect(result.plan.counts.chapters).toBe(1);
++    expect(result.plan.items.some((item: any) => item.kind === 'actor')).toBe(true);
++    expect(foundryClient.query).not.toHaveBeenCalled();
++  });
++
++  it('runs an import end-to-end from text to Foundry writes', async () => {
++    const fetchImpl = vi.fn(async () => ({
++      ok: true,
++      status: 200,
++      statusText: 'OK',
++      json: async () => ({
++        choices: [
++          {
++            message: {
++              content: '{"metadata":{"title":"Deicherbe","type":"adventure","language":"de","system":"DSA5"},"chapters":[{"title":"Kapitel 1"}],"npcs":[{"name":"Hilde","role":"Wirtin"}],"warnings":[]}',
++            },
++          },
++        ],
++      }),
++      text: async () => '',
++    })) as unknown as typeof fetch;
++
++    const worker = new AdventureImportWorker({
++      baseUrl: 'http://localhost:1234',
++      apiKey: 'test',
++      model: 'gemma-test',
++      fetchImpl,
++      maxRetries: 0,
++    });
++    const foundryClient = createFoundryClientMock();
++    foundryClient.query
++      .mockResolvedValueOnce({ id: 'journal-1', name: 'Deicherbe', pageCount: 1 })
++      .mockResolvedValueOnce({ success: true, actor: { id: 'actor-1', name: 'Hilde', type: 'character' } })
++      .mockResolvedValueOnce({ success: true });
++
++    const importer = new FoundryAdventureImporter(foundryClient, logger);
++    const tools = new AdventureImportTools({ foundryClient, logger, worker, importer });
++
++    const result = await tools.handleImportAdventureFromText({
++      title: 'Deicherbe',
++      sourceText: 'Kurzer Abenteuertext',
++      mode: 'import',
++      createActors: true,
++      createJournals: true,
++      linkNpcs: true,
++    });
++
++    expect(result.success).toBe(true);
++    expect(result.mode).toBe('import');
++    expect(result.createdEntityIds.journals).toEqual(['journal-1']);
++    expect(result.createdEntityIds.actors).toEqual(['actor-1']);
++    expect(foundryClient.query).toHaveBeenCalledTimes(3);
++  });
++
++  it('normalizes and chunks the source text before LLM extraction', async () => {
++    const worker = {
++      extractAdventure: vi.fn(async ({ sourceText }: { sourceText: string }) => ({
++        payload: {
++          metadata: { title: 'Deicherbe', type: 'adventure', language: 'de', system: 'DSA5' },
++          chapters: [{ title: sourceText.slice(0, 24) }],
++          npcs: [],
++          warnings: [],
++        },
++        rawText: sourceText,
++      })),
++    } as any;
++
++    const foundryClient = createFoundryClientMock();
++    const importer = new FoundryAdventureImporter(foundryClient, logger);
++    const tools = new AdventureImportTools({ foundryClient, logger, worker, importer });
++
++    const sourceText = [
++      'Seite 1',
++      'KAPITEL 1',
++      '',
++      `${'A'.repeat(4200)}`,
++      '',
++      'Seite 2',
++      `${'B'.repeat(4200)}`,
++    ].join('\r\n');
++
++    await tools.handleImportAdventureFromText({
++      title: 'Deicherbe',
++      sourceText,
++      mode: 'dry-run',
++    });
++
++    expect(worker.extractAdventure).toHaveBeenCalledTimes(3);
++    expect(worker.extractAdventure.mock.calls[0][0].sourceText).not.toContain('\r');
++    expect(worker.extractAdventure.mock.calls[0][0].sourceText).not.toMatch(/Seite 1/i);
++  });
++});
+diff --git a/packages/mcp-server/src/tools/adventure-import.ts b/packages/mcp-server/src/tools/adventure-import.ts
+new file mode 100644
+index 0000000..81cab8e
+--- /dev/null
++++ b/packages/mcp-server/src/tools/adventure-import.ts
+@@ -0,0 +1,250 @@
++import { z } from 'zod';
++import type { FoundryClient } from '../foundry-client.js';
++import type { Logger } from '../logger.js';
++import { adventureImportSchema } from '../adventure-import/schema.js';
++import type { AdventureImportPayload } from '../adventure-import/types.js';
++import { AdventureImportWorker } from '../adventure-import/llm-worker.js';
++import { FoundryAdventureImporter } from '../adventure-import/foundry-importer.js';
++import { chunkAdventureText, normalizeAdventureText } from '../adventure-import/text-normalizer.js';
++
++export interface AdventureImportToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++  worker?: AdventureImportWorker;
++  importer?: FoundryAdventureImporter;
++}
++
++export class AdventureImportTools {
++  private readonly foundryClient: FoundryClient;
++  private readonly logger: Logger;
++  private readonly worker: AdventureImportWorker;
++  private readonly importer: FoundryAdventureImporter;
++
++  constructor(options: AdventureImportToolsOptions) {
++    this.foundryClient = options.foundryClient;
++    this.logger = options.logger.child({ component: 'AdventureImportTools' });
++    this.worker = options.worker ?? new AdventureImportWorker();
++    this.importer = options.importer ?? new FoundryAdventureImporter(this.foundryClient, this.logger);
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'import-dsa5-adventure-from-text',
++        description: 'Extract a DSA5 adventure from text, validate it against the adventure schema, and optionally import journals and actors into Foundry VTT.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            title: {
++              type: 'string',
++              description: 'Adventure title used for extraction, validation and the journal entry title',
++            },
++            sourceText: {
++              type: 'string',
++              description: 'Converted adventure text or OCR-free text from a PDF',
++            },
++            mode: {
++              type: 'string',
++              enum: ['dry-run', 'import'],
++              description: 'Dry-run creates a preview only; import writes data into Foundry',
++              default: 'dry-run',
++            },
++            createActors: {
++              type: 'boolean',
++              description: 'Create Actors for NPCs (default: true)',
++              default: true,
++            },
++            createJournals: {
++              type: 'boolean',
++              description: 'Create Journal entries/pages for the adventure (default: true)',
++              default: true,
++            },
++            linkNpcs: {
++              type: 'boolean',
++              description: 'Add link references between Journal content and created Actors (default: true)',
++              default: true,
++            },
++            languageHint: {
++              type: 'string',
++              description: 'Optional language hint for the extractor (e.g. de, en)',
++            },
++          },
++          required: ['title', 'sourceText'],
++        },
++      },
++    ];
++  }
++
++  async handleImportAdventureFromText(args: unknown): Promise<any> {
++    const requestSchema = z.object({
++      title: z.string().min(1, 'title is required'),
++      sourceText: z.string().min(1, 'sourceText is required'),
++      mode: z.enum(['dry-run', 'import']).default('dry-run'),
++      createActors: z.boolean().default(true),
++      createJournals: z.boolean().default(true),
++      linkNpcs: z.boolean().default(true),
++      languageHint: z.string().optional(),
++    });
++
++    const request = requestSchema.parse(args);
++
++    this.logger.info('Adventure import requested', {
++      title: request.title,
++      mode: request.mode,
++      sourceLength: request.sourceText.length,
++    });
++
++    const normalizedSourceText = normalizeAdventureText(request.sourceText);
++    const chunks = chunkAdventureText(normalizedSourceText);
++    const sourceChunks = chunks.length > 0 ? chunks : [normalizedSourceText];
++    const extractedPayloads: AdventureImportPayload[] = [];
++    let rawTextLength = 0;
++
++    for (let index = 0; index < sourceChunks.length; index += 1) {
++      const chunk = sourceChunks[index];
++      const extracted = await this.worker.extractAdventure({
++        title: request.title,
++        sourceText: chunk,
++        chunkIndex: index + 1,
++        chunkCount: sourceChunks.length,
++        ...(request.languageHint ? { languageHint: request.languageHint } : {}),
++      });
++
++      extractedPayloads.push(extracted.payload as AdventureImportPayload);
++      rawTextLength += extracted.rawText.length;
++    }
++
++    const mergedPayload = mergeAdventurePayloads(extractedPayloads);
++    const validated = adventureImportSchema.parse(mergedPayload) as AdventureImportPayload;
++    const importerOptions = {
++      createActors: request.createActors,
++      createJournals: request.createJournals,
++      linkNpcs: request.linkNpcs,
++    };
++
++    if (request.mode === 'dry-run') {
++      const preview = await this.importer.dryRun(validated, importerOptions);
++      return {
++        success: true,
++        mode: 'dry-run',
++        title: validated.metadata.title,
++        extractedWarnings: validated.warnings ?? [],
++        plan: preview.plan,
++        summary: preview.summary,
++        warnings: preview.warnings,
++        unresolvedReferences: preview.unresolvedReferences,
++        createdEntityIds: preview.createdEntityIds,
++        rawTextLength,
++      };
++    }
++
++    const result = await this.importer.importAdventure(validated, importerOptions);
++    return {
++      success: result.success,
++      mode: result.mode,
++      title: result.title,
++      summary: result.summary,
++      warnings: result.warnings,
++      unresolvedReferences: result.unresolvedReferences,
++      createdEntityIds: result.createdEntityIds,
++      journal: result.journal,
++      actors: result.actors,
++      plan: result.plan,
++      rawTextLength,
++    };
++  }
++}
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++  return typeof value === 'object' && value !== null && !Array.isArray(value);
++}
++
++function dedupeStrings(values: string[]): string[] {
++  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
++}
++
++function mergeArrayByKey<T>(items: T[], keyFn: (item: T) => string): T[] {
++  const seen = new Map<string, T>();
++  items.forEach((item) => {
++    const key = keyFn(item);
++    if (!seen.has(key)) {
++      seen.set(key, item);
++    }
++  });
++
++  const result: T[] = [];
++  seen.forEach((value) => {
++    result.push(value);
++  });
++  return result;
++}
++
++function mergeRecordArrays(items: Array<Record<string, unknown>>[]): Array<Record<string, unknown>> {
++  const flattened = items.flat();
++  return mergeArrayByKey(flattened, (item) => {
++    const name = typeof item.name === 'string' ? item.name.trim().toLowerCase() : '';
++    const title = typeof item.title === 'string' ? item.title.trim().toLowerCase() : '';
++    const id = typeof item.id === 'string' ? item.id.trim().toLowerCase() : '';
++    return name || title || id || JSON.stringify(item);
++  });
++}
++
++function mergeAdventurePayloads(payloads: AdventureImportPayload[]): AdventureImportPayload {
++  if (payloads.length === 0) {
++    throw new Error('No adventure payloads were extracted');
++  }
++
++  if (payloads.length === 1) {
++    return payloads[0];
++  }
++
++  const [first, ...rest] = payloads;
++  const chapters = mergeArrayByKey(
++    [
++      ...(first.chapters ?? []),
++      ...rest.flatMap((payload) => payload.chapters ?? []),
++    ],
++    (chapter) => chapter.title.trim().toLowerCase() || JSON.stringify(chapter),
++  );
++
++  const npcs = mergeArrayByKey(
++    [
++      ...(first.npcs ?? []),
++      ...rest.flatMap((payload) => payload.npcs ?? []),
++    ],
++    (npc) => npc.name.trim().toLowerCase(),
++  );
++
++  const items = mergeRecordArrays([
++    first.items ?? [],
++    ...rest.map((payload) => payload.items ?? []),
++  ]);
++
++  const locations = mergeRecordArrays([
++    first.locations ?? [],
++    ...rest.map((payload) => payload.locations ?? []),
++  ]);
++
++  const warnings = dedupeStrings([
++    ...(first.warnings ?? []),
++    ...rest.flatMap((payload) => payload.warnings ?? []),
++  ]);
++
++  const imports = rest.reduce<Record<string, unknown>>((accumulator, payload) => {
++    if (isRecord(payload.imports)) {
++      return { ...accumulator, ...payload.imports };
++    }
++    return accumulator;
++  }, isRecord(first.imports) ? { ...first.imports } : {});
++
++  return adventureImportSchema.parse({
++    ...first,
++    metadata: first.metadata,
++    chapters,
++    npcs,
++    items,
++    locations,
++    imports,
++    warnings,
++  }) as unknown as AdventureImportPayload;
++}
+-- 
+2.54.0
+

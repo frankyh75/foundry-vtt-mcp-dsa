@@ -1,0 +1,511 @@
+From e5b631814bd2875af1d4c29cc866967d71b84a9c Mon Sep 17 00:00:00 2001
+From: frankyh75 <63338994+frankyh75@users.noreply.github.com>
+Date: Sun, 11 Jan 2026 20:27:32 +0100
+Subject: [PATCH] Add ChatGPT Pro Docker tunnel quickstart
+
+---
+ .env.example                           |  13 +-
+ Dockerfile.chatgpt                     |  14 ++
+ README.md                              |  36 ++++
+ docker-compose.yml                     |  20 ++
+ packages/mcp-server/src/http-bridge.ts | 258 +++++++++++++++++++++++++
+ scripts/smoke-test-chatgpt.sh          |  91 +++++++++
+ 6 files changed, 429 insertions(+), 3 deletions(-)
+ create mode 100644 Dockerfile.chatgpt
+ create mode 100644 docker-compose.yml
+ create mode 100644 packages/mcp-server/src/http-bridge.ts
+ create mode 100755 scripts/smoke-test-chatgpt.sh
+
+diff --git a/.env.example b/.env.example
+index 3e69a53..d660284 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,7 +1,13 @@
+ # Foundry MCP Integration Environment Configuration
+ 
+ # =============================================================================
+-# Logging Configuration  
++# ChatGPT HTTP Bridge (required for Docker Compose quickstart)
++# =============================================================================
++MCP_AUTH_TOKEN=change-me
++MCP_HTTP_PORT=3333
++
++# =============================================================================
++# Logging Configuration
+ # =============================================================================
+ LOG_LEVEL=info
+ LOG_FORMAT=simple
+@@ -11,7 +17,8 @@ ENABLE_FILE_LOGGING=false
+ # =============================================================================
+ # Foundry VTT Connection Settings
+ # =============================================================================
+-FOUNDRY_HOST=localhost
++# For Docker Desktop on Windows/Mac, use host.docker.internal to reach the host.
++FOUNDRY_HOST=host.docker.internal
+ FOUNDRY_PORT=31415
+ FOUNDRY_NAMESPACE=/foundry-mcp
+ FOUNDRY_CONNECTION_TIMEOUT=10000
+@@ -35,4 +42,4 @@ NODE_ENV=production
+ # LOG_LEVEL=debug
+ # LOG_FORMAT=json
+ # ENABLE_FILE_LOGGING=true
+-# LOG_FILE_PATH=./logs/debug.log
+\ No newline at end of file
++# LOG_FILE_PATH=./logs/debug.log
+diff --git a/Dockerfile.chatgpt b/Dockerfile.chatgpt
+new file mode 100644
+index 0000000..d2669f0
+--- /dev/null
++++ b/Dockerfile.chatgpt
+@@ -0,0 +1,14 @@
++FROM node:18-slim
++
++WORKDIR /app
++
++COPY package.json package-lock.json ./
++COPY packages ./packages
++COPY shared ./shared
++
++RUN npm ci
++RUN npm run build --workspace=shared --workspace=packages/mcp-server
++
++EXPOSE 3333
++
++CMD ["node", "packages/mcp-server/dist/http-bridge.js"]
+diff --git a/README.md b/README.md
+index df3f506..dff0081 100644
+--- a/README.md
++++ b/README.md
+@@ -89,6 +89,42 @@ Add this to your Claude Desktop configuration (claude_desktop_config.json) file:
+ 
+ Starting Claude Desktop will start the MCP Server.
+ 
++## ChatGPT Pro (Developer Mode) – 10 Minuten Setup
++
++Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP HTTP Endpoint öffentlich bereitzustellen (Foundry bleibt lokal). Der MCP Endpoint ist per Bearer Token geschützt.
++
++### Voraussetzungen
++
++- Docker Desktop (Windows/Mac)
++- Foundry VTT läuft lokal mit aktiviertem **Foundry MCP Bridge** Modul
++
++### Schritte
++
++1. Lege deine lokale `.env` an:
++   ```bash
++   cp .env.example .env
++   ```
++   - Setze **MCP_AUTH_TOKEN** auf einen starken Wert.
++   - Wenn Foundry auf deinem Host läuft, belasse `FOUNDRY_HOST=host.docker.internal`.
++2. Starte den MCP HTTP Endpoint + Tunnel:
++   ```bash
++   docker compose up
++   ```
++3. Warte auf die Cloudflare-Ausgabe und kopiere die **https://...trycloudflare.com** URL aus den Logs.
++4. Öffne ChatGPT → **Settings → Connectors → Developer Mode → Add MCP Server**:
++   - **Name:** Foundry MCP
++   - **URL:** `https://<deine-url>.trycloudflare.com/mcp`
++   - **Auth:** Bearer Token → Wert aus `MCP_AUTH_TOKEN`
++5. Fertig! Du kannst jetzt Tools aus deinem Foundry World in ChatGPT verwenden.
++
++> **Sicherheit:** Der Tunnel macht den MCP Endpoint öffentlich. Ohne gültiges Token gibt es **401**. Teile den Token nicht.
++
++### Smoke Test (optional)
++
++```bash
++./scripts/smoke-test-chatgpt.sh
++```
++
+ ### Getting Started
+ 
+ 1. Start Foundry VTT and load your world
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..5d4f87b
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,20 @@
++services:
++  mcp-http-bridge:
++    build:
++      context: .
++      dockerfile: Dockerfile.chatgpt
++    env_file:
++      - .env
++    environment:
++      MCP_HTTP_HOST: 0.0.0.0
++      MCP_HTTP_PORT: ${MCP_HTTP_PORT:-3333}
++    ports:
++      - "127.0.0.1:${MCP_HTTP_PORT:-3333}:3333"
++    restart: unless-stopped
++
++  cloudflared:
++    image: cloudflare/cloudflared:2024.9.1
++    command: tunnel --url http://mcp-http-bridge:3333 --no-autoupdate
++    depends_on:
++      - mcp-http-bridge
++    restart: unless-stopped
+diff --git a/packages/mcp-server/src/http-bridge.ts b/packages/mcp-server/src/http-bridge.ts
+new file mode 100644
+index 0000000..f15f5e4
+--- /dev/null
++++ b/packages/mcp-server/src/http-bridge.ts
+@@ -0,0 +1,258 @@
++#!/usr/bin/env node
++
++import http from 'node:http';
++import { randomUUID } from 'node:crypto';
++import { fileURLToPath } from 'node:url';
++import process from 'node:process';
++
++import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
++import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
++import {
++  isJSONRPCErrorResponse,
++  isJSONRPCRequest,
++  isJSONRPCResultResponse,
++  type JSONRPCMessage
++} from '@modelcontextprotocol/sdk/types.js';
++
++type RequestMeta = {
++  startTime: number;
++  method: string;
++  toolName?: string;
++  remoteIp?: string;
++};
++
++const authToken = process.env.MCP_AUTH_TOKEN;
++if (!authToken) {
++  console.error('MCP_AUTH_TOKEN is required for the HTTP bridge.');
++  process.exit(1);
++}
++
++const httpHost = process.env.MCP_HTTP_HOST || '0.0.0.0';
++const httpPort = Number.parseInt(process.env.MCP_HTTP_PORT || '3333', 10);
++
++const serverCommand = process.env.MCP_SERVER_COMMAND || 'node';
++const serverArgsRaw = process.env.MCP_SERVER_ARGS?.trim();
++const defaultServerPath = fileURLToPath(new URL('./index.js', import.meta.url));
++const serverArgs = serverArgsRaw ? serverArgsRaw.split(' ').filter(Boolean) : [defaultServerPath];
++
++const serverEnv = { ...process.env };
++delete serverEnv.MCP_AUTH_TOKEN;
++delete serverEnv.MCP_HTTP_HOST;
++delete serverEnv.MCP_HTTP_PORT;
++delete serverEnv.MCP_SERVER_COMMAND;
++delete serverEnv.MCP_SERVER_ARGS;
++
++type RequestHeaders = Record<string, string | string[] | undefined> | undefined;
++
++const requestMeta = new Map<string, RequestMeta>();
++
++const logInfo = (message: string, meta?: Record<string, unknown>) => {
++  if (meta) {
++    console.log(`${message} ${JSON.stringify(meta)}`);
++    return;
++  }
++  console.log(message);
++};
++
++const logError = (message: string, meta?: Record<string, unknown>) => {
++  if (meta) {
++    console.error(`${message} ${JSON.stringify(meta)}`);
++    return;
++  }
++  console.error(message);
++};
++
++const getHeaderValue = (headers: RequestHeaders, name: string): string | undefined => {
++  if (!headers) return undefined;
++  const direct = headers[name] ?? headers[name.toLowerCase()];
++  if (Array.isArray(direct)) return direct[0];
++  if (direct) return direct;
++  const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase());
++  if (!entry) return undefined;
++  const value = entry[1];
++  return Array.isArray(value) ? value[0] : value;
++};
++
++const getRemoteIp = (headers: RequestHeaders): string | undefined => {
++  const forwarded = getHeaderValue(headers, 'x-forwarded-for');
++  if (forwarded) return forwarded.split(',')[0]?.trim();
++  return (
++    getHeaderValue(headers, 'cf-connecting-ip') ||
++    getHeaderValue(headers, 'x-real-ip')
++  );
++};
++
++const isAuthorized = (req: http.IncomingMessage): boolean => {
++  const header = req.headers.authorization;
++  if (!header) return false;
++  const [scheme, token] = header.split(' ');
++  if (!scheme || !token) return false;
++  return scheme.toLowerCase() === 'bearer' && token === authToken;
++};
++
++const stdioTransport = new StdioClientTransport({
++  command: serverCommand,
++  args: serverArgs,
++  env: serverEnv,
++  stderr: 'inherit'
++});
++
++const httpTransport = new StreamableHTTPServerTransport({
++  sessionIdGenerator: () => randomUUID(),
++  enableJsonResponse: true
++});
++
++httpTransport.onmessage = async (message: JSONRPCMessage, extra) => {
++  if (isJSONRPCRequest(message) && message.id !== undefined) {
++    const requestId = String(message.id);
++    const toolName = message.method === 'tools/call' ? (message.params as any)?.name : undefined;
++    requestMeta.set(requestId, {
++      startTime: Date.now(),
++      method: message.method,
++      toolName,
++      remoteIp: getRemoteIp(extra?.requestInfo?.headers as RequestHeaders)
++    });
++  }
++
++  try {
++    await stdioTransport.send(message);
++  } catch (error) {
++    logError('mcp.http_to_stdio_failed', {
++      error: error instanceof Error ? error.message : String(error)
++    });
++  }
++};
++
++stdioTransport.onmessage = async (message: JSONRPCMessage) => {
++  const requestId =
++    isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)
++      ? String(message.id)
++      : undefined;
++
++  try {
++    await httpTransport.send(message);
++  } catch (error) {
++    logError('mcp.stdio_to_http_failed', {
++      error: error instanceof Error ? error.message : String(error)
++    });
++  }
++
++  if (requestId) {
++    const meta = requestMeta.get(requestId);
++    if (meta) {
++      const durationMs = Date.now() - meta.startTime;
++      const errorReason = isJSONRPCErrorResponse(message)
++        ? message.error?.message
++        : undefined;
++      logInfo('mcp.request.completed', {
++        requestId,
++        remoteIp: meta.remoteIp,
++        method: meta.method,
++        toolName: meta.toolName,
++        durationMs,
++        error: errorReason ?? null
++      });
++      requestMeta.delete(requestId);
++    }
++  }
++};
++
++stdioTransport.onerror = (error) => {
++  logError('mcp.stdio.error', { error: error.message });
++};
++
++httpTransport.onerror = (error) => {
++  logError('mcp.http.error', { error: error.message });
++};
++
++const server = http.createServer(async (req, res) => {
++  if (!req.url) {
++    res.statusCode = 400;
++    res.end('Bad Request');
++    return;
++  }
++
++  if (req.url.startsWith('/health')) {
++    if (!isAuthorized(req)) {
++      const remoteIp = getRemoteIp(req.headers as RequestHeaders);
++      logInfo('mcp.auth.denied', { remoteIp, path: req.url });
++      res.statusCode = 401;
++      res.setHeader('WWW-Authenticate', 'Bearer');
++      res.end('Unauthorized');
++      return;
++    }
++
++    res.statusCode = 200;
++    res.setHeader('Content-Type', 'application/json');
++    res.end(JSON.stringify({ status: 'ok' }));
++    return;
++  }
++
++  if (!req.url.startsWith('/mcp')) {
++    res.statusCode = 404;
++    res.end('Not Found');
++    return;
++  }
++
++  if (!isAuthorized(req)) {
++    const remoteIp = getRemoteIp(req.headers as RequestHeaders);
++    logInfo('mcp.auth.denied', { remoteIp, path: req.url });
++    res.statusCode = 401;
++    res.setHeader('WWW-Authenticate', 'Bearer');
++    res.end('Unauthorized');
++    return;
++  }
++
++  try {
++    await httpTransport.handleRequest(req, res);
++  } catch (error) {
++    logError('mcp.http.request_failed', {
++      error: error instanceof Error ? error.message : String(error)
++    });
++    res.statusCode = 500;
++    res.end('Internal Server Error');
++  }
++});
++
++const shutdown = async () => {
++  logInfo('mcp.http_bridge.shutdown');
++  try {
++    await httpTransport.close();
++  } catch (error) {
++    logError('mcp.http_bridge.http_close_failed', {
++      error: error instanceof Error ? error.message : String(error)
++    });
++  }
++  try {
++    await stdioTransport.close();
++  } catch (error) {
++    logError('mcp.http_bridge.stdio_close_failed', {
++      error: error instanceof Error ? error.message : String(error)
++    });
++  }
++  server.close(() => process.exit(0));
++};
++
++process.on('SIGINT', () => void shutdown());
++process.on('SIGTERM', () => void shutdown());
++
++const start = async () => {
++  await stdioTransport.start();
++  await httpTransport.start();
++
++  server.listen(httpPort, httpHost, () => {
++    logInfo('mcp.http_bridge.listening', {
++      host: httpHost,
++      port: httpPort,
++      serverCommand,
++      serverArgs
++    });
++  });
++};
++
++start().catch((error) => {
++  logError('mcp.http_bridge.start_failed', {
++    error: error instanceof Error ? error.message : String(error)
++  });
++  process.exit(1);
++});
+diff --git a/scripts/smoke-test-chatgpt.sh b/scripts/smoke-test-chatgpt.sh
+new file mode 100755
+index 0000000..d5faefb
+--- /dev/null
++++ b/scripts/smoke-test-chatgpt.sh
+@@ -0,0 +1,91 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$ROOT_DIR"
++
++if [ -f .env ]; then
++  set -a
++  # shellcheck disable=SC1091
++  . ./.env
++  set +a
++fi
++
++MCP_AUTH_TOKEN="${MCP_AUTH_TOKEN:-}"
++MCP_HTTP_PORT="${MCP_HTTP_PORT:-3333}"
++
++if [ -z "$MCP_AUTH_TOKEN" ]; then
++  echo "FAIL: MCP_AUTH_TOKEN is not set (create .env from .env.example)."
++  exit 1
++fi
++
++if ! docker compose ps -q mcp-http-bridge >/dev/null 2>&1; then
++  echo "Starting docker compose stack..."
++  docker compose up -d
++fi
++
++BASE_URL="http://127.0.0.1:${MCP_HTTP_PORT}"
++
++echo "Waiting for MCP HTTP bridge at ${BASE_URL}/health..."
++status=""
++for _ in {1..30}; do
++  status=$(curl -s -o /dev/null -w "%{http_code}" \
++    -H "Authorization: Bearer ${MCP_AUTH_TOKEN}" \
++    "${BASE_URL}/health" || true)
++  if [ "$status" = "200" ]; then
++    echo "Transport OK"
++    break
++  fi
++  sleep 1
++  status=""
++  
++  if [ "$status" = "" ]; then
++    continue
++  fi
++done
++
++if [ "$status" != "200" ]; then
++  echo "FAIL: MCP HTTP bridge did not become ready."
++  exit 1
++fi
++
++init_payload='{"jsonrpc":"2.0","id":"init-1","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"smoke-test","version":"0.1.0"}}}'
++
++headers=$(mktemp)
++init_response=$(curl -sS -D "$headers" \
++  -H "Authorization: Bearer ${MCP_AUTH_TOKEN}" \
++  -H "Content-Type: application/json" \
++  -H "Accept: application/json, text/event-stream" \
++  -X POST "${BASE_URL}/mcp" \
++  --data "$init_payload")
++
++session_id=$(awk 'tolower($1)=="mcp-session-id:" {print $2}' "$headers" | tr -d '\r')
++if [ -z "$session_id" ]; then
++  echo "FAIL: Missing MCP session ID in initialize response."
++  echo "$init_response"
++  exit 1
++fi
++
++list_payload='{"jsonrpc":"2.0","id":"list-1","method":"tools/list","params":{}}'
++list_response=$(curl -sS \
++  -H "Authorization: Bearer ${MCP_AUTH_TOKEN}" \
++  -H "Content-Type: application/json" \
++  -H "Accept: application/json, text/event-stream" \
++  -H "Mcp-Session-Id: ${session_id}" \
++  -X POST "${BASE_URL}/mcp" \
++  --data "$list_payload")
++
++if echo "$list_response" | grep -q '"result"'; then
++  echo "OK"
++  exit 0
++fi
++
++if echo "$list_response" | grep -q '"error"'; then
++  echo "FAIL: MCP tools/list returned error."
++  echo "$list_response"
++  exit 1
++fi
++
++echo "FAIL: Unexpected response from tools/list."
++echo "$list_response"
++exit 1
+-- 
+2.54.0
+

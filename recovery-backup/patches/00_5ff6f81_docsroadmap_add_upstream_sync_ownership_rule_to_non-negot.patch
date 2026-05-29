@@ -1,0 +1,27 @@
+From 5ff6f81961ade1f64d73937dd407fa0595d4bcea Mon Sep 17 00:00:00 2001
+From: Jarvis <jarvis@local>
+Date: Fri, 29 May 2026 09:18:05 +0200
+Subject: [PATCH] docs(roadmap): add upstream sync ownership rule to
+ non-negotiables
+
+---
+ ROADMAP.md | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/ROADMAP.md b/ROADMAP.md
+index 8505975..8278576 100644
+--- a/ROADMAP.md
++++ b/ROADMAP.md
+@@ -17,6 +17,9 @@ OpenClaw/WhatsApp is an optional interface, not a product requirement.
+ 1. Human review is mandatory before any world write operation.
+ 2. MVP must include image generation support for battlemaps/tokens via ComfyUI tools.
+ 3. Adventure rewrite/adaptation is part of MVP, not post-MVP.
++4. Upstream sync operations (`git merge upstream/master`, conflict resolution) are
++   Claude-only. Kanban workers must not execute `git merge` or `git cherry-pick`
++   against upstream.
+ 
+ ## Delivery Plan (12 Weeks)
+ 
+-- 
+2.54.0
+
