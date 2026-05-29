@@ -1,0 +1,249 @@
+From ed94e05a7f9ee8deb7bea7a3f2732d7933beba58 Mon Sep 17 00:00:00 2001
+From: Frank Hermann <frank@hermann-essen.de>
+Date: Mon, 13 Apr 2026 20:22:51 +0200
+Subject: [PATCH] feat(dsa5): add create-actor-from-description tool
+
+---
+ .../actor-extraction-prompt.ts                | 41 +++++++++
+ .../src/adventure-import/llm-worker.ts        | 22 +++++
+ packages/mcp-server/src/backend.ts            |  9 ++
+ .../src/tools/actor-from-description.ts       | 92 +++++++++++++++++++
+ 4 files changed, 164 insertions(+)
+ create mode 100644 packages/mcp-server/src/adventure-import/actor-extraction-prompt.ts
+ create mode 100644 packages/mcp-server/src/tools/actor-from-description.ts
+
+diff --git a/packages/mcp-server/src/adventure-import/actor-extraction-prompt.ts b/packages/mcp-server/src/adventure-import/actor-extraction-prompt.ts
+new file mode 100644
+index 0000000..014eee3
+--- /dev/null
++++ b/packages/mcp-server/src/adventure-import/actor-extraction-prompt.ts
+@@ -0,0 +1,41 @@
++export function buildActorExtractionMessages(description: string): { system: string; user: string } {
++  const system = [
++    'You are a DSA5 (Das Schwarze Auge 5) game master assistant. Extract NPC data from',
++    'the provided German description and return ONLY valid JSON matching this exact schema:',
++    '',
++    '{',
++    '  "name": string,',
++    '  "spezies": string,',
++    '  "kultur": string,',
++    '  "profession": string,',
++    '  "sozialstatus": string,',
++    '  "attribute": {',
++    '    "mut": number,',
++    '    "klugheit": number,',
++    '    "intuition": number,',
++    '    "charisma": number,',
++    '    "fingerfertigkeit": number,',
++    '    "gewandheit": number,',
++    '    "konstitution": number,',
++    '    "k\\u00f6rperkraft": number',
++    '  },',
++    '  "energien": {',
++    '    "lebensenergie": number,',
++    '    "astralenergie": number,',
++    '    "karmaenergie": number,',
++    '    "schicksalspunkte": number',
++    '  },',
++    '  "gmNotes": string',
++    '}',
++    '',
++    'Rules:',
++    '- If a stat is not mentioned, use DSA5 defaults (10 for attributes, 20 for LeP).',
++    '- Do NOT invent stats that are not derivable from the description.',
++    '- Output ONLY the JSON object, no markdown, no explanation.',
++  ].join('\n');
++
++  return {
++    system,
++    user: description,
++  };
++}
+diff --git a/packages/mcp-server/src/adventure-import/llm-worker.ts b/packages/mcp-server/src/adventure-import/llm-worker.ts
+index 2c358b7..2ef115c 100644
+--- a/packages/mcp-server/src/adventure-import/llm-worker.ts
++++ b/packages/mcp-server/src/adventure-import/llm-worker.ts
+@@ -1,5 +1,6 @@
+ import { adventureImportSchema, type AdventureImportPayload } from './schema.js';
+ import { buildAdventureExtractionMessages, type AdventureExtractionInput } from './prompt.js';
++import { buildActorExtractionMessages } from './actor-extraction-prompt.js';
+ 
+ export interface AdventureImportWorkerOptions {
+   baseUrl?: string;
+@@ -19,6 +20,8 @@ export interface AdventureImportResult {
+   rawText: string;
+ }
+ 
++type JsonRecord = Record<string, unknown>;
++
+ const DEFAULT_BASE_URLS = [
+   process.env.ADVENTURE_IMPORT_LLM_BASE_URL,
+   process.env.OPENAI_BASE_URL,
+@@ -122,6 +125,25 @@ export class AdventureImportWorker {
+     return { payload, rawText };
+   }
+ 
++  async extractActor(description: string): Promise<{ payload: JsonRecord; rawText: string }> {
++    const messages = buildActorExtractionMessages(description);
++    const rawText = await this.callModel(messages);
++    const jsonText = extractJsonCandidate(rawText);
++
++    let parsed: unknown;
++    try {
++      parsed = JSON.parse(jsonText);
++    } catch (error) {
++      throw new Error(`LLM response is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
++    }
++
++    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
++      throw new Error('LLM response must be a JSON object');
++    }
++
++    return { payload: parsed as JsonRecord, rawText };
++  }
++
+   private async callModel(messages: { system: string; user: string }): Promise<string> {
+     const url = resolveChatCompletionsUrl(this.baseUrl);
+     const body = {
+diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
+index 068d410..8ae96f6 100644
+--- a/packages/mcp-server/src/backend.ts
++++ b/packages/mcp-server/src/backend.ts
+@@ -28,6 +28,7 @@ import { DSA5JsonActorImporter } from './systems/dsa5/json-actor-importer.js';
+ import { QuestCreationTools } from './tools/quest-creation.js';
+ 
+ import { AdventureImportTools } from './tools/adventure-import.js';
++import { ActorFromDescriptionTools } from './tools/actor-from-description.js';
+ 
+ import { DiceRollTools } from './tools/dice-roll.js';
+ 
+@@ -1160,6 +1161,7 @@ async function startBackend(): Promise<void> {
+   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
+ 
+   const adventureImportTools = new AdventureImportTools({ foundryClient, logger });
++  const actorFromDescriptionTools = new ActorFromDescriptionTools({ foundryClient, logger });
+ 
+   const diceRollTools = new DiceRollTools({ foundryClient, logger });
+ 
+@@ -1403,6 +1405,7 @@ async function startBackend(): Promise<void> {
+     ...questCreationTools.getToolDefinitions(),
+ 
+     ...adventureImportTools.getToolDefinitions(),
++    ...actorFromDescriptionTools.getToolDefinitions(),
+ 
+     ...diceRollTools.getToolDefinitions(),
+ 
+@@ -1660,6 +1663,12 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
++                case 'create-actor-from-description':
++
++                  result = await actorFromDescriptionTools.handleCreateActorFromDescription(args);
++
++                  break;
++
+                 // Dice roll tools
+ 
+                 case 'request-player-rolls':
+diff --git a/packages/mcp-server/src/tools/actor-from-description.ts b/packages/mcp-server/src/tools/actor-from-description.ts
+new file mode 100644
+index 0000000..4444295
+--- /dev/null
++++ b/packages/mcp-server/src/tools/actor-from-description.ts
+@@ -0,0 +1,92 @@
++import { z } from 'zod';
++import type { FoundryClient } from '../foundry-client.js';
++import type { Logger } from '../logger.js';
++import { AdventureImportWorker } from '../adventure-import/llm-worker.js';
++import { DSA5JsonActorImporter } from '../systems/dsa5/json-actor-importer.js';
++
++export interface ActorFromDescriptionToolsOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++  worker?: AdventureImportWorker;
++  importer?: DSA5JsonActorImporter;
++}
++
++export class ActorFromDescriptionTools {
++  private readonly logger: Logger;
++  private readonly worker: AdventureImportWorker;
++  private readonly importer: DSA5JsonActorImporter;
++
++  constructor(options: ActorFromDescriptionToolsOptions) {
++    this.logger = options.logger.child({ component: 'ActorFromDescriptionTools' });
++    this.worker = options.worker ?? new AdventureImportWorker();
++    this.importer =
++      options.importer ?? new DSA5JsonActorImporter({ foundryClient: options.foundryClient, logger: options.logger });
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'create-actor-from-description',
++        description:
++          'Create a DSA5 actor from a free-text German NPC description. Uses a local LLM to extract stats, then imports the actor into Foundry VTT.',
++        inputSchema: {
++          type: 'object',
++          required: ['description'],
++          properties: {
++            description: {
++              type: 'string',
++              description: 'Free-text NPC description in German (e.g. "Alaric ist ein erfahrener Soeldner, MU 13, KK 15...")',
++            },
++            mode: {
++              type: 'string',
++              enum: ['dry-run', 'import'],
++              default: 'dry-run',
++              description: 'dry-run returns a preview without writing to Foundry; import creates the actor',
++            },
++            resolveItems: {
++              type: 'boolean',
++              default: true,
++              description: 'Attempt to resolve equipment from DSA5 compendium',
++            },
++          },
++        },
++      },
++    ];
++  }
++
++  async handleCreateActorFromDescription(args: unknown): Promise<Record<string, unknown>> {
++    const request = z
++      .object({
++        description: z.string().min(1),
++        mode: z.enum(['dry-run', 'import']).default('dry-run'),
++        resolveItems: z.boolean().default(true),
++      })
++      .parse(args);
++
++    this.logger.info('Actor-from-description requested', {
++      mode: request.mode,
++      resolveItems: request.resolveItems,
++      descriptionLength: request.description.length,
++    });
++
++    const extracted = await this.worker.extractActor(request.description);
++
++    if (request.mode === 'dry-run') {
++      return {
++        mode: 'dry-run',
++        extractedPayload: extracted.payload,
++        rawText: extracted.rawText,
++        message: 'Preview only - call again with mode: "import" to create the actor in Foundry.',
++      };
++    }
++
++    return this.importer.handleImportActorFromJson({
++      jsonPayload: extracted.payload,
++      strategy: 'custom_dsa5',
++      resolveItems: request.resolveItems,
++      addToScene: false,
++      updateExisting: false,
++      strict: false,
++    });
++  }
++}
+-- 
+2.54.0
+

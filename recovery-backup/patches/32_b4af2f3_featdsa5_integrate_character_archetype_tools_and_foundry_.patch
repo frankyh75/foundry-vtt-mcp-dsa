@@ -1,0 +1,345 @@
+From b4af2f375c89005a329d6bd47c99cafc3cb61715 Mon Sep 17 00:00:00 2001
+From: Frank Hermann <frank@hermann-essen.de>
+Date: Tue, 17 Feb 2026 16:32:23 +0100
+Subject: [PATCH] feat(dsa5): integrate character/archetype tools and foundry
+ query hooks
+
+---
+ packages/foundry-module/src/data-access.ts    |  31 +++++-
+ packages/foundry-module/src/main.ts           |   7 ++
+ packages/foundry-module/src/queries.ts        |  24 +++++
+ packages/mcp-server/src/backend.ts            |  38 +++++++
+ .../src/systems/dsa5/character-creator.ts     | 101 ++++++++++++++----
+ packages/mcp-server/tsconfig.json             |   6 +-
+ 6 files changed, 181 insertions(+), 26 deletions(-)
+
+diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
+index 7b5e0d0..92ab4c6 100644
+--- a/packages/foundry-module/src/data-access.ts
++++ b/packages/foundry-module/src/data-access.ts
+@@ -2890,6 +2890,35 @@ export class FoundryDataAccess {
+     }));
+   }
+ 
++  /**
++   * Get pack index for a specific compendium pack
++   * Returns the index containing all documents in the pack without loading full documents
++   */
++  async getPackIndex(packId: string): Promise<any[]> {
++    try {
++      const pack = game.packs.get(packId);
++      if (!pack) {
++        throw new Error(`Compendium pack "${packId}" not found`);
++      }
++
++      // Ensure pack index is loaded
++      if (!pack.indexed) {
++        await pack.getIndex({});
++      }
++
++      // Return index as array of entries
++      const indexArray = Array.from(pack.index.values());
++      
++      console.log(`[${this.moduleId}] Retrieved pack index for ${packId}: ${indexArray.length} entries`);
++
++      return indexArray;
++
++    } catch (error) {
++      console.error(`[${this.moduleId}] Failed to get pack index for ${packId}:`, error);
++      throw new Error(`Failed to get pack index for ${packId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
+   /**
+    * Sanitize data to remove sensitive information and make it JSON-safe
+    */
+@@ -5657,4 +5686,4 @@ export class FoundryDataAccess {
+     }
+   }
+ 
+-}
+\ No newline at end of file
++}
+diff --git a/packages/foundry-module/src/main.ts b/packages/foundry-module/src/main.ts
+index 13013a0..83d91ba 100644
+--- a/packages/foundry-module/src/main.ts
++++ b/packages/foundry-module/src/main.ts
+@@ -115,6 +115,13 @@ class FoundryMCPBridge {
+       // Only for GM users
+       if (!this.isGMUser()) return;
+ 
++      // Enhanced creature index is only supported for D&D 5e and Pathfinder 2e
++      const gameSystem = game.system.id;
++      if (gameSystem !== 'dnd5e' && gameSystem !== 'pf2e') {
++        console.log(`[${MODULE_ID}] Enhanced creature index not supported for ${gameSystem}, skipping`);
++        return;
++      }
++
+       // Check if enhanced index is enabled
+       const enhancedIndexEnabled = this.settings.getSetting('enableEnhancedCreatureIndex');
+       if (!enhancedIndexEnabled) return;
+diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
+index 25b7a67..72ccf33 100644
+--- a/packages/foundry-module/src/queries.ts
++++ b/packages/foundry-module/src/queries.ts
+@@ -36,6 +36,7 @@ export class QueryHandlers {
+     CONFIG.queries[`${modulePrefix}.searchCompendium`] = this.handleSearchCompendium.bind(this);
+     CONFIG.queries[`${modulePrefix}.listCreaturesByCriteria`] = this.handleListCreaturesByCriteria.bind(this);
+     CONFIG.queries[`${modulePrefix}.getAvailablePacks`] = this.handleGetAvailablePacks.bind(this);
++    CONFIG.queries[`${modulePrefix}.getPackIndex`] = this.handleGetPackIndex.bind(this);
+ 
+     // Scene queries
+     CONFIG.queries[`${modulePrefix}.getActiveScene`] = this.handleGetActiveScene.bind(this);
+@@ -280,6 +281,29 @@ export class QueryHandlers {
+     }
+   }
+ 
++  /**
++   * Handle get pack index request
++   */
++  private async handleGetPackIndex(data: { packId: string }): Promise<any> {
++    try {
++      // SECURITY: Silent GM validation
++      const gmCheck = this.validateGMAccess();
++      if (!gmCheck.allowed) {
++        return { error: 'Access denied', success: false };
++      }
++
++      this.dataAccess.validateFoundryState();
++
++      if (!data.packId) {
++        throw new Error('packId is required');
++      }
++
++      return await this.dataAccess.getPackIndex(data.packId);
++    } catch (error) {
++      throw new Error(`Failed to get pack index: ${error instanceof Error ? error.message : 'Unknown error'}`);
++    }
++  }
++
+   /**
+    * Handle get active scene request
+    */
+diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
+index 03e4e73..bfe6d44 100644
+--- a/packages/mcp-server/src/backend.ts
++++ b/packages/mcp-server/src/backend.ts
+@@ -22,6 +22,8 @@ import { SceneTools } from './tools/scene.js';
+ 
+ import { ActorCreationTools } from './tools/actor-creation.js';
+ 
++import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
++
+ import { QuestCreationTools } from './tools/quest-creation.js';
+ 
+ import { DiceRollTools } from './tools/dice-roll.js';
+@@ -1141,6 +1143,9 @@ async function startBackend(): Promise<void> {
+ 
+   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
+ 
++  // DSA5-specific character creation tools
++  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
++
+   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
+ 
+   const diceRollTools = new DiceRollTools({ foundryClient, logger });
+@@ -1370,6 +1375,8 @@ async function startBackend(): Promise<void> {
+ 
+     ...actorCreationTools.getToolDefinitions(),
+ 
++    ...dsa5CharacterCreator.getToolDefinitions(),
++
+     ...questCreationTools.getToolDefinitions(),
+ 
+     ...diceRollTools.getToolDefinitions(),
+@@ -1476,12 +1483,30 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
++                case 'get-character-entity':
++
++                  result = await characterTools.handleGetCharacterEntity(args);
++
++                  break;
++
+                 case 'list-characters':
+ 
+                   result = await characterTools.handleListCharacters(args);
+ 
+                   break;
+ 
++                case 'use-item':
++
++                  result = await characterTools.handleUseItem(args);
++
++                  break;
++
++                case 'search-character-items':
++
++                  result = await characterTools.handleSearchCharacterItems(args);
++
++                  break;
++
+                 // Compendium tools
+ 
+                 case 'search-compendium':
+@@ -1536,6 +1561,19 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
++                // DSA5 character creation tools
++                case 'create-dsa5-character-from-archetype':
++
++                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
++
++                  break;
++
++                case 'list-dsa5-archetypes':
++
++                  result = await dsa5CharacterCreator.handleListArchetypes(args);
++
++                  break;
++
+                 // Quest creation tools
+ 
+                 case 'create-quest-journal':
+diff --git a/packages/mcp-server/src/systems/dsa5/character-creator.ts b/packages/mcp-server/src/systems/dsa5/character-creator.ts
+index 126f721..7e6d02b 100644
+--- a/packages/mcp-server/src/systems/dsa5/character-creator.ts
++++ b/packages/mcp-server/src/systems/dsa5/character-creator.ts
+@@ -229,33 +229,94 @@ export class DSA5CharacterCreator {
+       // Get archetypes from each pack
+       for (const pack of characterPacks) {
+         try {
++          this.logger.info(`Loading archetypes from pack ${pack.id}`, { packLabel: pack.label });
++          
+           const packIndex = await this.foundryClient.query('foundry-mcp-bridge.getPackIndex', {
+             packId: pack.id,
+           });
+ 
+-          // Filter archetypes
+-          const packArchetypes = packIndex
+-            .filter((entry: any) => entry.type === 'character')
+-            .filter((entry: any) => {
+-              if (filterBySpecies && entry.system?.details?.species?.value !== filterBySpecies) {
+-                return false;
+-              }
+-              if (filterByProfession && !entry.system?.details?.career?.value?.includes(filterByProfession)) {
+-                return false;
++          this.logger.info(`Pack index loaded for ${pack.id}`, {
++            totalEntries: packIndex?.length || 0,
++            firstEntry: packIndex?.[0] || null
++          });
++
++          // DSA5 Note: Don't filter by entry.type - DSA5 compendiums may use different types
++          // (npc, character, creature) or no type field at all.
++          // The pack-level filter (pack.type === 'Actor' && pack.system === 'dsa5') is sufficient.
++          const actorEntries = packIndex;
++
++          this.logger.info(`Actor entries found in ${pack.id}`, {
++            count: actorEntries.length,
++            sampleEntry: actorEntries[0] || null
++          });
++
++          // Apply optional filters and build archetype list
++          let filteredEntries = actorEntries;
++          
++          // If filters are specified, we need to fetch full data for entries
++          // since pack index doesn't contain system.details
++          if (filterBySpecies || filterByProfession) {
++            this.logger.info('Applying filters - loading full data for entries', {
++              filterBySpecies,
++              filterByProfession,
++              totalEntries: actorEntries.length
++            });
++            
++            const fullDataEntries: any[] = [];
++            
++            for (const entry of actorEntries) {
++              try {
++                const fullData = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
++                  packId: pack.id,
++                  documentId: entry._id || entry.id, // Pack index uses _id
++                });
++                
++                if (fullData) {
++                  // Check species filter (case-insensitive exact match)
++                  const speciesValue = fullData.system?.details?.species?.value || '';
++                  const speciesMatch = !filterBySpecies ||
++                    speciesValue.toLowerCase() === filterBySpecies.toLowerCase();
++
++                  // Check profession filter (case-insensitive partial match)
++                  const careerValue = fullData.system?.details?.career?.value || '';
++                  const professionMatch = !filterByProfession ||
++                    careerValue.toLowerCase().includes(filterByProfession.toLowerCase());
++                  
++                  if (speciesMatch && professionMatch) {
++                    fullDataEntries.push({
++                      id: entry.id,
++                      name: entry.name,
++                      packId: pack.id,
++                      packLabel: pack.label,
++                      species: fullData.system?.details?.species?.value || 'Unknown',
++                      profession: fullData.system?.details?.career?.value || 'Unknown',
++                      img: entry.img,
++                    });
++                  }
++                }
++              } catch (entryError) {
++                this.logger.warn(`Failed to load full data for entry ${entry.id}`, { error: entryError });
++                // Skip this entry on error
+               }
+-              return true;
+-            })
+-            .map((entry: any) => ({
+-              id: entry.id,
+-              name: entry.name,
+-              packId: pack.id,
+-              packLabel: pack.label,
+-              species: entry.system?.details?.species?.value || 'Unknown',
+-              profession: entry.system?.details?.career?.value || 'Unknown',
+-              img: entry.img,
+-            }));
++            }
++            
++            filteredEntries = fullDataEntries;
++            this.logger.info(`Filtered entries: ${filteredEntries.length} out of ${actorEntries.length}`);
++          }
++          
++          // Map entries to archetype format
++          const packArchetypes = filteredEntries.map((entry: any) => ({
++            id: entry._id || entry.id, // Pack index uses _id, filtered entries use id
++            name: entry.name,
++            packId: pack.id,
++            packLabel: pack.label,
++            species: entry.species || entry.system?.details?.species?.value || 'Unknown',
++            profession: entry.profession || entry.system?.details?.career?.value || 'Unknown',
++            img: entry.img,
++          }));
+ 
+           archetypes.push(...packArchetypes);
++          this.logger.info(`Added ${packArchetypes.length} archetypes from ${pack.id}`);
+         } catch (packError) {
+           this.logger.warn(`Failed to load archetypes from pack ${pack.id}`, { error: packError });
+         }
+diff --git a/packages/mcp-server/tsconfig.json b/packages/mcp-server/tsconfig.json
+index 6afb52f..7d770be 100644
+--- a/packages/mcp-server/tsconfig.json
++++ b/packages/mcp-server/tsconfig.json
+@@ -14,12 +14,8 @@
+     "forceConsistentCasingInFileNames": true,
+     "resolveJsonModule": true,
+     "outDir": "./dist",
+-    "rootDir": "./src",
+-    "composite": true
++    "rootDir": "./src"
+   },
+   "include": ["src/**/*"],
+-  "references": [
+-    { "path": "../../shared" }
+-  ],
+   "exclude": ["dist", "**/*.test.*", "**/*.spec.*"]
+ }
+-- 
+2.54.0
+

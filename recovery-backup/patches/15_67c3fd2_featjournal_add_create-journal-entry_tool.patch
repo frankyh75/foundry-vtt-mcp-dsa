@@ -1,0 +1,174 @@
+From 67c3fd23bd4d4c8a8b66b7dad05d11854bd45087 Mon Sep 17 00:00:00 2001
+From: Frank Hermann <frank@hermann-essen.de>
+Date: Mon, 13 Apr 2026 20:05:19 +0200
+Subject: [PATCH] feat(journal): add create-journal-entry tool
+
+---
+ packages/mcp-server/src/backend.ts            |  6 ++
+ .../src/tools/quest-creation.test.ts          | 60 +++++++++++++++++++
+ .../mcp-server/src/tools/quest-creation.ts    | 53 +++++++++++++++-
+ 3 files changed, 118 insertions(+), 1 deletion(-)
+ create mode 100644 packages/mcp-server/src/tools/quest-creation.test.ts
+
+diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
+index 4f5099f..068d410 100644
+--- a/packages/mcp-server/src/backend.ts
++++ b/packages/mcp-server/src/backend.ts
+@@ -1624,6 +1624,12 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
++                case 'create-journal-entry':
++
++                  result = await questCreationTools.handleCreateJournalEntry(args);
++
++                  break;
++
+                 case 'link-quest-to-npc':
+ 
+                   result = await questCreationTools.handleLinkQuestToNPC(args);
+diff --git a/packages/mcp-server/src/tools/quest-creation.test.ts b/packages/mcp-server/src/tools/quest-creation.test.ts
+new file mode 100644
+index 0000000..f07a5e0
+--- /dev/null
++++ b/packages/mcp-server/src/tools/quest-creation.test.ts
+@@ -0,0 +1,60 @@
++import { describe, expect, it, vi } from 'vitest';
++import { QuestCreationTools } from './quest-creation.js';
++
++const logger = {
++  child: () => logger,
++  info: vi.fn(),
++  warn: vi.fn(),
++  error: vi.fn(),
++  debug: vi.fn(),
++} as any;
++
++function createFoundryClientMock() {
++  return {
++    query: vi.fn(),
++  } as any;
++}
++
++describe('QuestCreationTools', () => {
++  it('creates a journal entry with name and content', async () => {
++    const foundryClient = createFoundryClientMock();
++    foundryClient.query.mockResolvedValue({
++      id: 'journal-1',
++      name: 'Kapitel 1',
++      pageCount: 1,
++    });
++
++    const tools = new QuestCreationTools({ foundryClient, logger });
++    const result = await tools.handleCreateJournalEntry({
++      name: 'Kapitel 1',
++      content: '<p>Inhalt</p>',
++    });
++
++    expect(foundryClient.query).toHaveBeenCalledWith(
++      'foundry-mcp-bridge.createJournalEntry',
++      {
++        name: 'Kapitel 1',
++        content: '<p>Inhalt</p>',
++      }
++    );
++    expect(result).toEqual({
++      success: true,
++      id: 'journal-1',
++      name: 'Kapitel 1',
++      pageCount: 1,
++    });
++  });
++
++  it('returns a validation error when content is missing', async () => {
++    const foundryClient = createFoundryClientMock();
++    const tools = new QuestCreationTools({ foundryClient, logger });
++
++    await expect(
++      tools.handleCreateJournalEntry({
++        name: 'Kapitel 1',
++      })
++    ).rejects.toThrow();
++
++    expect(foundryClient.query).not.toHaveBeenCalled();
++  });
++});
+diff --git a/packages/mcp-server/src/tools/quest-creation.ts b/packages/mcp-server/src/tools/quest-creation.ts
+index ff7cf6a..65d26ca 100644
+--- a/packages/mcp-server/src/tools/quest-creation.ts
++++ b/packages/mcp-server/src/tools/quest-creation.ts
+@@ -43,6 +43,36 @@ export class QuestCreationTools {
+    */
+   getToolDefinitions() {
+     return [
++      {
++        name: 'create-journal-entry',
++        description: 'Create a general journal entry in Foundry VTT. Use for location descriptions, lore, adventure chapters, GM notes — anything that is not a structured quest. For quests use create-quest-journal instead.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            name: {
++              type: 'string',
++              description: 'Journal entry title (required)',
++            },
++            content: {
++              type: 'string',
++              description: 'HTML or plain text content for the main page (required)',
++            },
++            additionalPages: {
++              type: 'array',
++              description: 'Optional additional pages',
++              items: {
++                type: 'object',
++                properties: {
++                  name: { type: 'string' },
++                  content: { type: 'string' },
++                },
++                required: ['name', 'content'],
++              },
++            },
++          },
++          required: ['name', 'content'],
++        },
++      },
+       {
+         name: 'create-quest-journal',
+         description: 'Create a new quest journal entry with AI-generated content based on natural language description',
+@@ -200,6 +230,27 @@ export class QuestCreationTools {
+     ];
+   }
+ 
++  /**
++   * Handle create journal entry request
++   */
++  async handleCreateJournalEntry(args: unknown): Promise<any> {
++    const schema = z.object({
++      name: z.string().min(1),
++      content: z.string().min(1),
++      additionalPages: z.array(z.object({
++        name: z.string().min(1),
++        content: z.string(),
++      })).optional(),
++    });
++    const params = schema.parse(args);
++    this.logger.info('Creating journal entry', { name: params.name });
++    const result = await this.foundryClient.query(
++      'foundry-mcp-bridge.createJournalEntry',
++      params
++    );
++    return { success: true, ...result };
++  }
++
+   /**
+    * Handle create quest journal request
+    */
+@@ -1248,4 +1299,4 @@ export class QuestCreationTools {
+     
+     return content;
+   }
+-}
+\ No newline at end of file
++}
+-- 
+2.54.0
+

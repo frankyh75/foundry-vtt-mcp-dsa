@@ -1,0 +1,263 @@
+From a1546986aee3d2814cc98dfad4b60f21302901d1 Mon Sep 17 00:00:00 2001
+From: Frank Hermann <frank@hermann-essen.de>
+Date: Sun, 12 Apr 2026 21:08:43 +0200
+Subject: [PATCH] feat(scene): add create-scene-placeholder tool
+
+---
+ packages/foundry-module/src/data-access.ts  | 34 ++++++++++++
+ packages/foundry-module/src/queries.ts      | 24 +++++++++
+ packages/mcp-server/src/backend.ts          |  6 +++
+ packages/mcp-server/src/tools/scene.test.ts | 53 ++++++++++++++++++
+ packages/mcp-server/src/tools/scene.ts      | 60 ++++++++++++++++++++-
+ 5 files changed, 176 insertions(+), 1 deletion(-)
+ create mode 100644 packages/mcp-server/src/tools/scene.test.ts
+
+diff --git a/packages/foundry-module/src/data-access.ts b/packages/foundry-module/src/data-access.ts
+index 9f5c78d..fa01b10 100644
+--- a/packages/foundry-module/src/data-access.ts
++++ b/packages/foundry-module/src/data-access.ts
+@@ -5360,6 +5360,40 @@ export class FoundryDataAccess {
+     }
+   }
+ 
++  async createScenePlaceholder(data: {
++    name: string;
++    description?: string;
++    backgroundImageUrl?: string;
++    gridSize?: number;
++    width?: number;
++    height?: number;
++  }): Promise<{ sceneId: string; name: string; success: boolean }> {
++    const sceneData: Record<string, unknown> = {
++      name: data.name,
++      active: false,
++      navigation: true,
++    };
++
++    if (data.backgroundImageUrl) {
++      sceneData.background = { src: data.backgroundImageUrl };
++    }
++
++    if (data.description) {
++      sceneData.description = data.description;
++    }
++
++    sceneData.grid = { size: data.gridSize ?? 100 };
++    sceneData.width = data.width ?? 4000;
++    sceneData.height = data.height ?? 3000;
++
++    const scene = await Scene.create(sceneData as any);
++    if (!scene) {
++      throw new Error(`Failed to create scene "${data.name}"`);
++    }
++
++    return { sceneId: scene.id as string, name: scene.name as string, success: true };
++  }
++
+   // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
+ 
+   /**
+diff --git a/packages/foundry-module/src/queries.ts b/packages/foundry-module/src/queries.ts
+index fa4870a..807abea 100644
+--- a/packages/foundry-module/src/queries.ts
++++ b/packages/foundry-module/src/queries.ts
+@@ -42,6 +42,7 @@ export class QueryHandlers {
+     CONFIG.queries[`${modulePrefix}.getActiveScene`] = this.handleGetActiveScene.bind(this);
+     CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
+     CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
++    CONFIG.queries[`${modulePrefix}.createScenePlaceholder`] = this.handleCreateScenePlaceholder.bind(this);
+ 
+     // World queries
+     CONFIG.queries[`${modulePrefix}.getWorldInfo`] = this.handleGetWorldInfo.bind(this);
+@@ -956,6 +957,29 @@ export class QueryHandlers {
+     }
+   }
+ 
++  private async handleCreateScenePlaceholder(data: {
++    name: string;
++    description?: string;
++    backgroundImageUrl?: string;
++    gridSize?: number;
++    width?: number;
++    height?: number;
++  }): Promise<any> {
++    // SECURITY: Silent GM validation
++    const gmCheck = this.validateGMAccess();
++    if (!gmCheck.allowed) {
++      return { error: 'Access denied', success: false };
++    }
++
++    this.dataAccess.validateFoundryState();
++
++    if (!data.name || typeof data.name !== 'string') {
++      throw new Error('name is required');
++    }
++
++    return await this.dataAccess.createScenePlaceholder(data);
++  }
++
+   /**
+    * Handle map generation request - uses hybrid architecture
+    */
+diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
+index ffd38b4..4f5099f 100644
+--- a/packages/mcp-server/src/backend.ts
++++ b/packages/mcp-server/src/backend.ts
+@@ -1760,6 +1760,12 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
++                case 'create-scene-placeholder':
++
++                  result = await sceneTools.handleCreateScenePlaceholder(args);
++
++                  break;
++
+                 default:
+ 
+                   throw new Error(`Unknown tool: ${name}`);
+diff --git a/packages/mcp-server/src/tools/scene.test.ts b/packages/mcp-server/src/tools/scene.test.ts
+new file mode 100644
+index 0000000..383fae7
+--- /dev/null
++++ b/packages/mcp-server/src/tools/scene.test.ts
+@@ -0,0 +1,53 @@
++import { describe, expect, it, vi } from 'vitest';
++import { SceneTools } from './scene.js';
++
++const logger = {
++  child: () => logger,
++  info: vi.fn(),
++  warn: vi.fn(),
++  error: vi.fn(),
++  debug: vi.fn(),
++} as any;
++
++function createFoundryClientMock() {
++  return {
++    query: vi.fn(),
++  } as any;
++}
++
++describe('SceneTools', () => {
++  it('creates a scene placeholder with only a name', async () => {
++    const foundryClient = createFoundryClientMock();
++    foundryClient.query.mockResolvedValue({
++      sceneId: 'scene-1',
++      name: 'Hafenviertel',
++      success: true,
++    });
++
++    const tools = new SceneTools({ foundryClient, logger });
++    const result = await tools.handleCreateScenePlaceholder({ name: 'Hafenviertel' });
++
++    expect(foundryClient.query).toHaveBeenCalledWith(
++      'foundry-mcp-bridge.createScenePlaceholder',
++      {
++        name: 'Hafenviertel',
++        gridSize: 100,
++        width: 4000,
++        height: 3000,
++      }
++    );
++    expect(result).toEqual({
++      sceneId: 'scene-1',
++      name: 'Hafenviertel',
++      success: true,
++    });
++  });
++
++  it('returns a validation error when name is missing', async () => {
++    const foundryClient = createFoundryClientMock();
++    const tools = new SceneTools({ foundryClient, logger });
++
++    await expect(tools.handleCreateScenePlaceholder({})).rejects.toThrow();
++    expect(foundryClient.query).not.toHaveBeenCalled();
++  });
++});
+diff --git a/packages/mcp-server/src/tools/scene.ts b/packages/mcp-server/src/tools/scene.ts
+index 29bbc41..2f52220 100644
+--- a/packages/mcp-server/src/tools/scene.ts
++++ b/packages/mcp-server/src/tools/scene.ts
+@@ -48,6 +48,43 @@ export class SceneTools {
+           properties: {},
+         },
+       },
++      {
++        name: 'create-scene-placeholder',
++        description: 'Create a new empty scene without a map image. Use for text-based adventure import when no battlemap is needed yet.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            name: {
++              type: 'string',
++              description: 'Scene name (required)',
++            },
++            description: {
++              type: 'string',
++              description: 'Optional scene description shown in scene notes',
++            },
++            backgroundImageUrl: {
++              type: 'string',
++              description: 'Optional URL of a background image',
++            },
++            gridSize: {
++              type: 'number',
++              description: 'Grid size in pixels (default: 100)',
++              default: 100,
++            },
++            width: {
++              type: 'number',
++              description: 'Scene width in pixels (default: 4000)',
++              default: 4000,
++            },
++            height: {
++              type: 'number',
++              description: 'Scene height in pixels (default: 3000)',
++              default: 3000,
++            },
++          },
++          required: ['name'],
++        },
++      },
+     ];
+   }
+ 
+@@ -97,6 +134,27 @@ export class SceneTools {
+     }
+   }
+ 
++  async handleCreateScenePlaceholder(args: unknown): Promise<any> {
++    const schema = z.object({
++      name: z.string().min(1),
++      description: z.string().optional(),
++      backgroundImageUrl: z.string().url().optional(),
++      gridSize: z.number().int().positive().default(100),
++      width: z.number().int().positive().default(4000),
++      height: z.number().int().positive().default(3000),
++    });
++
++    const params = schema.parse(args);
++    this.logger.info('Creating scene placeholder', { name: params.name });
++
++    const result = await this.foundryClient.query(
++      'foundry-mcp-bridge.createScenePlaceholder',
++      params
++    );
++
++    return { success: true, ...result };
++  }
++
+   private formatSceneResponse(sceneData: any, includeTokens: boolean, includeHidden: boolean): any {
+     const response: any = {
+       id: sceneData.id,
+@@ -235,4 +293,4 @@ export class SceneTools {
+     }
+     return text.substring(0, maxLength - 3) + '...';
+   }
+-}
+\ No newline at end of file
++}
+-- 
+2.54.0
+

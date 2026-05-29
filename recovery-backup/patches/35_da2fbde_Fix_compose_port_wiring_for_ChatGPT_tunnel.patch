@@ -1,0 +1,89 @@
+From da2fbde1382d348c1f71afbda29249c09fe98aa9 Mon Sep 17 00:00:00 2001
+From: frankyh75 <63338994+frankyh75@users.noreply.github.com>
+Date: Sun, 11 Jan 2026 20:55:34 +0100
+Subject: [PATCH] Fix compose port wiring for ChatGPT tunnel
+
+---
+ .env.example                           |  1 +
+ README.md                              |  1 +
+ docker-compose.yml                     |  2 +-
+ packages/mcp-server/src/http-bridge.ts |  2 +-
+ scripts/smoke-test-chatgpt.sh          | 12 ++++++++++++
+ 5 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/.env.example b/.env.example
+index d660284..ab4fbc7 100644
+--- a/.env.example
++++ b/.env.example
+@@ -4,6 +4,7 @@
+ # ChatGPT HTTP Bridge (required for Docker Compose quickstart)
+ # =============================================================================
+ MCP_AUTH_TOKEN=change-me
++# MCP_HTTP_PORT controls the HOST port only; the container always listens on 3333.
+ MCP_HTTP_PORT=3333
+ 
+ # =============================================================================
+diff --git a/README.md b/README.md
+index dff0081..89fecde 100644
+--- a/README.md
++++ b/README.md
+@@ -105,6 +105,7 @@ Dieser Quickstart nutzt Docker Compose + Cloudflare Tunnel, um **nur** den MCP H
+    cp .env.example .env
+    ```
+    - Setze **MCP_AUTH_TOKEN** auf einen starken Wert.
++   - **MCP_HTTP_PORT** steuert nur den Host-Port; der Container lauscht immer auf **3333**.
+    - Wenn Foundry auf deinem Host läuft, belasse `FOUNDRY_HOST=host.docker.internal`.
+ 2. Starte den MCP HTTP Endpoint + Tunnel:
+    ```bash
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 5d4f87b..64d88fb 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -7,7 +7,7 @@ services:
+       - .env
+     environment:
+       MCP_HTTP_HOST: 0.0.0.0
+-      MCP_HTTP_PORT: ${MCP_HTTP_PORT:-3333}
++      MCP_LISTEN_PORT: 3333
+     ports:
+       - "127.0.0.1:${MCP_HTTP_PORT:-3333}:3333"
+     restart: unless-stopped
+diff --git a/packages/mcp-server/src/http-bridge.ts b/packages/mcp-server/src/http-bridge.ts
+index f15f5e4..22d1c97 100644
+--- a/packages/mcp-server/src/http-bridge.ts
++++ b/packages/mcp-server/src/http-bridge.ts
+@@ -28,7 +28,7 @@ if (!authToken) {
+ }
+ 
+ const httpHost = process.env.MCP_HTTP_HOST || '0.0.0.0';
+-const httpPort = Number.parseInt(process.env.MCP_HTTP_PORT || '3333', 10);
++const httpPort = Number.parseInt(process.env.MCP_LISTEN_PORT || '3333', 10);
+ 
+ const serverCommand = process.env.MCP_SERVER_COMMAND || 'node';
+ const serverArgsRaw = process.env.MCP_SERVER_ARGS?.trim();
+diff --git a/scripts/smoke-test-chatgpt.sh b/scripts/smoke-test-chatgpt.sh
+index d5faefb..332f987 100755
+--- a/scripts/smoke-test-chatgpt.sh
++++ b/scripts/smoke-test-chatgpt.sh
+@@ -4,6 +4,18 @@ set -euo pipefail
+ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ cd "$ROOT_DIR"
+ 
++compose_file="${ROOT_DIR}/docker-compose.yml"
++if [ -f "$compose_file" ]; then
++  if ! rg -q "mcp-http-bridge:3333" "$compose_file"; then
++    echo "FAIL: cloudflared target must be http://mcp-http-bridge:3333."
++    exit 1
++  fi
++  if ! rg -q "MCP_LISTEN_PORT:\\s*3333" "$compose_file"; then
++    echo "FAIL: mcp-http-bridge must listen on port 3333 in compose."
++    exit 1
++  fi
++fi
++
+ if [ -f .env ]; then
+   set -a
+   # shellcheck disable=SC1091
+-- 
+2.54.0
+

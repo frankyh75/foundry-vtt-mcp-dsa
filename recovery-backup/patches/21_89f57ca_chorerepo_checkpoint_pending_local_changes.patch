@@ -1,0 +1,407 @@
+From 89f57ca177653447b87730377b38caa38757e828 Mon Sep 17 00:00:00 2001
+From: Frank Hermann <frank@hermann-essen.de>
+Date: Thu, 5 Mar 2026 07:14:49 +0100
+Subject: [PATCH] chore(repo): checkpoint pending local changes
+
+---
+ .claude/settings.local.json        |   7 +-
+ AGENTS.md                          |  29 +++--
+ A_REPO_OVERVIEW.md                 |  38 +++++++
+ Claude.md                          |  29 +++++
+ packages/mcp-server/tsconfig.json  |   1 +
+ scripts/test-problematic-tools.mjs | 166 ++++++++++++++++++++---------
+ 6 files changed, 209 insertions(+), 61 deletions(-)
+ create mode 100644 A_REPO_OVERVIEW.md
+
+diff --git a/.claude/settings.local.json b/.claude/settings.local.json
+index 73094be..c92ddf2 100644
+--- a/.claude/settings.local.json
++++ b/.claude/settings.local.json
+@@ -101,7 +101,12 @@
+       "Bash(/Users/Adam/Projects/foundry-vtt-mcp/update-wrapper.sh:*)",
+       "Bash(/Applications/FoundryMCPServer.app/Contents/Resources/ComfyUI/venv/bin/python /Applications/FoundryMCPServer.app/Contents/Resources/ComfyUI/main.py --help)",
+       "Bash(./update-backend-now.sh:*)",
+-      "Bash(hdiutil detach:*)"
++      "Bash(hdiutil detach:*)",
++      "mcp__web-reader__webReader",
++      "WebFetch(domain:dersmarteheld.de)",
++      "WebFetch(domain:github.com)",
++      "WebFetch(domain:raw.githubusercontent.com)",
++      "mcp__web-search-prime__webSearchPrime"
+     ],
+     "deny": [],
+     "ask": [],
+diff --git a/AGENTS.md b/AGENTS.md
+index 912e433..544ed1b 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -1,5 +1,19 @@
+ # Repository Guidelines
+ 
++## Arbeitsaufteilung: Claude plant, Codex führt aus
++
++**Claude (claude-sonnet):** Analysiert Architektur, erkennt Probleme, schreibt präzise Codex-Prompts.
++**Codex:** Führt die eigentlichen Code-Änderungen aus — kein Analysieren, direkt implementieren.
++
++### Execution Rules für Codex
++- Keine Rückfragen — Anforderungen stehen im Prompt oder in den Constraints unten
++- Nach jeder Änderung: `npm run typecheck` (muss 0 Fehler liefern)
++- Nach jeder Änderung: `npm -w @foundry-mcp/server run test` (alle Tests grün)
++- Committen mit Conventional Commits (siehe unten)
++- Bei Unklarheiten: Architektur-Constraints aus diesem File priorisieren
++
++---
++
+ ## Project Structure & Module Organization
+ - `packages/mcp-server/`: Node.js MCP server (main backend, system adapters).
+ - `packages/foundry-module/`: Foundry VTT module (browser-side bridge).
+@@ -23,7 +37,13 @@
+ - Format with Prettier and lint with ESLint (`.prettierrc`, `.eslintrc.json`).
+ - Tests use `*.test.ts` (example: `packages/mcp-server/src/systems/dsa5/filters.test.ts`).
+ - DSA5 logic stays in `packages/mcp-server/src/systems/dsa5/`.
+-- Avoid changing `packages/foundry-module/src/data-access.ts` unless a generic, upstream-safe fix is required.
++- **Do not modify `packages/foundry-module/src/data-access.ts`** unless the change is generic and upstream-safe. No system-specific (DSA5/PF2e/D&D5e) logic in this file.
++
++## Architecture: Adapter, not Integration
++DSA5 support is an external adapter layer. Core files (`data-access.ts`) stay upstream-compatible.
++- System-specific logic → `packages/mcp-server/src/systems/dsa5/`
++- Generic parameters only in `data-access.ts` (e.g. `preserveItemTypes?: string[]`, not `['species','culture','career']`)
++- Upstream merge must remain conflict-free: `git merge upstream/main`
+ 
+ ## Testing Guidelines
+ - Unit tests run via Vitest in the server package (`npm -w @foundry-mcp/server run test`).
+@@ -34,15 +54,10 @@
+ - Commit messages follow Conventional Commits with scope:
+   - `feat(dsa5): add experience level calculation`
+   - `fix(mcp-server): correct wound/HP inversion`
++  - `refactor(dsa5): move identity-type preservation out of data-access`
+ - Main branch is `master`.
+ - No formal PR template; include a concise summary, test results, and any relevant config or migration notes.
+ 
+ ## Configuration & Security
+ - Copy `.env.example` to `.env` for local setup.
+ - Treat `MCP_AUTH_TOKEN` and OAuth secrets as sensitive; do not commit them.
+-
+-## Session Notes (2026-01-15)
+-- Verified MCP tool list via stdio (34 tools exposed).
+-- Added backend routing for character tools in `packages/mcp-server/src/backend.ts` (get-character-entity, use-item, search-character-items).
+-- Observed `search-character-items` and `get-character` timing out via backend control channel; needs follow-up in Foundry logs or tool handler.
+-- Reminder: Foundry bridge requires MCP server running on localhost:31415 (`npm -w @foundry-mcp/server run start`).
+diff --git a/A_REPO_OVERVIEW.md b/A_REPO_OVERVIEW.md
+new file mode 100644
+index 0000000..096391b
+--- /dev/null
++++ b/A_REPO_OVERVIEW.md
+@@ -0,0 +1,38 @@
++# A) Repo-Überblick – Foundry VTT MCP Bridge (Ist-Stand)
++
++## Entry Points
++- **Monorepo Root**: npm workspaces orchestrieren `packages/mcp-server`, `packages/foundry-module`, `shared`. Root-Skripte delegieren Build/Dev/Test pro Workspace. 
++- **MCP Wrapper/CLI Entry**: `packages/mcp-server/src/index.ts` startet als shebang-CLI, initialisiert MCP-Server (stdio) und spawnt den Backend-Prozess (`backend.js`/`backend.bundle.cjs`).
++- **MCP Backend Entry**: `packages/mcp-server/src/backend.ts` initialisiert Logger, Foundry-Connector, Tool-Instanzen, System-Adapter (dnd5e/pf2e/dsa5), und TCP-Control-Channel (`127.0.0.1:31414`).
++- **Foundry Module Entry**: `packages/foundry-module/src/main.ts` registriert Settings/Queries/Hooks und startet Socket-Brücke innerhalb Foundry.
++- **Foundry Query Surface**: `packages/foundry-module/src/queries.ts` registriert die Query-Endpunkte in `CONFIG.queries[...]` (Read/Write, Kampagne, Map, Token, Ownership).
++
++## Hauptmodule und Datenfluss (heutige Architektur)
++1. Claude Desktop → MCP stdio → `mcp-server/src/index.ts`
++2. Wrapper → lokales TCP JSON-lines (`31414`) → `mcp-server/src/backend.ts`
++3. Backend → `FoundryClient`/`FoundryConnector` (WebSocket/WebRTC) → Foundry Module
++4. Foundry Module QueryHandlers → Foundry DataAccess/World APIs
++5. Optional: Map-Generation via `ComfyUIClient` (lokal, `127.0.0.1:31411`)
++
++## Konfiguration
++- Zentral in `packages/mcp-server/src/config.ts` via `dotenv` + `zod`-Schema.
++- Konfigurierbar u.a. Log-Level/-Format, Foundry Host/Port/Namespace, Verbindungsmodus (websocket/webrtc/auto), STUN-Server, ComfyUI-Pfad/Host/Port.
++
++## Verwendete SDKs/APIs
++- MCP: `@modelcontextprotocol/sdk`
++- Runtime/Validation: TypeScript, `zod`
++- Transport: `ws`, `werift` (WebRTC)
++- Logging: `winston`
++- HTTP/Downloads: `axios`, `fetch`
++- Datenbank/Indexing: `better-sqlite3`
++
++## Cloud-/Remote-Abhängigkeiten (identifiziert)
++- **Primäre AI-Laufzeit** ist aktuell indirekt cloudgebunden über Claude Desktop als Host-LMM (MCP-Consumer), nicht über eigene OpenAI/Anthropic SDK-Aufrufe im Repo.
++- WebRTC-Default nutzt öffentliche Google STUN-Server (`stun.l.google.com`, `stun1.l.google.com`) in `config.ts`.
++- Mac-Installer lädt ComfyUI und Modelle via externe URLs (`download.comfy.org`, `huggingface.co`).
++- Optionales Remote-Betriebsprofil vorhanden (`foundry.remoteMode`, `FOUNDRY_REMOTE_MODE`), plus WebRTC-Signaling/remote connection paths.
++
++## Auffälligkeiten für spätere Local-First-Refactors
++- Kein dediziertes Ingest/Segment/Structure/Validate/Export-Pipeline-Modul vorhanden (muss neu eingeführt werden).
++- Kein LLM-Provider-Layer mit austauschbaren Backends (Ollama/LM Studio/Cloud) vorhanden.
++- Logging enthält teils strukturierte Metadaten/Inputs sowie explizites Debug-File-Append in `backend.ts` (Datenschutz/Compliance-Risiko).
+diff --git a/Claude.md b/Claude.md
+index 9c47568..042f32d 100644
+--- a/Claude.md
++++ b/Claude.md
+@@ -2,6 +2,21 @@
+ 
+ This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+ 
++## Arbeitsaufteilung: Claude plant, Codex führt aus
++
++**Claude (claude-sonnet):** Analysiert, plant, schreibt Codex-Prompts. Kein direktes Editieren von Code-Dateien.
++**Codex:** Führt die eigentlichen Code-Änderungen aus, läuft im Auto-Approve-Modus.
++
++### Workflow
++1. Claude liest Dateien, analysiert Architektur, erkennt Probleme
++2. Claude schreibt einen präzisen Codex-Prompt mit: betroffenen Dateien, exakten Änderungen, Constraints
++3. Codex führt aus, läuft Tests, committet
++
++### Claude-Permissions in diesem Repo
++- **Erlaubt ohne Rückfrage:** Read, Grep, Glob, Bash (read-only: git log/diff/show/status), TodoWrite
++- **Nicht erlaubt:** Edit, Write, Bash (schreibend) — das ist Codex-Domäne
++- **Ausnahme:** CLAUDE.md und Memory-Dateien darf Claude direkt schreiben
++
+ ## Project Overview
+ 
+ Fork of `foundry-vtt-mcp` adding DSA5 (Das Schwarze Auge 5) support. An MCP (Model Context Protocol) bridge connecting Foundry VTT to AI assistants (Claude Desktop, ChatGPT Pro) for AI-powered campaign management.
+@@ -254,3 +269,17 @@ MCP_PUBLIC_URL="https://YOUR-URL.trycloudflare.com" MCP_AUTH_TOKEN="testtoken" n
+ - URL: `https://YOUR-URL.trycloudflare.com/mcp` (oder `/sse` wenn Pattern 1)
+ - Authentication: `Keine Authentifizierung` (solange OAuth nicht vollständig)
+ - Checkbox: "Ich vertraue dieser Anwendung" aktivieren
++
++## Session Notes & Lessons Learned
++
++### 2026-01-15
++- Verified MCP tool list via stdio (34 tools exposed).
++- Added backend routing for character tools in `packages/mcp-server/src/backend.ts` (get-character-entity, use-item, search-character-items).
++- `search-character-items` and `get-character` timing out via backend control channel; needs follow-up in Foundry logs or tool handler.
++- Foundry bridge requires MCP server running on localhost:31415 (`npm -w @foundry-mcp/server run start`).
++
++### 2026-02-17
++- `tools/list` success only proves MCP stdio server availability, not Foundry runtime connectivity.
++- Character/scene tool diagnostics must run a bridge preflight first (e.g. `list-characters`) and explicitly detect `Foundry VTT module not connected`.
++- Avoid hardcoded character names/IDs in diagnostics; select dynamically from `list-characters` to prevent false negatives across worlds.
++- Treat `Error:` text payloads from tool calls as functional failures, not transport hangs.
+diff --git a/packages/mcp-server/tsconfig.json b/packages/mcp-server/tsconfig.json
+index 7d770be..de8608c 100644
+--- a/packages/mcp-server/tsconfig.json
++++ b/packages/mcp-server/tsconfig.json
+@@ -13,6 +13,7 @@
+     "skipLibCheck": true,
+     "forceConsistentCasingInFileNames": true,
+     "resolveJsonModule": true,
++    "composite": true,
+     "outDir": "./dist",
+     "rootDir": "./src"
+   },
+diff --git a/scripts/test-problematic-tools.mjs b/scripts/test-problematic-tools.mjs
+index 90d2b8e..445b228 100644
+--- a/scripts/test-problematic-tools.mjs
++++ b/scripts/test-problematic-tools.mjs
+@@ -1,18 +1,24 @@
+-#!/usr/bin/env node
++﻿#!/usr/bin/env node
+ 
+ /**
+- * Test the tools that Codex says are hanging
++ * Tests character tools with realistic preconditions:
++ * - MCP stdio server must be reachable
++ * - Foundry module bridge must be connected
++ * - At least one character should exist for positive-path tests
+  */
+ 
+ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+ 
+-const mcpServer = new Client({
+-  name: 'test-client',
+-  version: '1.0.0'
+-}, {
+-  capabilities: {}
+-});
++const mcpServer = new Client(
++  {
++    name: 'test-client',
++    version: '1.0.0'
++  },
++  {
++    capabilities: {}
++  }
++);
+ 
+ const transport = new StdioClientTransport({
+   command: 'node',
+@@ -24,78 +30,132 @@ async function testTool(toolName, args) {
+   const startTime = Date.now();
+ 
+   try {
+-    console.log(`\n🧪 Testing: ${toolName}`);
+-    console.log(`   Args:`, JSON.stringify(args));
++    console.log(`\n[TEST] ${toolName}`);
++    console.log(`       args=${JSON.stringify(args)}`);
+ 
+     const result = await Promise.race([
+       mcpServer.callTool({
+         name: toolName,
+         arguments: args
+       }),
+-      new Promise((_, reject) =>
+-        setTimeout(() => reject(new Error('TIMEOUT after 15s')), 15000)
+-      )
++      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT after 15s')), 15000))
+     ]);
+ 
+     const duration = Date.now() - startTime;
+-    console.log(`✅ SUCCESS (${duration}ms)`);
+-    console.log(`   Response length: ${result.content[0].text.length} chars`);
++    const text = result?.content?.[0]?.text ?? '';
++
++    console.log(`[OK]   completed in ${duration}ms`);
++    console.log(`       payloadLength=${text.length}`);
++
++    if (text.startsWith('Error:')) {
++      console.log(`       toolError=${text}`);
++      return { success: false, softFailure: true, duration, error: text };
++    }
+ 
+-    // Try to parse as JSON
+     try {
+-      const data = JSON.parse(result.content[0].text);
+-      console.log(`   Valid JSON: ✅`);
+-      if (data.id) console.log(`   Character: ${data.name || data.id}`);
+-      if (data.matches) console.log(`   Matches: ${data.matches.length}`);
++      const data = JSON.parse(text);
++      console.log('       json=valid');
++      if (data?.id || data?.name) {
++        console.log(`       entity=${data.name ?? data.id}`);
++      }
++      if (Array.isArray(data?.matches)) {
++        console.log(`       matches=${data.matches.length}`);
++      }
+     } catch {
+-      console.log(`   Valid JSON: ❌ (starts with: "${result.content[0].text.substring(0, 50)}...")`);
++      console.log(`       json=invalid preview="${text.substring(0, 80)}..."`);
+     }
+ 
+-    return { success: true, duration };
++    return { success: true, duration, text };
+   } catch (error) {
+     const duration = Date.now() - startTime;
+-    console.log(`❌ ERROR (${duration}ms): ${error.message}`);
+-    return { success: false, duration, error: error.message };
++    const message = error instanceof Error ? error.message : String(error);
++    console.log(`[ERR]  failed in ${duration}ms: ${message}`);
++    return { success: false, duration, error: message };
+   }
+ }
+ 
++async function assertBridgeConnected() {
++  const result = await mcpServer.callTool({
++    name: 'list-characters',
++    arguments: {}
++  });
++  const text = result?.content?.[0]?.text ?? '';
++
++  if (text.includes('Foundry VTT module not connected')) {
++    throw new Error('Bridge not connected: Foundry world/module is not connected to MCP server.');
++  }
++
++  if (text.startsWith('Error:')) {
++    throw new Error(`list-characters failed during preflight: ${text}`);
++  }
++
++  return text;
++}
++
++async function pickCharacterIdentifier() {
++  const result = await mcpServer.callTool({
++    name: 'list-characters',
++    arguments: {}
++  });
++  const text = result?.content?.[0]?.text ?? '';
++
++  if (text.startsWith('Error:')) {
++    throw new Error(`list-characters failed: ${text}`);
++  }
++
++  let parsed;
++  try {
++    parsed = JSON.parse(text);
++  } catch {
++    throw new Error(`list-characters returned non-JSON payload: ${text.substring(0, 120)}`);
++  }
++
++  const candidates = Array.isArray(parsed) ? parsed : Array.isArray(parsed.characters) ? parsed.characters : [];
++
++  if (candidates.length === 0) {
++    throw new Error('No characters found in current world; cannot run character tool tests.');
++  }
++
++  const first = candidates[0];
++  const identifier = first?.name || first?.id;
++
++  if (!identifier) {
++    throw new Error('Could not derive character identifier from list-characters response.');
++  }
++
++  return String(identifier);
++}
++
+ async function main() {
+-  console.log('🚀 Testing tools that Codex says are hanging...\n');
++  console.log('[START] Character tool diagnostics (bridge-aware)\n');
+ 
+   try {
+     await mcpServer.connect(transport);
+-    console.log('✅ Connected to MCP server\n');
+-
+-    // Test 1: get-character with Arbosch (player character)
+-    await testTool('get-character', {
+-      identifier: 'Arbosch Sohn des Angrax'
+-    });
+-
+-    // Test 2: get-character with ID
+-    await testTool('get-character', {
+-      identifier: 'OKr7XGGxd3JGBgOy'
+-    });
+-
+-    // Test 3: search-character-items
+-    await testTool('search-character-items', {
+-      characterIdentifier: 'Arbosch Sohn des Angrax',
+-      query: 'schwert'
+-    });
+-
+-    // Test 4: search-character-items with no query (all items)
+-    await testTool('search-character-items', {
+-      characterIdentifier: 'Arbosch Sohn des Angrax',
+-      limit: 10
+-    });
+-
+-    console.log('\n' + '='.repeat(60));
+-    console.log('✅ All tests completed!');
+-    console.log('='.repeat(60));
++    console.log('[OK] Connected to MCP server\n');
++
++    await assertBridgeConnected();
++    console.log('[OK] Foundry bridge connected\n');
++
++    const characterIdentifier = await pickCharacterIdentifier();
++    console.log(`[OK] Selected character identifier: ${characterIdentifier}\n`);
++
++    await testTool('get-character', { identifier: characterIdentifier });
++    await testTool('get-character', { identifier: 'NON_EXISTENT_CHARACTER_ID' });
++    await testTool('search-character-items', { characterIdentifier, query: 'schwert' });
++    await testTool('search-character-items', { characterIdentifier, limit: 10 });
++
++    console.log('\n[DONE] All diagnostics completed.');
+ 
+     await mcpServer.close();
+     process.exit(0);
+   } catch (error) {
+-    console.error('\n❌ Fatal error:', error.message);
++    const message = error instanceof Error ? error.message : String(error);
++    console.error(`\n[FATAL] ${message}`);
++
++    if (message.includes('Bridge not connected')) {
++      console.error('[ACTION] Open Foundry world and enable Foundry MCP Bridge module.');
++    }
++
+     await mcpServer.close();
+     process.exit(1);
+   }
+-- 
+2.54.0
+

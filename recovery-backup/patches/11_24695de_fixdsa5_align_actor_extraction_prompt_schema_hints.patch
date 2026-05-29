@@ -1,0 +1,52 @@
+From 24695def32dd4df97f07bd8d547666515f07536e Mon Sep 17 00:00:00 2001
+From: Frank Hermann <frank@hermann-essen.de>
+Date: Mon, 13 Apr 2026 20:24:13 +0200
+Subject: [PATCH] fix(dsa5): align actor extraction prompt schema hints
+
+---
+ .../actor-extraction-prompt.ts                | 20 +++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/packages/mcp-server/src/adventure-import/actor-extraction-prompt.ts b/packages/mcp-server/src/adventure-import/actor-extraction-prompt.ts
+index 014eee3..55665b7 100644
+--- a/packages/mcp-server/src/adventure-import/actor-extraction-prompt.ts
++++ b/packages/mcp-server/src/adventure-import/actor-extraction-prompt.ts
+@@ -5,12 +5,12 @@ export function buildActorExtractionMessages(description: string): { system: str
+     '',
+     '{',
+     '  "name": string,',
+-    '  "spezies": string,',
+-    '  "kultur": string,',
+-    '  "profession": string,',
+-    '  "sozialstatus": string,',
++    '  "spezies": string,        // e.g. "Mensch", "Elf", "Zwerg" - empty string if unspecified',
++    '  "kultur": string,         // empty string if unspecified',
++    '  "profession": string,     // NPC role/job, e.g. "Soeldner", "Haendlerin"',
++    '  "sozialstatus": string,   // empty string if unspecified',
+     '  "attribute": {',
+-    '    "mut": number,',
++    '    "mut": number,          // default 10 if not mentioned',
+     '    "klugheit": number,',
+     '    "intuition": number,',
+     '    "charisma": number,',
+@@ -20,12 +20,12 @@ export function buildActorExtractionMessages(description: string): { system: str
+     '    "k\\u00f6rperkraft": number',
+     '  },',
+     '  "energien": {',
+-    '    "lebensenergie": number,',
+-    '    "astralenergie": number,',
+-    '    "karmaenergie": number,',
+-    '    "schicksalspunkte": number',
++    '    "lebensenergie": number,   // default: 20 if not mentioned',
++    '    "astralenergie": number,   // default: 0',
++    '    "karmaenergie": number,    // default: 0',
++    '    "schicksalspunkte": number // default: 3',
+     '  },',
+-    '  "gmNotes": string',
++    '  "gmNotes": string           // any flavor text, personality traits, background not mappable to stats',
+     '}',
+     '',
+     'Rules:',
+-- 
+2.54.0
+

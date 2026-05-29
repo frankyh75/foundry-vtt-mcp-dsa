@@ -1,0 +1,351 @@
+From 2c72990e4aadda5eb4b537e686d81fbb86fdca56 Mon Sep 17 00:00:00 2001
+From: Frank Hermann <frank@hermann-essen.de>
+Date: Sun, 11 Jan 2026 23:48:02 +0100
+Subject: [PATCH] fix(mcp-server): normalize tool definitions without violating
+ exactOptionalPropertyTypes
+
+- accept tool definitions with optional description from getToolDefinitions()
+- omit description property when undefined instead of forcing empty strings
+- keep ToolDefinition output strict and upstream-compatible
+- avoid any-casts and preserve semantic meaning of optional fields
+---
+ packages/foundry-module/tsconfig.json  |   4 +-
+ packages/mcp-server/src/backend.ts     | 133 ++++++++++++++++---------
+ packages/mcp-server/src/http-bridge.ts |  35 +++++--
+ 3 files changed, 115 insertions(+), 57 deletions(-)
+
+diff --git a/packages/foundry-module/tsconfig.json b/packages/foundry-module/tsconfig.json
+index ebd0f54..95134f5 100644
+--- a/packages/foundry-module/tsconfig.json
++++ b/packages/foundry-module/tsconfig.json
+@@ -3,6 +3,7 @@
+   "compilerOptions": {
+     "outDir": "./dist",
+     "rootDir": "./src",
++    "composite": true,
+     "target": "ES2022",
+     "module": "ESNext",
+     "moduleResolution": "bundler",
+@@ -16,5 +17,6 @@
+     }
+   },
+   "include": ["src/**/*", "types/**/*"],
+-  "exclude": ["dist", "**/*.test.*", "**/*.spec.*"]
++  "exclude": ["dist", "scripts", "scripts/**/*", "**/*.test.*", "**/*.spec.*"]
++
+ }
+\ No newline at end of file
+diff --git a/packages/mcp-server/src/backend.ts b/packages/mcp-server/src/backend.ts
+index 072a572..03e4e73 100644
+--- a/packages/mcp-server/src/backend.ts
++++ b/packages/mcp-server/src/backend.ts
+@@ -34,7 +34,80 @@ import { MapGenerationTools } from './tools/map-generation.js';
+ 
+ import { TokenManipulationTools } from './tools/token-manipulation.js';
+ 
+-import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
++type ToolDefinition = {
++  name: string;
++  description?: string;
++  inputSchema?: any;
++};
++
++type ToolDefinitionInput = ToolDefinition & Record<string, unknown>;
++
++
++
++
++type ToolResult = {
++  content: Array<{ type: 'text'; text: string }>;
++  isError?: boolean;
++};
++
++const normalizeJsonSchema = (schema: any): any => {
++  if (!schema || typeof schema !== 'object') return schema;
++  const normalized = { ...schema };
++
++  if (normalized.type === 'object') {
++    if (normalized.properties && typeof normalized.properties === 'object') {
++      const nextProps: Record<string, any> = {};
++      for (const [key, value] of Object.entries(normalized.properties)) {
++        nextProps[key] = normalizeJsonSchema(value);
++      }
++      normalized.properties = nextProps;
++    }
++  }
++
++  if (normalized.items) {
++    normalized.items = normalizeJsonSchema(normalized.items);
++  }
++
++  return normalized;
++};
++
++const normalizeToolDefinitions = (
++  tools: Array<Omit<ToolDefinition, "description"> & { description?: string | undefined } & Record<string, unknown>>
++): ToolDefinition[] =>
++
++
++  tools.map((tool) => {
++    const normalizedInputSchema = tool.inputSchema
++      ? normalizeJsonSchema(tool.inputSchema)
++      : tool.inputSchema;
++
++    // exactOptionalPropertyTypes: omit description when undefined
++    const { description, ...rest } = tool;
++
++return {
++  ...rest,
++  ...(description !== undefined ? { description } : {}),
++  inputSchema: normalizedInputSchema,
++};
++
++
++  });
++
++
++  
++const buildToolResult = (result: any, maxChars: number): ToolResult => {
++  if (result && typeof result === 'object' && Array.isArray(result.content)) {
++    return result as ToolResult;
++  }
++
++  let text = typeof result === 'string' ? result : JSON.stringify(result);
++  if (text.length > maxChars) {
++    const overflow = text.length - maxChars;
++    text = `${text.slice(0, maxChars)}\n\n[truncated ${overflow} chars; set TOOL_RESPONSE_MAX_CHARS to increase the limit]`;
++  }
++
++  return { content: [{ type: 'text', text }] };
++};
+ 
+ const CONTROL_HOST = '127.0.0.1';
+ 
+@@ -1037,13 +1110,15 @@ async function startBackend(): Promise<void> {
+ 
+     foundryPort: config.foundry.port,
+ 
++    toolResponseMaxChars: config.toolResponseMaxChars,
++
+   });
+ 
+   // Initialize Foundry client and tools
+ 
+   const foundryClient = new FoundryClient(config.foundry, logger);
+ 
+-  // Initialize system registry and register adapters
++  // Initialize SystemRegistry with adapters for multi-system support
+   const { getSystemRegistry } = await import('./systems/index.js');
+   const { DnD5eAdapter } = await import('./systems/dnd5e/adapter.js');
+   const { PF2eAdapter } = await import('./systems/pf2e/adapter.js');
+@@ -1066,8 +1141,6 @@ async function startBackend(): Promise<void> {
+ 
+   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
+ 
+-  const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
+-
+   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
+ 
+   const diceRollTools = new DiceRollTools({ foundryClient, logger });
+@@ -1287,7 +1360,7 @@ async function startBackend(): Promise<void> {
+     backendComfyUIHandlers: (globalThis as any).backendComfyUIHandlers
+   });
+ 
+-  const allTools = [
++  const allTools = normalizeToolDefinitions([
+ 
+     ...characterTools.getToolDefinitions(),
+ 
+@@ -1297,8 +1370,6 @@ async function startBackend(): Promise<void> {
+ 
+     ...actorCreationTools.getToolDefinitions(),
+ 
+-    ...dsa5CharacterCreator.getToolDefinitions(),
+-
+     ...questCreationTools.getToolDefinitions(),
+ 
+     ...diceRollTools.getToolDefinitions(),
+@@ -1311,7 +1382,7 @@ async function startBackend(): Promise<void> {
+ 
+     ...mapGenerationTools.getToolDefinitions(),
+ 
+-  ];
++  ]);
+ 
+   // Start Foundry connector (owns app port 31415)
+ 
+@@ -1411,24 +1482,6 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
+-                case 'get-character-entity':
+-
+-                  result = await characterTools.handleGetCharacterEntity(args);
+-
+-                  break;
+-
+-                case 'use-item':
+-
+-                  result = await characterTools.handleUseItem(args);
+-
+-                  break;
+-
+-                case 'search-character-items':
+-
+-                  result = await characterTools.handleSearchCharacterItems(args);
+-
+-                  break;
+-
+                 // Compendium tools
+ 
+                 case 'search-compendium':
+@@ -1483,20 +1536,6 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
+-                // DSA5 character creation tools
+-
+-                case 'create-dsa5-character-from-archetype':
+-
+-                  result = await dsa5CharacterCreator.handleCreateCharacterFromArchetype(args);
+-
+-                  break;
+-
+-                case 'list-dsa5-archetypes':
+-
+-                  result = await dsa5CharacterCreator.handleListArchetypes(args);
+-
+-                  break;
+-
+                 // Quest creation tools
+ 
+                 case 'create-quest-journal':
+@@ -1565,7 +1604,7 @@ async function startBackend(): Promise<void> {
+ 
+                   break;
+ 
+-                // Token manipulation tools
++                // Token Manipulation tools
+ 
+                 case 'move-token':
+ 
+@@ -1641,12 +1680,7 @@ async function startBackend(): Promise<void> {
+ 
+               }
+ 
+-              const payload = {
+-
+-                content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result) }],
+-
+-              };
+-
++              const payload = buildToolResult(result, config.toolResponseMaxChars);
+               socket.write(JSON.stringify({ id: msg.id, result: payload }) + '\n');
+ 
+             } catch (e: any) {
+@@ -1655,7 +1689,10 @@ async function startBackend(): Promise<void> {
+ 
+               socket.write(
+ 
+-                JSON.stringify({ id: msg.id, result: { content: [{ type: 'text', text: `Error: ${errorMessage}` }], isError: true } }) + '\n'
++                JSON.stringify({
++                  id: msg.id,
++                  result: { ...buildToolResult(`Error: ${errorMessage}`, config.toolResponseMaxChars), isError: true }
++                }) + '\n'
+ 
+               );
+ 
+diff --git a/packages/mcp-server/src/http-bridge.ts b/packages/mcp-server/src/http-bridge.ts
+index 22d1c97..92ed02a 100644
+--- a/packages/mcp-server/src/http-bridge.ts
++++ b/packages/mcp-server/src/http-bridge.ts
+@@ -8,12 +8,16 @@ import process from 'node:process';
+ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+ import {
+-  isJSONRPCErrorResponse,
+   isJSONRPCRequest,
+-  isJSONRPCResultResponse,
+-  type JSONRPCMessage
++  isJSONRPCResponse,
++  type JSONRPCMessage,
++  type JSONRPCResponse,
++  type JSONRPCRequest,
++  type JSONRPCError
+ } from '@modelcontextprotocol/sdk/types.js';
+ 
++
++
+ type RequestMeta = {
+   startTime: number;
+   method: string;
+@@ -29,6 +33,12 @@ if (!authToken) {
+ 
+ const httpHost = process.env.MCP_HTTP_HOST || '0.0.0.0';
+ const httpPort = Number.parseInt(process.env.MCP_LISTEN_PORT || '3333', 10);
++const isJSONRPCResultResponse = (msg: JSONRPCMessage): msg is JSONRPCResponse & { result: unknown } => {
++  return isJSONRPCResponse(msg) && 'result' in msg;
++};
++const isJSONRPCErrorResponse = (msg: JSONRPCMessage): msg is JSONRPCResponse & { error: JSONRPCError } => {
++  return isJSONRPCResponse(msg) && 'error' in msg;
++};
+ 
+ const serverCommand = process.env.MCP_SERVER_COMMAND || 'node';
+ const serverArgsRaw = process.env.MCP_SERVER_ARGS?.trim();
+@@ -90,10 +100,15 @@ const isAuthorized = (req: http.IncomingMessage): boolean => {
+   return scheme.toLowerCase() === 'bearer' && token === authToken;
+ };
+ 
++const cleanEnv: Record<string, string> = Object.fromEntries(
++  Object.entries(serverEnv).filter(([, v]) => v !== undefined)
++) as Record<string, string>;
++
++
+ const stdioTransport = new StdioClientTransport({
+   command: serverCommand,
+   args: serverArgs,
+-  env: serverEnv,
++  env: cleanEnv,
+   stderr: 'inherit'
+ });
+ 
+@@ -106,11 +121,14 @@ httpTransport.onmessage = async (message: JSONRPCMessage, extra) => {
+   if (isJSONRPCRequest(message) && message.id !== undefined) {
+     const requestId = String(message.id);
+     const toolName = message.method === 'tools/call' ? (message.params as any)?.name : undefined;
++
++    const remoteIp = getRemoteIp(extra?.requestInfo?.headers as RequestHeaders);
++
+     requestMeta.set(requestId, {
+       startTime: Date.now(),
+       method: message.method,
+       toolName,
+-      remoteIp: getRemoteIp(extra?.requestInfo?.headers as RequestHeaders)
++      ...(remoteIp !== undefined ? { remoteIp } : {})
+     });
+   }
+ 
+@@ -123,6 +141,7 @@ httpTransport.onmessage = async (message: JSONRPCMessage, extra) => {
+   }
+ };
+ 
++
+ stdioTransport.onmessage = async (message: JSONRPCMessage) => {
+   const requestId =
+     isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)
+@@ -141,9 +160,9 @@ stdioTransport.onmessage = async (message: JSONRPCMessage) => {
+     const meta = requestMeta.get(requestId);
+     if (meta) {
+       const durationMs = Date.now() - meta.startTime;
+-      const errorReason = isJSONRPCErrorResponse(message)
+-        ? message.error?.message
+-        : undefined;
++      const errorReason = 'error' in message && message.error
++  ? message.error.message
++  : undefined;
+       logInfo('mcp.request.completed', {
+         requestId,
+         remoteIp: meta.remoteIp,
+-- 
+2.54.0
+

@@ -1,0 +1,2517 @@
+diff --git a/packages/mcp-server/src/systems/dsa5/README.md b/packages/mcp-server/src/systems/dsa5/README.md
+index 2988b2b..f418a34 100644
+--- a/packages/mcp-server/src/systems/dsa5/README.md
++++ b/packages/mcp-server/src/systems/dsa5/README.md
+@@ -9,7 +9,6 @@ This adapter implements the v0.6.0 Registry Pattern to provide system-specific s
+ ## Features
+ 
+ ### Character Statistics Extraction
+-
+ - **8 Eigenschaften (Attributes):** MU, KL, IN, CH, FF, GE, KO, KK
+ - **LeP (Lebensenergie):** Life points tracking
+ - **AsP (Astralenergie):** Mana/spell energy for spellcasters
+@@ -18,16 +17,13 @@ This adapter implements the v0.6.0 Registry Pattern to provide system-specific s
+ - **Erfahrungsgrad (Experience Level):** 1-7 level classification based on Adventure Points
+ 
+ ### Creature Index
+-
+ - Full compendium indexing for DSA5 creatures
+ - Species, culture, profession metadata
+ - Combat statistics (LeP, Parade, Ausweichen, Rüstung)
+ - Spellcasting and resource detection
+ 
+ ### Filter System
+-
+ Supports filtering creatures by:
+-
+ - `level`: Experience level 1-7 (e.g., `{level: 3}` for Experienced)
+ - `species`: Species/race (e.g., `{species: "Mensch"}`)
+ - `culture`: Culture background (e.g., `{culture: "Mittelreich"}`)
+@@ -53,13 +49,11 @@ systems/dsa5/
+ ### Key Classes
+ 
+ **DSA5Adapter** (`adapter.ts`)
+-
+ - Implements `SystemAdapter` interface (11 methods)
+ - Runs in MCP server (Node.js context)
+ - Handles filtering, formatting, character stat extraction
+ 
+ **DSA5IndexBuilder** (`index-builder.ts`)
+-
+ - Implements `IndexBuilder` interface
+ - Runs in Foundry module (browser context)
+ - Builds enhanced creature indexes from compendium packs
+@@ -67,7 +61,6 @@ systems/dsa5/
+ ## DSA5 Field Mappings
+ 
+ ### Eigenschaften (8 Attributes)
+-
+ ```
+ system.characteristics.mu.value  → MU (Mut/Courage)
+ system.characteristics.kl.value  → KL (Klugheit/Cleverness)
+@@ -80,7 +73,6 @@ system.characteristics.kk.value  → KK (Körperkraft/Strength)
+ ```
+ 
+ ### Status & Resources
+-
+ ```
+ system.status.wounds.value       → Current wounds (NOT inverted in v0.6.1!)
+ system.status.wounds.max         → Maximum life points
+@@ -89,7 +81,6 @@ system.status.karmaenergy.*      → KaP (Karma energy)
+ ```
+ 
+ ### Profile
+-
+ ```
+ system.details.species.value     → Species (Mensch, Elf, Zwerg...)
+ system.details.culture.value     → Culture
+@@ -98,7 +89,6 @@ system.details.experience.total  → Total Adventure Points (AP)
+ ```
+ 
+ ### Combat
+-
+ ```
+ system.status.size.value         → Size in cm
+ system.status.parry.value        → Melee defense (Parade)
+@@ -106,7 +96,6 @@ system.status.dodge.value        → Ranged defense (Ausweichen)
+ ```
+ 
+ ### Skills/Talente
+-
+ ```
+ Items with type: "skill" or "talent"
+ Value: item.system.talentValue.value
+@@ -117,20 +106,19 @@ Check: item.system.characteristic (e.g., "MU/IN/CH")
+ 
+ DSA5 uses a 7-level experience classification based on total Adventure Points (AP):
+ 
+-| Level | Name (DE)        | Name (EN)     | AP Range    |
+-| ----- | ---------------- | ------------- | ----------- |
+-| 1     | Unerfahren       | Inexperienced | 0 - 899     |
+-| 2     | Durchschnittlich | Average       | 900 - 1999  |
+-| 3     | Erfahren         | Experienced   | 2000 - 2999 |
+-| 4     | Kompetent        | Competent     | 3000 - 3999 |
+-| 5     | Meisterlich      | Masterful     | 4000 - 4999 |
+-| 6     | Brillant         | Brilliant     | 5000 - 5999 |
+-| 7     | Legendär         | Legendary     | 6000+       |
++| Level | Name (DE)           | Name (EN)       | AP Range      |
++|-------|---------------------|-----------------|---------------|
++| 1     | Unerfahren          | Inexperienced   | 0 - 899       |
++| 2     | Durchschnittlich    | Average         | 900 - 1999    |
++| 3     | Erfahren            | Experienced     | 2000 - 2999   |
++| 4     | Kompetent           | Competent       | 3000 - 3999   |
++| 5     | Meisterlich         | Masterful       | 4000 - 4999   |
++| 6     | Brillant            | Brilliant       | 5000 - 5999   |
++| 7     | Legendär            | Legendary       | 6000+         |
+ 
+ ## Usage Examples
+ 
+ ### Filter by Experience Level
+-
+ ```typescript
+ import { matchesDSA5Filters } from './filters.js';
+ 
+@@ -139,7 +127,6 @@ const matches = matchesDSA5Filters(creature, filters);
+ ```
+ 
+ ### Extract Character Stats
+-
+ ```typescript
+ import { DSA5Adapter } from './adapter.js';
+ 
+@@ -149,7 +136,6 @@ const stats = adapter.extractCharacterStats(actorData);
+ ```
+ 
+ ### Build Creature Index
+-
+ ```typescript
+ import { DSA5IndexBuilder } from './index-builder.js';
+ 
+@@ -162,7 +148,6 @@ const index = await builder.buildIndex(packs, force);
+ The DSA5 adapter is registered in two places:
+ 
+ 1. **MCP Server** (`backend.ts`):
+-
+    ```typescript
+    const { DSA5Adapter } = await import('./systems/dsa5/adapter.js');
+    systemRegistry.register(new DSA5Adapter());
+@@ -177,7 +162,6 @@ The DSA5 adapter is registered in two places:
+ ## Testing
+ 
+ Unit tests are provided in `filters.test.ts`:
+-
+ ```bash
+ npm test -- filters.test.ts
+ ```
+@@ -185,7 +169,6 @@ npm test -- filters.test.ts
+ ## Localization
+ 
+ The DSA5 adapter provides German UI text by default:
+-
+ - "DSA5 Kreaturen-Index wird erstellt..."
+ - "Erfahrungsgrad: Erfahren (Experienced)"
+ - German attribute names with English translations
+@@ -199,7 +182,6 @@ The DSA5 adapter provides German UI text by default:
+ ## Contributing
+ 
+ When extending DSA5 support:
+-
+ 1. Add new filter fields to `DSA5FiltersSchema` in `filters.ts`
+ 2. Update `matchesDSA5Filters()` logic
+ 3. Add corresponding fields to `DSA5CreatureIndex` in `types.ts`
+diff --git a/packages/mcp-server/src/systems/dsa5/adapter.ts b/packages/mcp-server/src/systems/dsa5/adapter.ts
+index f902ba1..5f5cb1b 100644
+--- a/packages/mcp-server/src/systems/dsa5/adapter.ts
++++ b/packages/mcp-server/src/systems/dsa5/adapter.ts
+@@ -5,18 +5,8 @@
+  * Handles creature indexing, filtering, formatting, and data extraction.
+  */
+ 
+-import type {
+-  SystemAdapter,
+-  SystemMetadata,
+-  SystemCreatureIndex,
+-  DSA5CreatureIndex,
+-} from '../types.js';
+-import {
+-  DSA5FiltersSchema,
+-  matchesDSA5Filters,
+-  describeDSA5Filters,
+-  type DSA5Filters,
+-} from './filters.js';
++import type { SystemAdapter, SystemMetadata, SystemCreatureIndex, DSA5CreatureIndex } from '../types.js';
++import { DSA5FiltersSchema, matchesDSA5Filters, describeDSA5Filters, type DSA5Filters } from './filters.js';
+ import { FIELD_PATHS, getExperienceLevel, EIGENSCHAFT_NAMES } from './constants.js';
+ 
+ /**
+@@ -29,14 +19,13 @@ export class DSA5Adapter implements SystemAdapter {
+       name: 'dsa5',
+       displayName: 'Das Schwarze Auge 5',
+       version: '1.0.0',
+-      description:
+-        'Support for DSA5 (Das Schwarze Auge 5. Edition) with Eigenschaften, Talente, Erfahrungsgrade, and LeP/AsP/KaP resources',
++      description: 'Support for DSA5 (Das Schwarze Auge 5. Edition) with Eigenschaften, Talente, Erfahrungsgrade, and LeP/AsP/KaP resources',
+       supportedFeatures: {
+         creatureIndex: true,
+         characterStats: true,
+         spellcasting: true,
+-        powerLevel: true, // Uses Experience Level (Erfahrungsgrad 1-7)
+-      },
++        powerLevel: true // Uses Experience Level (Erfahrungsgrad 1-7)
++      }
+     };
+   }
+ 
+@@ -48,10 +37,7 @@ export class DSA5Adapter implements SystemAdapter {
+    * Extract creature data from Foundry document for indexing
+    * This is called by the index builder in Foundry's browser context
+    */
+-  extractCreatureData(
+-    doc: any,
+-    pack: any
+-  ): { creature: SystemCreatureIndex; errors: number } | null {
++  extractCreatureData(doc: any, pack: any): { creature: SystemCreatureIndex; errors: number } | null {
+     // Implementation is in index-builder.ts since it runs in browser
+     // This method is here for type compliance but delegates to IndexBuilder
+     throw new Error('extractCreatureData should be called from DSA5IndexBuilder, not the adapter');
+@@ -128,8 +114,8 @@ export class DSA5Adapter implements SystemAdapter {
+       type: creature.type,
+       pack: {
+         id: creature.packName,
+-        label: creature.packLabel,
+-      },
++        label: creature.packLabel
++      }
+     };
+ 
+     // Add DSA5 specific stats
+@@ -194,7 +180,7 @@ export class DSA5Adapter implements SystemAdapter {
+           name: expLevel.name,
+           nameEn: expLevel.nameEn,
+           level: expLevel.level,
+-          apRange: `${expLevel.min}-${expLevel.max === Infinity ? '∞' : expLevel.max}`,
++          apRange: `${expLevel.min}-${expLevel.max === Infinity ? '∞' : expLevel.max}`
+         },
+         experiencePoints: dsa5Creature.systemData.experiencePoints,
+         species: dsa5Creature.systemData.species,
+@@ -263,7 +249,7 @@ export class DSA5Adapter implements SystemAdapter {
+         available: totalAP - spentAP,
+         level: expLevel.level,
+         levelName: expLevel.name,
+-        levelNameEn: expLevel.nameEn,
++        levelNameEn: expLevel.nameEn
+       };
+     }
+ 
+@@ -304,7 +290,7 @@ export class DSA5Adapter implements SystemAdapter {
+           value: eigenschaftData.value ?? 8,
+           initial: eigenschaftData.initial ?? 8,
+           name: EIGENSCHAFT_NAMES[upperKey]?.german,
+-          nameEn: EIGENSCHAFT_NAMES[upperKey]?.english,
++          nameEn: EIGENSCHAFT_NAMES[upperKey]?.english
+         };
+       }
+     }
+@@ -382,8 +368,8 @@ export class DSA5Adapter implements SystemAdapter {
+     if (hasSpells) {
+       stats.spellcasting = {
+         hasSpells: true,
+-        hasAstralEnergy: !!astral?.max,
+-        hasKarmaEnergy: !!karma?.max,
++        hasAstralEnergy: !!(astral?.max),
++        hasKarmaEnergy: !!(karma?.max)
+       };
+     }
+ 
+diff --git a/packages/mcp-server/src/systems/dsa5/character-creator.ts b/packages/mcp-server/src/systems/dsa5/character-creator.ts
+index 71d24ca..232053c 100644
+--- a/packages/mcp-server/src/systems/dsa5/character-creator.ts
++++ b/packages/mcp-server/src/systems/dsa5/character-creator.ts
+@@ -32,20 +32,17 @@ export class DSA5CharacterCreator {
+     return [
+       {
+         name: 'create-dsa5-character-from-archetype',
+-        description:
+-          'Create a DSA5 character from an archetype (e.g., Allacaya, Wulfgrimm). Allows customization of name, age, biography, and other details. Use search-compendium first to find available archetypes in DSA5 character packs.',
++        description: 'Create a DSA5 character from an archetype (e.g., Allacaya, Wulfgrimm). Allows customization of name, age, biography, and other details. Use search-compendium first to find available archetypes in DSA5 character packs.',
+         inputSchema: {
+           type: 'object',
+           properties: {
+             archetypePackId: {
+               type: 'string',
+-              description:
+-                'ID of the compendium pack containing the archetype (e.g., "dsa5-core.corecharacters")',
++              description: 'ID of the compendium pack containing the archetype (e.g., "dsa5-core.corecharacters")',
+             },
+             archetypeId: {
+               type: 'string',
+-              description:
+-                'ID of the archetype within the pack (get from search-compendium results)',
++              description: 'ID of the archetype within the pack (get from search-compendium results)',
+             },
+             characterName: {
+               type: 'string',
+@@ -111,15 +108,13 @@ export class DSA5CharacterCreator {
+       },
+       {
+         name: 'list-dsa5-archetypes',
+-        description:
+-          'List available DSA5 character archetypes from compendium packs. Helps users discover available templates for character creation.',
++        description: 'List available DSA5 character archetypes from compendium packs. Helps users discover available templates for character creation.',
+         inputSchema: {
+           type: 'object',
+           properties: {
+             packId: {
+               type: 'string',
+-              description:
+-                'Optional: specific pack to search (e.g., "dsa5-core.corecharacters"). If not provided, searches all DSA5 character packs.',
++              description: 'Optional: specific pack to search (e.g., "dsa5-core.corecharacters"). If not provided, searches all DSA5 character packs.',
+             },
+             filterBySpecies: {
+               type: 'string',
+@@ -143,25 +138,22 @@ export class DSA5CharacterCreator {
+       archetypePackId: z.string().min(1, 'Archetype pack ID cannot be empty'),
+       archetypeId: z.string().min(1, 'Archetype ID cannot be empty'),
+       characterName: z.string().min(1, 'Character name cannot be empty'),
+-      customization: z
+-        .object({
+-          age: z.number().min(12).max(100).optional(),
+-          biography: z.string().optional(),
+-          gender: z.enum(['male', 'female', 'diverse']).optional(),
+-          eyeColor: z.string().optional(),
+-          hairColor: z.string().optional(),
+-          height: z.number().optional(),
+-          weight: z.number().optional(),
+-          species: z.string().optional(),
+-          culture: z.string().optional(),
+-          profession: z.string().optional(),
+-        })
+-        .optional(),
++      customization: z.object({
++        age: z.number().min(12).max(100).optional(),
++        biography: z.string().optional(),
++        gender: z.enum(['male', 'female', 'diverse']).optional(),
++        eyeColor: z.string().optional(),
++        hairColor: z.string().optional(),
++        height: z.number().optional(),
++        weight: z.number().optional(),
++        species: z.string().optional(),
++        culture: z.string().optional(),
++        profession: z.string().optional(),
++      }).optional(),
+       addToWorld: z.boolean().default(true),
+     });
+ 
+-    const { archetypePackId, archetypeId, characterName, customization, addToWorld } =
+-      schema.parse(args);
++    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema.parse(args);
+ 
+     this.logger.info('Creating DSA5 character from archetype', {
+       archetypePackId,
+@@ -172,13 +164,10 @@ export class DSA5CharacterCreator {
+ 
+     try {
+       // First, get the full archetype data
+-      const archetypeData = await this.foundryClient.query(
+-        'foundry-mcp-bridge.getCompendiumDocumentFull',
+-        {
+-          packId: archetypePackId,
+-          documentId: archetypeId,
+-        }
+-      );
++      const archetypeData = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
++        packId: archetypePackId,
++        documentId: archetypeId,
++      });
+ 
+       if (!archetypeData) {
+         throw new Error(`Archetype ${archetypeId} not found in pack ${archetypePackId}`);
+@@ -188,17 +177,14 @@ export class DSA5CharacterCreator {
+       const characterData = this.prepareCharacterData(archetypeData, characterName, customization);
+ 
+       // Create the character actor in Foundry
+-      const result = await this.foundryClient.query(
+-        'foundry-mcp-bridge.createActorFromCompendium',
+-        {
+-          packId: archetypePackId,
+-          itemId: archetypeId,
+-          customNames: [characterName],
+-          quantity: 1,
+-          addToScene: false, // Characters aren't added to scenes by default
+-          customData: characterData, // Pass customizations
+-        }
+-      );
++      const result = await this.foundryClient.query('foundry-mcp-bridge.createActorFromCompendium', {
++        packId: archetypePackId,
++        itemId: archetypeId,
++        customNames: [characterName],
++        quantity: 1,
++        addToScene: false, // Characters aren't added to scenes by default
++        customData: characterData, // Pass customizations
++      });
+ 
+       this.logger.info('DSA5 character created successfully', {
+         characterName,
+@@ -206,18 +192,10 @@ export class DSA5CharacterCreator {
+         success: result.success,
+       });
+ 
+-      return this.formatCharacterCreationResponse(
+-        result,
+-        archetypeData,
+-        characterName,
+-        customization
+-      );
++      return this.formatCharacterCreationResponse(result, archetypeData, characterName, customization);
++
+     } catch (error) {
+-      this.errorHandler.handleToolError(
+-        error,
+-        'create-dsa5-character-from-archetype',
+-        'DSA5 character creation'
+-      );
++      this.errorHandler.handleToolError(error, 'create-dsa5-character-from-archetype', 'DSA5 character creation');
+     }
+   }
+ 
+@@ -240,9 +218,10 @@ export class DSA5CharacterCreator {
+       const packs = await this.foundryClient.query('foundry-mcp-bridge.getAvailablePacks');
+ 
+       // Filter for DSA5 character packs
+-      const characterPacks = packs.filter(
+-        (pack: any) =>
+-          pack.type === 'Actor' && pack.system === 'dsa5' && (!packId || pack.id === packId)
++      const characterPacks = packs.filter((pack: any) =>
++        pack.type === 'Actor' &&
++        pack.system === 'dsa5' &&
++        (!packId || pack.id === packId)
+       );
+ 
+       const archetypes: any[] = [];
+@@ -250,36 +229,94 @@ export class DSA5CharacterCreator {
+       // Get archetypes from each pack
+       for (const pack of characterPacks) {
+         try {
++          this.logger.info(`Loading archetypes from pack ${pack.id}`, { packLabel: pack.label });
++          
+           const packIndex = await this.foundryClient.query('foundry-mcp-bridge.getPackIndex', {
+             packId: pack.id,
+           });
+ 
+-          // Filter archetypes
+-          const packArchetypes = packIndex
+-            .filter((entry: any) => entry.type === 'character')
+-            .filter((entry: any) => {
+-              if (filterBySpecies && entry.system?.details?.species?.value !== filterBySpecies) {
+-                return false;
+-              }
+-              if (
+-                filterByProfession &&
+-                !entry.system?.details?.career?.value?.includes(filterByProfession)
+-              ) {
+-                return false;
++          this.logger.info(`Pack index loaded for ${pack.id}`, {
++            totalEntries: packIndex?.length || 0,
++            firstEntry: packIndex?.[0] || null
++          });
++
++          // DSA5 Note: Don't filter by entry.type - DSA5 compendiums may use different types
++          // (npc, character, creature) or no type field at all.
++          // The pack-level filter (pack.type === 'Actor' && pack.system === 'dsa5') is sufficient.
++          const actorEntries = packIndex;
++
++          this.logger.info(`Actor entries found in ${pack.id}`, {
++            count: actorEntries.length,
++            sampleEntry: actorEntries[0] || null
++          });
++
++          // Apply optional filters and build archetype list
++          let filteredEntries = actorEntries;
++          
++          // If filters are specified, we need to fetch full data for entries
++          // since pack index doesn't contain system.details
++          if (filterBySpecies || filterByProfession) {
++            this.logger.info('Applying filters - loading full data for entries', {
++              filterBySpecies,
++              filterByProfession,
++              totalEntries: actorEntries.length
++            });
++            
++            const fullDataEntries: any[] = [];
++            
++            for (const entry of actorEntries) {
++              try {
++                const fullData = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
++                  packId: pack.id,
++                  documentId: entry._id || entry.id, // Pack index uses _id
++                });
++                
++                if (fullData) {
++                  // Check species filter (case-insensitive exact match)
++                  const speciesValue = fullData.system?.details?.species?.value || '';
++                  const speciesMatch = !filterBySpecies ||
++                    speciesValue.toLowerCase() === filterBySpecies.toLowerCase();
++
++                  // Check profession filter (case-insensitive partial match)
++                  const careerValue = fullData.system?.details?.career?.value || '';
++                  const professionMatch = !filterByProfession ||
++                    careerValue.toLowerCase().includes(filterByProfession.toLowerCase());
++                  
++                  if (speciesMatch && professionMatch) {
++                    fullDataEntries.push({
++                      id: entry._id || entry.id,
++                      name: entry.name,
++                      packId: pack.id,
++                      packLabel: pack.label,
++                      species: fullData.system?.details?.species?.value || 'Unknown',
++                      profession: fullData.system?.details?.career?.value || 'Unknown',
++                      img: entry.img,
++                    });
++                  }
++                }
++              } catch (entryError) {
++                this.logger.warn(`Failed to load full data for entry ${entry.id}`, { error: entryError });
++                // Skip this entry on error
+               }
+-              return true;
+-            })
+-            .map((entry: any) => ({
+-              id: entry.id,
+-              name: entry.name,
+-              packId: pack.id,
+-              packLabel: pack.label,
+-              species: entry.system?.details?.species?.value || 'Unknown',
+-              profession: entry.system?.details?.career?.value || 'Unknown',
+-              img: entry.img,
+-            }));
++            }
++            
++            filteredEntries = fullDataEntries;
++            this.logger.info(`Filtered entries: ${filteredEntries.length} out of ${actorEntries.length}`);
++          }
++          
++          // Map entries to archetype format
++          const packArchetypes = filteredEntries.map((entry: any) => ({
++            id: entry._id || entry.id, // Pack index uses _id, filtered entries use id
++            name: entry.name,
++            packId: pack.id,
++            packLabel: pack.label,
++            species: entry.species || entry.system?.details?.species?.value || 'Unknown',
++            profession: entry.profession || entry.system?.details?.career?.value || 'Unknown',
++            img: entry.img,
++          }));
+ 
+           archetypes.push(...packArchetypes);
++          this.logger.info(`Added ${packArchetypes.length} archetypes from ${pack.id}`);
+         } catch (packError) {
+           this.logger.warn(`Failed to load archetypes from pack ${pack.id}`, { error: packError });
+         }
+@@ -288,6 +325,7 @@ export class DSA5CharacterCreator {
+       this.logger.info('Retrieved DSA5 archetypes', { count: archetypes.length });
+ 
+       return this.formatArchetypeListResponse(archetypes, filterBySpecies, filterByProfession);
++
+     } catch (error) {
+       this.errorHandler.handleToolError(error, 'list-dsa5-archetypes', 'archetype listing');
+     }
+@@ -296,11 +334,7 @@ export class DSA5CharacterCreator {
+   /**
+    * Prepare character data with customizations
+    */
+-  private prepareCharacterData(
+-    archetypeData: any,
+-    characterName: string,
+-    customization?: any
+-  ): any {
++  private prepareCharacterData(archetypeData: any, characterName: string, customization?: any): any {
+     const data: any = {
+       name: characterName,
+     };
+@@ -388,11 +422,12 @@ export class DSA5CharacterCreator {
+       if (customization.species) details.push(`**Species:** ${customization.species}`);
+       if (customization.culture) details.push(`**Culture:** ${customization.culture}`);
+       if (customization.profession) details.push(`**Profession:** ${customization.profession}`);
+-      if (customization.biography)
+-        details.push(`**Biography:** ${customization.biography.substring(0, 100)}...`);
++      if (customization.biography) details.push(`**Biography:** ${customization.biography.substring(0, 100)}...`);
+     }
+ 
+-    const errorInfo = result.errors?.length > 0 ? `\n⚠️ Issues: ${result.errors.join(', ')}` : '';
++    const errorInfo = result.errors?.length > 0
++      ? `\n⚠️ Issues: ${result.errors.join(', ')}`
++      : '';
+ 
+     return {
+       summary,
+@@ -421,19 +456,13 @@ export class DSA5CharacterCreator {
+     const filterInfo = [
+       filterBySpecies ? `Species: ${filterBySpecies}` : null,
+       filterByProfession ? `Profession: ${filterByProfession}` : null,
+-    ]
+-      .filter(Boolean)
+-      .join(', ');
+-
+-    const summary =
+-      `Found ${archetypes.length} DSA5 archetypes` + (filterInfo ? ` (${filterInfo})` : '');
+-
+-    const archetypeList = archetypes
+-      .map(
+-        archetype =>
+-          `• **${archetype.name}** (${archetype.species}, ${archetype.profession})\n  Pack: ${archetype.packLabel} | ID: ${archetype.id}`
+-      )
+-      .join('\n\n');
++    ].filter(Boolean).join(', ');
++
++    const summary = `Found ${archetypes.length} DSA5 archetypes` + (filterInfo ? ` (${filterInfo})` : '');
++
++    const archetypeList = archetypes.map(archetype =>
++      `• **${archetype.name}** (${archetype.species}, ${archetype.profession})\n  Pack: ${archetype.packLabel} | ID: ${archetype.id}`
++    ).join('\n\n');
+ 
+     return {
+       summary,
+diff --git a/packages/mcp-server/src/systems/dsa5/constants.ts b/packages/mcp-server/src/systems/dsa5/constants.ts
+index 6dcf1e4..e2c6f17 100644
+--- a/packages/mcp-server/src/systems/dsa5/constants.ts
++++ b/packages/mcp-server/src/systems/dsa5/constants.ts
+@@ -25,7 +25,7 @@ export const EXPERIENCE_LEVELS = [
+ /**
+  * Erfahrungsgrad-Typ
+  */
+-export type DSA5ExperienceLevel = (typeof EXPERIENCE_LEVELS)[number];
++export type DSA5ExperienceLevel = typeof EXPERIENCE_LEVELS[number];
+ 
+ /**
+  * Konvertiert Abenteuerpunkte zu Erfahrungsgrad
+@@ -65,42 +65,41 @@ export const EXPERIENCE_LEVEL_NAMES_EN = EXPERIENCE_LEVELS.map(l => l.nameEn);
+ /**
+  * DSA5 Eigenschaften (Attributes) - German abbreviations to full names
+  */
+-export const EIGENSCHAFT_NAMES: Record<string, { short: string; german: string; english: string }> =
+-  {
+-    MU: { short: 'MU', german: 'Mut', english: 'Courage' },
+-    KL: { short: 'KL', german: 'Klugheit', english: 'Cleverness' },
+-    IN: { short: 'IN', german: 'Intuition', english: 'Intuition' },
+-    CH: { short: 'CH', german: 'Charisma', english: 'Charisma' },
+-    FF: { short: 'FF', german: 'Fingerfertigkeit', english: 'Dexterity' },
+-    GE: { short: 'GE', german: 'Gewandtheit', english: 'Agility' },
+-    KO: { short: 'KO', german: 'Konstitution', english: 'Constitution' },
+-    KK: { short: 'KK', german: 'Körperkraft', english: 'Strength' },
+-  };
++export const EIGENSCHAFT_NAMES: Record<string, { short: string; german: string; english: string }> = {
++  MU: { short: 'MU', german: 'Mut', english: 'Courage' },
++  KL: { short: 'KL', german: 'Klugheit', english: 'Cleverness' },
++  IN: { short: 'IN', german: 'Intuition', english: 'Intuition' },
++  CH: { short: 'CH', german: 'Charisma', english: 'Charisma' },
++  FF: { short: 'FF', german: 'Fingerfertigkeit', english: 'Dexterity' },
++  GE: { short: 'GE', german: 'Gewandtheit', english: 'Agility' },
++  KO: { short: 'KO', german: 'Konstitution', english: 'Constitution' },
++  KK: { short: 'KK', german: 'Körperkraft', english: 'Strength' },
++};
+ 
+ /**
+  * Size categories - German to English
+  */
+ export const SIZE_MAP_DE_TO_EN: Record<string, string> = {
+-  winzig: 'tiny',
+-  klein: 'small',
+-  mittel: 'medium',
+-  average: 'medium', // Foundry sometimes uses English
+-  groß: 'large',
+-  riesig: 'huge',
+-  gigantisch: 'gargantuan',
++  'winzig': 'tiny',
++  'klein': 'small',
++  'mittel': 'medium',
++  'average': 'medium',  // Foundry sometimes uses English
++  'groß': 'large',
++  'riesig': 'huge',
++  'gigantisch': 'gargantuan',
+ };
+ 
+ /**
+  * Size categories - English to German
+  */
+ export const SIZE_MAP_EN_TO_DE: Record<string, string> = {
+-  tiny: 'Winzig',
+-  small: 'Klein',
+-  medium: 'Mittel',
+-  average: 'Mittel',
+-  large: 'Groß',
+-  huge: 'Riesig',
+-  gargantuan: 'Gigantisch',
++  'tiny': 'Winzig',
++  'small': 'Klein',
++  'medium': 'Mittel',
++  'average': 'Mittel',
++  'large': 'Groß',
++  'huge': 'Riesig',
++  'gargantuan': 'Gigantisch',
+ };
+ 
+ /**
+@@ -122,7 +121,7 @@ export const FIELD_PATHS = {
+ 
+   // Status values
+   STATUS_WOUNDS: 'system.status.wounds',
+-  STATUS_WOUNDS_CURRENT: 'system.status.wounds.current', // ACTUAL current LeP
++  STATUS_WOUNDS_CURRENT: 'system.status.wounds.current',  // ACTUAL current LeP
+   STATUS_WOUNDS_MAX: 'system.status.wounds.max',
+   STATUS_ASTRAL: 'system.status.astralenergy',
+   STATUS_KARMA: 'system.status.karmaenergy',
+@@ -134,7 +133,7 @@ export const FIELD_PATHS = {
+   // Details
+   DETAILS_SPECIES: 'system.details.species.value',
+   DETAILS_CULTURE: 'system.details.culture.value',
+-  DETAILS_CAREER: 'system.details.career.value', // IMPORTANT: 'career' not 'profession'
++  DETAILS_CAREER: 'system.details.career.value',  // IMPORTANT: 'career' not 'profession'
+   DETAILS_EXPERIENCE: 'system.details.experience',
+   DETAILS_EXPERIENCE_TOTAL: 'system.details.experience.total',
+   DETAILS_EXPERIENCE_SPENT: 'system.details.experience.spent',
+@@ -152,51 +151,51 @@ export const FIELD_PATHS = {
+  * Item types in DSA5
+  */
+ export const ITEM_TYPES = {
+-  SKILL: 'skill', // Talente
+-  COMBAT_SKILL: 'combatskill', // Kampftechniken
+-  SPELL: 'spell', // Zauber
+-  LITURGY: 'liturgy', // Liturgien
+-  CEREMONY: 'ceremony', // Zeremonien
+-  RITUAL: 'ritual', // Rituale
+-  MELEE_WEAPON: 'meleeweapon', // Nahkampfwaffen
+-  RANGE_WEAPON: 'rangeweapon', // Fernkampfwaffen
+-  ARMOR: 'armor', // Rüstungen
+-  ADVANTAGE: 'advantage', // Vorteile
+-  DISADVANTAGE: 'disadvantage', // Nachteile
+-  SPECIAL_ABILITY: 'specialability', // Sonderfertigkeiten
++  SKILL: 'skill',                     // Talente
++  COMBAT_SKILL: 'combatskill',        // Kampftechniken
++  SPELL: 'spell',                     // Zauber
++  LITURGY: 'liturgy',                 // Liturgien
++  CEREMONY: 'ceremony',               // Zeremonien
++  RITUAL: 'ritual',                   // Rituale
++  MELEE_WEAPON: 'meleeweapon',        // Nahkampfwaffen
++  RANGE_WEAPON: 'rangeweapon',        // Fernkampfwaffen
++  ARMOR: 'armor',                     // Rüstungen
++  ADVANTAGE: 'advantage',             // Vorteile
++  DISADVANTAGE: 'disadvantage',       // Nachteile
++  SPECIAL_ABILITY: 'specialability',  // Sonderfertigkeiten
+ } as const;
+ 
+ /**
+  * Actor types in DSA5
+  */
+ export const ACTOR_TYPES = {
+-  CHARACTER: 'character', // Player characters
+-  NPC: 'npc', // Non-player characters
+-  CREATURE: 'creature', // Monsters/creatures
++  CHARACTER: 'character',  // Player characters
++  NPC: 'npc',             // Non-player characters
++  CREATURE: 'creature',   // Monsters/creatures
+ } as const;
+ 
+ /**
+  * Resource types (for status values)
+  */
+ export const RESOURCE_TYPES = {
+-  WOUNDS: 'wounds', // LeP (Lebensenergie)
+-  ASTRAL_ENERGY: 'astralenergy', // AsP
+-  KARMA_ENERGY: 'karmaenergy', // KaP
+-  SPEED: 'speed', // Geschwindigkeit
+-  INITIATIVE: 'initiative', // Initiative
+-  ARMOR: 'armour', // Rüstungsschutz
+-  DODGE: 'dodge', // Ausweichen
+-  SOUL_POWER: 'soulpower', // Seelenkraft
+-  TOUGHNESS: 'toughness', // Zähigkeit
++  WOUNDS: 'wounds',           // LeP (Lebensenergie)
++  ASTRAL_ENERGY: 'astralenergy',  // AsP
++  KARMA_ENERGY: 'karmaenergy',    // KaP
++  SPEED: 'speed',             // Geschwindigkeit
++  INITIATIVE: 'initiative',   // Initiative
++  ARMOR: 'armour',           // Rüstungsschutz
++  DODGE: 'dodge',            // Ausweichen
++  SOUL_POWER: 'soulpower',   // Seelenkraft
++  TOUGHNESS: 'toughness',    // Zähigkeit
+ } as const;
+ 
+ /**
+  * Skill group translations (German to English)
+  */
+ export const SKILL_GROUPS: Record<string, string> = {
+-  körper: 'body',
+-  gesellschaft: 'social',
+-  natur: 'nature',
+-  wissen: 'knowledge',
+-  handwerk: 'trade',
++  'körper': 'body',
++  'gesellschaft': 'social',
++  'natur': 'nature',
++  'wissen': 'knowledge',
++  'handwerk': 'trade',
+ };
+diff --git a/packages/mcp-server/src/systems/dsa5/filters.test.ts b/packages/mcp-server/src/systems/dsa5/filters.test.ts
+index 2968037..abaad35 100644
+--- a/packages/mcp-server/src/systems/dsa5/filters.test.ts
++++ b/packages/mcp-server/src/systems/dsa5/filters.test.ts
+@@ -1,18 +1,12 @@
+-/**
+- * DSA5 Filter Tests
+- *
+- * Simple tests to validate filter logic
+- */
+-
++import { describe, expect, it } from 'vitest';
+ import {
+-  matchesDSA5Filters,
+   describeDSA5Filters,
+   isValidDSA5Species,
+   isValidExperienceLevel,
++  matchesDSA5Filters,
+ } from './filters.js';
+ import type { DSA5Filters } from './filters.js';
+ 
+-// Test creature data
+ const testCreature = {
+   id: 'test-goblin-1',
+   name: 'Goblin Krieger',
+@@ -41,67 +35,61 @@ const testSpellcaster = {
+   },
+ };
+ 
+-console.log('=== DSA5 Filter Tests ===\n');
++describe('DSA5 filters', () => {
++  it('matches exact level filter', () => {
++    const filter: DSA5Filters = { level: 2 };
++    expect(describeDSA5Filters(filter)).toBe('Stufe 2');
++    expect(matchesDSA5Filters(testCreature, filter)).toBe(true);
++    expect(matchesDSA5Filters(testSpellcaster, filter)).toBe(false);
++  });
+ 
+-// Test 1: Level filter (exact)
+-console.log('Test 1: Level filter (exact)');
+-const filter1: DSA5Filters = { level: 2 };
+-console.log(`Filter: ${describeDSA5Filters(filter1)}`);
+-console.log(`Matches Goblin (Level 2): ${matchesDSA5Filters(testCreature, filter1)}`); // true
+-console.log(`Matches Magier (Level 5): ${matchesDSA5Filters(testSpellcaster, filter1)}`); // false
+-console.log('');
++  it('matches level range filter', () => {
++    const filter: DSA5Filters = { level: { min: 2, max: 5 } };
++    expect(describeDSA5Filters(filter)).toBe('Stufe 2-5');
++    expect(matchesDSA5Filters(testCreature, filter)).toBe(true);
++    expect(matchesDSA5Filters(testSpellcaster, filter)).toBe(true);
++  });
+ 
+-// Test 2: Level range filter
+-console.log('Test 2: Level range filter');
+-const filter2: DSA5Filters = { level: { min: 2, max: 5 } };
+-console.log(`Filter: ${describeDSA5Filters(filter2)}`);
+-console.log(`Matches Goblin (Level 2): ${matchesDSA5Filters(testCreature, filter2)}`); // true
+-console.log(`Matches Magier (Level 5): ${matchesDSA5Filters(testSpellcaster, filter2)}`); // true
+-console.log('');
++  it('matches species filter', () => {
++    const filter: DSA5Filters = { species: 'goblin' };
++    expect(describeDSA5Filters(filter)).toBe('goblin');
++    expect(matchesDSA5Filters(testCreature, filter)).toBe(true);
++    expect(matchesDSA5Filters(testSpellcaster, filter)).toBe(false);
++  });
+ 
+-// Test 3: Species filter
+-console.log('Test 3: Species filter');
+-const filter3: DSA5Filters = { species: 'goblin' };
+-console.log(`Filter: ${describeDSA5Filters(filter3)}`);
+-console.log(`Matches Goblin: ${matchesDSA5Filters(testCreature, filter3)}`); // true
+-console.log(`Matches Elf: ${matchesDSA5Filters(testSpellcaster, filter3)}`); // false
+-console.log('');
++  it('matches hasSpells filter', () => {
++    const filter: DSA5Filters = { hasSpells: true };
++    expect(describeDSA5Filters(filter)).toBe('Zauberer');
++    expect(matchesDSA5Filters(testCreature, filter)).toBe(false);
++    expect(matchesDSA5Filters(testSpellcaster, filter)).toBe(true);
++  });
+ 
+-// Test 4: Has spells filter
+-console.log('Test 4: Has spells filter');
+-const filter4: DSA5Filters = { hasSpells: true };
+-console.log(`Filter: ${describeDSA5Filters(filter4)}`);
+-console.log(`Matches Goblin (no spells): ${matchesDSA5Filters(testCreature, filter4)}`); // false
+-console.log(`Matches Magier (has spells): ${matchesDSA5Filters(testSpellcaster, filter4)}`); // true
+-console.log('');
++  it('matches combined filters', () => {
++    const filter: DSA5Filters = {
++      level: { min: 1, max: 3 },
++      size: 'small',
++      hasSpells: false,
++    };
+ 
+-// Test 5: Combined filters
+-console.log('Test 5: Combined filters');
+-const filter5: DSA5Filters = {
+-  level: { min: 1, max: 3 },
+-  size: 'small',
+-  hasSpells: false,
+-};
+-console.log(`Filter: ${describeDSA5Filters(filter5)}`);
+-console.log(`Matches Goblin: ${matchesDSA5Filters(testCreature, filter5)}`); // true
+-console.log(`Matches Magier: ${matchesDSA5Filters(testSpellcaster, filter5)}`); // false
+-console.log('');
++    expect(describeDSA5Filters(filter)).toBe('Stufe 1-3, small');
++    expect(matchesDSA5Filters(testCreature, filter)).toBe(true);
++    expect(matchesDSA5Filters(testSpellcaster, filter)).toBe(false);
++  });
++
++  it('matches experience points range filter', () => {
++    const filter: DSA5Filters = { experiencePoints: { min: 1000, max: 2000 } };
+ 
+-// Test 6: Experience points filter
+-console.log('Test 6: Experience points filter');
+-const filter6: DSA5Filters = { experiencePoints: { min: 1000, max: 2000 } };
+-console.log(`Filter: ${describeDSA5Filters(filter6)}`);
+-console.log(`Matches Goblin (1200 AP): ${matchesDSA5Filters(testCreature, filter6)}`); // true
+-console.log(`Matches Magier (4000 AP): ${matchesDSA5Filters(testSpellcaster, filter6)}`); // false
+-console.log('');
++    expect(describeDSA5Filters(filter)).toBe('1000-2000 AP');
++    expect(matchesDSA5Filters(testCreature, filter)).toBe(true);
++    expect(matchesDSA5Filters(testSpellcaster, filter)).toBe(false);
++  });
+ 
+-// Test 7: Validation helpers
+-console.log('Test 7: Validation helpers');
+-console.log(`isValidDSA5Species('goblin'): ${isValidDSA5Species('goblin')}`); // true
+-console.log(`isValidDSA5Species('unicorn'): ${isValidDSA5Species('unicorn')}`); // false
+-console.log(`isValidExperienceLevel(3): ${isValidExperienceLevel(3)}`); // true
+-console.log(`isValidExperienceLevel(0): ${isValidExperienceLevel(0)}`); // false
+-console.log(`isValidExperienceLevel(8): ${isValidExperienceLevel(8)}`); // false
+-console.log('');
++  it('validates species and experience level helpers', () => {
++    expect(isValidDSA5Species('goblin')).toBe(true);
++    expect(isValidDSA5Species('unicorn')).toBe(false);
+ 
+-console.log('=== All Tests Completed ===');
++    expect(isValidExperienceLevel(3)).toBe(true);
++    expect(isValidExperienceLevel(0)).toBe(false);
++    expect(isValidExperienceLevel(8)).toBe(false);
++  });
++});
+diff --git a/packages/mcp-server/src/systems/dsa5/filters.ts b/packages/mcp-server/src/systems/dsa5/filters.ts
+index 5962912..fb9b336 100644
+--- a/packages/mcp-server/src/systems/dsa5/filters.ts
++++ b/packages/mcp-server/src/systems/dsa5/filters.ts
+@@ -12,53 +12,51 @@ import { z } from 'zod';
+  * Common species from DSA5 Grundregelwerk
+  */
+ export const DSA5Species = [
+-  'mensch', // Human
+-  'elf', // Elf
+-  'halbelf', // Half-Elf
+-  'zwerg', // Dwarf
+-  'goblin', // Goblin
+-  'ork', // Orc
+-  'halborc', // Half-Orc
+-  'achaz', // Achaz (lizard folk)
+-  'troll', // Troll
+-  'oger', // Ogre
+-  'drache', // Dragon
+-  'dämon', // Demon
+-  'elementar', // Elemental
+-  'untot', // Undead
+-  'tier', // Animal/Beast
+-  'chimäre', // Chimera/Hybrid creature
++  'mensch',      // Human
++  'elf',         // Elf
++  'halbelf',     // Half-Elf
++  'zwerg',       // Dwarf
++  'goblin',      // Goblin
++  'ork',         // Orc
++  'halborc',     // Half-Orc
++  'achaz',       // Achaz (lizard folk)
++  'troll',       // Troll
++  'oger',        // Ogre
++  'drache',      // Dragon
++  'dämon',       // Demon
++  'elementar',   // Elemental
++  'untot',       // Undead
++  'tier',        // Animal/Beast
++  'chimäre',     // Chimera/Hybrid creature
+ ] as const;
+ 
+-export type DSA5SpeciesType = (typeof DSA5Species)[number];
++export type DSA5SpeciesType = typeof DSA5Species[number];
+ 
+ /**
+  * Common creature sizes (shared with D&D5e)
+  */
+ export const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
+-export type CreatureSize = (typeof CreatureSizes)[number];
++export type CreatureSize = typeof CreatureSizes[number];
+ 
+ /**
+  * Experience levels (Erfahrungsgrade) 1-7
+  * Maps to AP ranges defined in DSA5_EXPERIENCE_LEVELS.md
+  */
+ export const ExperienceLevels = [1, 2, 3, 4, 5, 6, 7] as const;
+-export type ExperienceLevel = (typeof ExperienceLevels)[number];
++export type ExperienceLevel = typeof ExperienceLevels[number];
+ 
+ /**
+  * DSA5 filter schema
+  */
+ export const DSA5FiltersSchema = z.object({
+   // Level filter (1-7) - replaces D&D5e's Challenge Rating
+-  level: z
+-    .union([
+-      z.number().min(1).max(7),
+-      z.object({
+-        min: z.number().min(1).max(7).optional(),
+-        max: z.number().min(1).max(7).optional(),
+-      }),
+-    ])
+-    .optional(),
++  level: z.union([
++    z.number().min(1).max(7),
++    z.object({
++      min: z.number().min(1).max(7).optional(),
++      max: z.number().min(1).max(7).optional()
++    })
++  ]).optional(),
+ 
+   // Species filter (Spezies/Rasse)
+   species: z.enum(DSA5Species).optional(),
+@@ -73,15 +71,13 @@ export const DSA5FiltersSchema = z.object({
+   hasSpells: z.boolean().optional(),
+ 
+   // Experience points range (AP) - detail filter
+-  experiencePoints: z
+-    .union([
+-      z.number(),
+-      z.object({
+-        min: z.number().optional(),
+-        max: z.number().optional(),
+-      }),
+-    ])
+-    .optional(),
++  experiencePoints: z.union([
++    z.number(),
++    z.object({
++      min: z.number().optional(),
++      max: z.number().optional()
++    })
++  ]).optional(),
+ });
+ 
+ export type DSA5Filters = z.infer<typeof DSA5FiltersSchema>;
+diff --git a/packages/mcp-server/src/systems/dsa5/index-builder.ts b/packages/mcp-server/src/systems/dsa5/index-builder.ts
+index 25e70fd..6d90307 100644
+--- a/packages/mcp-server/src/systems/dsa5/index-builder.ts
++++ b/packages/mcp-server/src/systems/dsa5/index-builder.ts
+@@ -50,9 +50,7 @@ export class DSA5IndexBuilder implements IndexBuilder {
+       const enhancedCreatures: DSA5CreatureIndex[] = [];
+ 
+       // Show initial progress notification
+-      console.log(
+-        `[${this.moduleId}] Starte DSA5 Kreaturen-Index aus ${actorPacks.length} Paketen...`
+-      );
++      console.log(`[${this.moduleId}] Starte DSA5 Kreaturen-Index aus ${actorPacks.length} Paketen...`);
+       if (typeof ui !== 'undefined' && ui.notifications) {
+         ui.notifications.info(`Starte DSA5 Kreaturen-Index aus ${actorPacks.length} Paketen...`);
+       }
+@@ -81,12 +79,11 @@ export class DSA5IndexBuilder implements IndexBuilder {
+           const packResult = await this.extractDataFromPack(pack);
+           enhancedCreatures.push(...packResult.creatures);
+           totalErrors += packResult.errors;
++
+         } catch (error) {
+           console.warn(`[${this.moduleId}] Failed to process pack ${pack.metadata.label}:`, error);
+           if (typeof ui !== 'undefined' && ui.notifications) {
+-            ui.notifications.warn(
+-              `Warnung: Fehler beim Indizieren von "${pack.metadata.label}" - fahre fort`
+-            );
++            ui.notifications.warn(`Warnung: Fehler beim Indizieren von "${pack.metadata.label}" - fahre fort`);
+           }
+         }
+       }
+@@ -106,6 +103,7 @@ export class DSA5IndexBuilder implements IndexBuilder {
+       }
+ 
+       return enhancedCreatures;
++
+     } catch (error) {
+       if (progressNotification && typeof ui !== 'undefined') {
+         progressNotification.remove();
+@@ -124,9 +122,7 @@ export class DSA5IndexBuilder implements IndexBuilder {
+   /**
+    * Extract creature data from a single compendium pack
+    */
+-  async extractDataFromPack(
+-    pack: any
+-  ): Promise<{ creatures: DSA5CreatureIndex[]; errors: number }> {
++  async extractDataFromPack(pack: any): Promise<{ creatures: DSA5CreatureIndex[]; errors: number }> {
+     const creatures: DSA5CreatureIndex[] = [];
+     let errors = 0;
+ 
+@@ -146,6 +142,7 @@ export class DSA5IndexBuilder implements IndexBuilder {
+             creatures.push(result.creature);
+             errors += result.errors;
+           }
++
+         } catch (error) {
+           console.warn(
+             `[${this.moduleId}] Failed to extract DSA5 data from ${doc.name} in ${pack.metadata.label}:`,
+@@ -155,10 +152,7 @@ export class DSA5IndexBuilder implements IndexBuilder {
+         }
+       }
+     } catch (error) {
+-      console.warn(
+-        `[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`,
+-        error
+-      );
++      console.warn(`[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`, error);
+       errors++;
+     }
+ 
+@@ -177,44 +171,45 @@ export class DSA5IndexBuilder implements IndexBuilder {
+       const system = doc.system || {};
+ 
+       // Extract experience points (AP)
+-      const experiencePoints =
+-        system.details?.experience?.total ??
+-        system.experience?.total ??
+-        system.status?.experience ??
+-        0;
++      const experiencePoints = system.details?.experience?.total
++        ?? system.experience?.total
++        ?? system.status?.experience
++        ?? 0;
+ 
+       // Calculate level from AP using EXPERIENCE_LEVELS
+       const experienceLevel = getExperienceLevel(experiencePoints);
+       const level = experienceLevel.level;
+ 
+       // Extract species
+-      let species =
+-        system.details?.species?.value ??
+-        system.species?.value ??
+-        system.details?.type ??
+-        'Unbekannt';
++      let species = system.details?.species?.value
++        ?? system.species?.value
++        ?? system.details?.type
++        ?? 'Unbekannt';
+       if (typeof species !== 'string') {
+         species = String(species || 'Unbekannt');
+       }
+ 
+       // Extract culture (with default)
+-      let culture = system.details?.culture?.value ?? system.culture?.value ?? 'Keine';
++      let culture = system.details?.culture?.value
++        ?? system.culture?.value
++        ?? 'Keine';
+       if (typeof culture !== 'string') {
+         culture = String(culture || 'Keine');
+       }
+ 
+       // Extract profession/career
+-      let profession =
+-        system.details?.career?.value ??
+-        system.details?.profession?.value ??
+-        system.career?.value ??
+-        undefined;
++      let profession = system.details?.career?.value
++        ?? system.details?.profession?.value
++        ?? system.career?.value
++        ?? undefined;
+       if (profession && typeof profession !== 'string') {
+         profession = String(profession);
+       }
+ 
+       // Extract and normalize size
+-      let size = system.status?.size?.value ?? system.size?.value ?? 'mittel';
++      let size = system.status?.size?.value
++        ?? system.size?.value
++        ?? 'mittel';
+       if (typeof size !== 'string') {
+         size = String(size || 'mittel');
+       }
+@@ -222,20 +217,27 @@ export class DSA5IndexBuilder implements IndexBuilder {
+ 
+       // Extract combat values
+       // Note: wounds.current contains actual LeP (based on template.json reverse engineering)
+-      const lifePoints =
+-        system.status?.wounds?.max ?? system.status?.wounds?.current ?? system.wounds?.max ?? 1;
++      const lifePoints = system.status?.wounds?.max
++        ?? system.status?.wounds?.current
++        ?? system.wounds?.max
++        ?? 1;
+ 
+-      const meleeDefense =
+-        system.status?.defense?.value ?? system.defense?.value ?? system.status?.defense ?? 10;
++      const meleeDefense = system.status?.defense?.value
++        ?? system.defense?.value
++        ?? system.status?.defense
++        ?? 10;
+ 
+-      const rangedDefense =
+-        system.status?.rangeDefense?.value ?? system.rangeDefense?.value ?? meleeDefense;
++      const rangedDefense = system.status?.rangeDefense?.value
++        ?? system.rangeDefense?.value
++        ?? meleeDefense;
+ 
+-      const armor = system.status?.armour?.value ?? system.status?.armor?.value ?? 0;
++      const armor = system.status?.armour?.value
++        ?? system.status?.armor?.value
++        ?? 0;
+ 
+       // Detect spellcasting capability
+-      const hasAstralEnergy = !!system.status?.astralenergy?.max;
+-      const hasKarmaEnergy = !!system.status?.karmaenergy?.max;
++      const hasAstralEnergy = !!(system.status?.astralenergy?.max);
++      const hasKarmaEnergy = !!(system.status?.karmaenergy?.max);
+       const hasSpells = !!(
+         hasAstralEnergy ||
+         hasKarmaEnergy ||
+diff --git a/packages/mcp-server/src/systems/dsa5/index.ts b/packages/mcp-server/src/systems/dsa5/index.ts
+index b510f20..d5a57ad 100644
+--- a/packages/mcp-server/src/systems/dsa5/index.ts
++++ b/packages/mcp-server/src/systems/dsa5/index.ts
+@@ -16,6 +16,7 @@ export { DSA5Adapter } from './adapter.js';
+ 
+ // Character creator (runs in MCP server Node.js context)
+ export { DSA5CharacterCreator } from './character-creator.js';
++export { DSA5JsonActorImporter } from './json-actor-importer.js';
+ 
+ // Filter system
+ export {
+diff --git a/packages/mcp-server/src/systems/dsa5/json-actor-importer.test.ts b/packages/mcp-server/src/systems/dsa5/json-actor-importer.test.ts
+new file mode 100644
+index 0000000..f39de56
+--- /dev/null
++++ b/packages/mcp-server/src/systems/dsa5/json-actor-importer.test.ts
+@@ -0,0 +1,200 @@
++import { describe, expect, it } from 'vitest';
++import {
++  applyResolvedItemOverrides,
++  detectDSA5ImportFormat,
++  mapCustomDsa5Payload,
++  mapOptolithLikePayload,
++  normalizeInputKeys,
++  validateImportPayload,
++} from './json-actor-importer.js';
++
++describe('DSA5 JSON actor importer mapper', () => {
++  it('detects custom_dsa5 format', () => {
++    const format = detectDSA5ImportFormat({
++      name: 'Loreley',
++      attribute: { mut: 10 },
++      talente: [],
++    });
++
++    expect(format).toBe('custom_dsa5');
++  });
++
++  it('detects optolith_like format', () => {
++    const format = detectDSA5ImportFormat({
++      name: 'Opto',
++      r: 'species_1',
++      c: 'culture_1',
++      p: 'profession_1',
++      attr: { values: [{ id: 'ATTR_1', value: 14 }] },
++    });
++
++    expect(format).toBe('optolith_like');
++  });
++
++  it('detects raw_foundry format', () => {
++    const format = detectDSA5ImportFormat({
++      name: 'Raw Actor',
++      type: 'character',
++      system: {},
++    });
++
++    expect(format).toBe('raw_foundry');
++  });
++
++  it('maps custom DSA5 payload into actor core fields', () => {
++    const result = mapCustomDsa5Payload({
++      name: 'Loreley',
++      spezies: 'Halbelf',
++      kultur: 'Nostria',
++      profession: 'Zauberin',
++      sozialstatus: 'II',
++      abenteuerpunkteGesammelt: 1200,
++      abenteuerpunkteAusgegeben: 1190,
++      abenteuerpunkteGesamt: 10,
++      attribute: {
++        mut: 10,
++        klugheit: 15,
++        intuition: 15,
++        charisma: 15,
++        fingerfertigkeit: 16,
++        gewandheit: 12,
++        konstitution: 11,
++        koerperkraft: 8,
++      },
++      energien: {
++        lebensenergie: 27,
++        astralenergie: 22,
++        karmaenergie: 0,
++        schicksalspunkte: 3,
++      },
++      vorteile: [{ name: 'Zauberer' }],
++      talente: [{ name: 'Sinnesschaerfe' }],
++      kampftechniken: [{ name: 'Dolche', talentwert: 9 }],
++      zauberUndLiturgien: [{ name: 'Axxeleratus', talentwert: 7 }],
++      nahkampfwaffen: [{ name: 'Dolch', anzahl: 2 }],
++    });
++
++    expect(result.actorData.name).toBe('Loreley');
++    expect((result.actorData.system as any).details.species.value).toBe('Halbelf');
++    expect((result.actorData.system as any).characteristics.mu.advances).toBe(2);
++    expect((result.actorData.system as any).status.wounds.initial).toBe(5);
++    expect((result.actorData.system as any).status.wounds.value).toBe(27);
++    expect(result.candidateItemNames).toContain('Halbelf');
++    expect(result.candidateItemNames).toContain('Zauberer');
++    expect(result.candidateItemNames).toContain('Sinnesschaerfe');
++    expect(result.itemOverrides.sinnesschaerfe?.talentValue).toBeUndefined();
++    expect(result.itemOverrides.dolche?.talentValue).toBe(9);
++    expect(result.itemOverrides.axxeleratus?.talentValue).toBe(7);
++    expect(result.itemOverrides.dolch?.quantity).toBe(2);
++  });
++
++  it('maps optolith-like payload into actor core fields', () => {
++    const result = mapOptolithLikePayload({
++      name: 'Optolith Hero',
++      sex: 'male',
++      attr: {
++        lp: 2,
++        ae: 4,
++        kp: 1,
++        values: [
++          { id: 'ATTR_1', value: 14 },
++          { id: 'ATTR_2', value: 13 },
++        ],
++      },
++      pers: {
++        age: '25',
++        family: 'Unknown',
++      },
++      ap: {
++        total: 1500,
++      },
++    });
++
++    expect(result.actorData.name).toBe('Optolith Hero');
++    expect((result.actorData.system as any).characteristics.mu.advances).toBe(6);
++    expect((result.actorData.system as any).status.astralenergy.advances).toBe(4);
++    expect((result.actorData.system as any).details.experience.total).toBe(1500);
++    expect(result.warnings).toEqual([]);
++  });
++
++  it('fixes mojibake keys in attribute object', () => {
++    const fixed = normalizeInputKeys({ 'kÃ¶rperkraft': 12 });
++    expect(fixed['körperkraft']).toBe(12);
++    expect('kÃ¶rperkraft' in fixed).toBe(false);
++  });
++
++  it('rejects unknown format with helpful message', () => {
++    const result = validateImportPayload({ foo: 'bar' });
++    expect(result.isValid).toBe(false);
++    expect(result.detectedFormat).toBe('unknown');
++    expect(result.errors[0]).toContain('Format nicht erkannt');
++  });
++
++  it('rejects optolith_like without attr.values', () => {
++    const result = validateImportPayload({
++      name: 'Test',
++      r: 'x',
++      c: 'y',
++      p: 'z',
++      attr: { values: [] },
++    });
++    expect(result.isValid).toBe(false);
++  });
++
++  it('validates correct optolith_like payload', () => {
++    const result = validateImportPayload({
++      name: 'Test',
++      r: 'x',
++      c: 'y',
++      p: 'z',
++      attr: { values: [{ id: 'ATTR_1', value: 12 }] },
++    });
++    expect(result.isValid).toBe(true);
++  });
++
++  it('maps optolith talents and items from belongings', () => {
++    const result = mapOptolithLikePayload({
++      name: 'Hero',
++      attr: { values: [{ id: 'ATTR_1', value: 12 }], lp: 2, ae: 0, kp: 0 },
++      talents: { TAL_1: 3, TAL_8: 7 },
++      ct: { CT_3: 10 },
++      activatable: { ADV_4: [{}] },
++      belongings: { items: { item_1: { name: 'Dolch', amount: 2 } } },
++      ap: { total: 1000 },
++    });
++
++    expect(result.itemOverrides['tal_1']?.talentValue).toBe(3);
++    expect(result.itemOverrides['ct_3']?.talentValue).toBe(10);
++    expect(result.candidateItemNames).toContain('ADV_4');
++    expect(result.itemOverrides['dolch']?.quantity).toBe(2);
++  });
++
++  it('applies item overrides to resolved embedded items', () => {
++    const items = [
++      {
++        name: 'Klettern',
++        type: 'skill',
++        system: {
++          talentValue: { value: 0 },
++        },
++      },
++      {
++        name: 'Kurzbogen',
++        type: 'rangeweapon',
++        system: {
++          quantity: { value: 1 },
++        },
++      },
++    ] as any[];
++
++    const result = applyResolvedItemOverrides(items, {
++      klettern: { sourceName: 'Klettern', talentValue: 2 },
++      kurzbogen: { sourceName: 'Kurzbogen', quantity: 3 },
++    });
++
++    expect((items[0].system as any).talentValue.value).toBe(2);
++    expect((items[1].system as any).quantity.value).toBe(3);
++    expect(result.appliedCount).toBe(2);
++    expect(result.unappliedSourceNames).toEqual([]);
++  });
++});
+diff --git a/packages/mcp-server/src/systems/dsa5/json-actor-importer.ts b/packages/mcp-server/src/systems/dsa5/json-actor-importer.ts
+new file mode 100644
+index 0000000..affd657
+--- /dev/null
++++ b/packages/mcp-server/src/systems/dsa5/json-actor-importer.ts
+@@ -0,0 +1,1083 @@
++﻿import { promises as fs } from 'node:fs';
++import { z } from 'zod';
++import { FoundryClient } from '../../foundry-client.js';
++import { Logger } from '../../logger.js';
++import { ErrorHandler } from '../../utils/error-handler.js';
++
++export interface DSA5JsonActorImporterOptions {
++  foundryClient: FoundryClient;
++  logger: Logger;
++}
++
++type JsonRecord = Record<string, unknown>;
++
++export type DSA5ImportFormat = 'raw_foundry' | 'optolith_like' | 'custom_dsa5' | 'unknown';
++
++export type DSA5ImportStrategy = 'auto' | 'raw_foundry' | 'optolith_like' | 'custom_dsa5';
++
++interface MappingResult {
++  actorData: JsonRecord;
++  candidateItemNames: string[];
++  itemOverrides: Record<string, ItemOverride>;
++  warnings: string[];
++  unmappedFields: string[];
++}
++
++interface ItemOverride {
++  sourceName: string;
++  talentValue?: number;
++  quantity?: number;
++}
++
++const isRecord = (value: unknown): value is JsonRecord =>
++  typeof value === 'object' && value !== null && !Array.isArray(value);
++
++const fixMojibake = (s: string): string =>
++  s.replace(/Ã¶/g, 'ö')
++    .replace(/Ã¼/g, 'ü')
++    .replace(/Ã¤/g, 'ä')
++    .replace(/ÃŸ/g, 'ß')
++    .replace(/Ã–/g, 'Ö')
++    .replace(/Ãœ/g, 'Ü')
++    .replace(/Ã„/g, 'Ä');
++
++const normalizeValue = (value: unknown, parentKey?: string): unknown => {
++  if (Array.isArray(value)) {
++    return value.map((entry) => normalizeValue(entry, parentKey));
++  }
++
++  if (isRecord(value)) {
++    const normalized: JsonRecord = {};
++    for (const [key, entryValue] of Object.entries(value)) {
++      const fixedKey = fixMojibake(key);
++      normalized[fixedKey] = normalizeValue(entryValue, fixedKey);
++    }
++    return normalized;
++  }
++
++  if (typeof value === 'string' && parentKey === 'name') {
++    return fixMojibake(value);
++  }
++
++  return value;
++};
++
++export const normalizeInputKeys = (payload: JsonRecord): JsonRecord =>
++  normalizeValue(payload) as JsonRecord;
++
++const toNumber = (value: unknown): number | undefined => {
++  if (typeof value === 'number' && Number.isFinite(value)) return value;
++  if (typeof value === 'string') {
++    const parsed = Number.parseFloat(value);
++    if (Number.isFinite(parsed)) return parsed;
++  }
++  return undefined;
++};
++
++const toStringValue = (value: unknown): string | undefined => {
++  if (typeof value === 'string') {
++    const trimmed = value.trim();
++    return trimmed.length > 0 ? trimmed : undefined;
++  }
++  return undefined;
++};
++
++const getByKeys = (source: JsonRecord, keys: string[]): unknown => {
++  for (const key of keys) {
++    if (key in source) return source[key];
++  }
++  return undefined;
++};
++
++const getNested = (source: JsonRecord, path: string): unknown => {
++  const parts = path.split('.');
++  let current: unknown = source;
++  for (const part of parts) {
++    if (!isRecord(current) || !(part in current)) return undefined;
++    current = current[part];
++  }
++  return current;
++};
++
++const characteristicAdvance = (value: unknown): number | undefined => {
++  const numeric = toNumber(value);
++  if (numeric === undefined) return undefined;
++  return Math.round(numeric) - 8;
++};
++
++const normalizeName = (name: string): string =>
++  name
++    .toLowerCase()
++    .normalize('NFKD')
++    .replace(/[\u0300-\u036f]/g, '')
++    .replace(/[^a-z0-9_]+/g, ' ')
++    .replace(/\s+/g, ' ')
++    .trim();
++
++const uniqueNames = (names: string[]): string[] => {
++  const seen = new Set<string>();
++  const result: string[] = [];
++  for (const name of names) {
++    const normalized = normalizeName(name);
++    if (normalized.length === 0 || seen.has(normalized)) continue;
++    seen.add(normalized);
++    result.push(name.trim());
++  }
++  return result;
++};
++
++const sanitizeEmbeddedDocuments = (docs: unknown): JsonRecord[] => {
++  if (!Array.isArray(docs)) return [];
++  return docs
++    .filter((entry): entry is JsonRecord => isRecord(entry))
++    .map((entry) => {
++      const cloned = { ...entry };
++      delete cloned._id;
++      delete cloned.folder;
++      delete cloned.sort;
++      return cloned;
++    });
++};
++
++const addItemOverride = (
++  itemOverrides: Record<string, ItemOverride>,
++  sourceName: string,
++  next: Partial<ItemOverride>
++): void => {
++  const normalized = normalizeName(sourceName);
++  if (normalized.length === 0) return;
++  const current = itemOverrides[normalized] ?? { sourceName };
++  itemOverrides[normalized] = {
++    ...current,
++    ...next,
++    sourceName: current.sourceName ?? sourceName,
++  };
++};
++
++const collectTalentOverrides = (
++  source: unknown,
++  itemOverrides: Record<string, ItemOverride>
++): void => {
++  if (!Array.isArray(source)) return;
++  for (const entry of source) {
++    if (!isRecord(entry)) continue;
++    const name = toStringValue(entry.name);
++    const talentValue = toNumber(entry.talentwert);
++    if (!name || talentValue === undefined) continue;
++    addItemOverride(itemOverrides, name, { talentValue });
++  }
++};
++
++const collectQuantityOverrides = (
++  source: unknown,
++  itemOverrides: Record<string, ItemOverride>
++): void => {
++  if (!Array.isArray(source)) return;
++  for (const entry of source) {
++    if (!isRecord(entry)) continue;
++    const name = toStringValue(entry.name);
++    const quantity = toNumber(getByKeys(entry, ['anzahl', 'menge', 'quantity']));
++    if (!name || quantity === undefined) continue;
++    addItemOverride(itemOverrides, name, { quantity: Math.max(0, Math.round(quantity)) });
++  }
++};
++
++export const applyResolvedItemOverrides = (
++  items: JsonRecord[],
++  itemOverrides: Record<string, ItemOverride>
++): { appliedCount: number; unappliedSourceNames: string[] } => {
++  if (items.length === 0 || Object.keys(itemOverrides).length === 0) {
++    return { appliedCount: 0, unappliedSourceNames: [] };
++  }
++
++  const matched = new Set<string>();
++  let appliedCount = 0;
++
++  for (const item of items) {
++    const itemName = toStringValue(item.name);
++    if (!itemName) continue;
++    const normalized = normalizeName(itemName);
++    const override = itemOverrides[normalized];
++    if (!override) continue;
++
++    if (!isRecord(item.system)) {
++      item.system = {};
++    }
++
++    let touched = false;
++
++    if (override.talentValue !== undefined) {
++      const talentValue = isRecord((item.system as JsonRecord).talentValue)
++        ? { ...((item.system as JsonRecord).talentValue as JsonRecord) }
++        : {};
++      talentValue.value = Math.round(override.talentValue);
++      (item.system as JsonRecord).talentValue = talentValue;
++      touched = true;
++    }
++
++    if (override.quantity !== undefined) {
++      const quantity = isRecord((item.system as JsonRecord).quantity)
++        ? { ...((item.system as JsonRecord).quantity as JsonRecord) }
++        : {};
++      quantity.value = Math.max(0, Math.round(override.quantity));
++      (item.system as JsonRecord).quantity = quantity;
++      touched = true;
++    }
++
++    if (touched) {
++      matched.add(normalized);
++      appliedCount += 1;
++    }
++  }
++
++  const unappliedSourceNames = Object.entries(itemOverrides)
++    .filter(([normalized]) => !matched.has(normalized))
++    .map(([, override]) => override.sourceName);
++
++  return {
++    appliedCount,
++    unappliedSourceNames: uniqueNames(unappliedSourceNames),
++  };
++};
++
++const getSearchCandidates = (name: string): string[] => {
++  const candidates = [
++    name,
++    name.replace(/\s*-\s*[ivx]+$/i, ''),
++    name.replace(/\s+[ivx]+$/i, ''),
++    name.replace(/\s*\([^)]*\)\s*/g, ' ').trim(),
++  ]
++    .map((candidate) => candidate.trim())
++    .filter((candidate) => candidate.length > 0);
++
++  return uniqueNames(candidates);
++};
++
++export const detectDSA5ImportFormat = (payload: JsonRecord): DSA5ImportFormat => {
++  const normalizedPayload = normalizeInputKeys(payload);
++
++  if (isRecord(normalizedPayload.system) && typeof normalizedPayload.type === 'string') {
++    return 'raw_foundry';
++  }
++
++  const attr = normalizedPayload.attr;
++  const optolithLike = isRecord(attr) && Array.isArray(attr.values);
++  if (optolithLike) return 'optolith_like';
++
++  const customLike =
++    isRecord(normalizedPayload.attribute) ||
++    Array.isArray(normalizedPayload.vorteile) ||
++    Array.isArray(normalizedPayload.talente) ||
++    Array.isArray(normalizedPayload.kampftechniken);
++  if (customLike) return 'custom_dsa5';
++
++  return 'unknown';
++};
++
++export const validateImportPayload = (
++  payload: JsonRecord
++): {
++  isValid: boolean;
++  errors: string[];
++  warnings: string[];
++  detectedFormat: DSA5ImportFormat;
++  missingCriticalFields: string[];
++  availableTopLevelKeys: string[];
++} => {
++  const normalizedPayload = normalizeInputKeys(payload);
++  const detectedFormat = detectDSA5ImportFormat(normalizedPayload);
++  const availableTopLevelKeys = Object.keys(normalizedPayload);
++  const missingCriticalFields: string[] = [];
++  const errors: string[] = [];
++  const warnings: string[] = [];
++
++  if (detectedFormat === 'raw_foundry') {
++    if (typeof normalizedPayload.type !== 'string') {
++      missingCriticalFields.push('type');
++    }
++    if (!isRecord(normalizedPayload.system)) {
++      missingCriticalFields.push('system');
++    }
++    if (missingCriticalFields.length > 0) {
++      errors.push(`raw_foundry: Pflichtfelder fehlen (${missingCriticalFields.join(', ')}).`);
++    }
++  }
++
++  if (detectedFormat === 'optolith_like') {
++    if (!toStringValue(normalizedPayload.name)) {
++      missingCriticalFields.push('name');
++    }
++
++    const attr = isRecord(normalizedPayload.attr) ? normalizedPayload.attr : undefined;
++    const values = attr && Array.isArray(attr.values) ? attr.values : [];
++    if (values.length === 0) {
++      missingCriticalFields.push('attr.values');
++    }
++
++    if (missingCriticalFields.length > 0) {
++      errors.push(`optolith_like: Pflichtfelder fehlen (${missingCriticalFields.join(', ')}).`);
++    }
++
++    const hasR = Boolean(toStringValue(normalizedPayload.r));
++    const hasC = Boolean(toStringValue(normalizedPayload.c));
++    const hasP = Boolean(toStringValue(normalizedPayload.p));
++    if (!hasR || !hasC || !hasP) {
++      warnings.push('Spezies/Kultur/Profession fehlen');
++    }
++    if (!isRecord(normalizedPayload.talents) || Object.keys(normalizedPayload.talents).length === 0) {
++      warnings.push('Keine Talente gefunden');
++    }
++  }
++
++  if (detectedFormat === 'custom_dsa5') {
++    if (!toStringValue(normalizedPayload.name)) {
++      missingCriticalFields.push('name');
++    }
++
++    const attribute = isRecord(normalizedPayload.attribute) ? normalizedPayload.attribute : undefined;
++    const knownAttributeKeys = [
++      'mut',
++      'klugheit',
++      'intuition',
++      'charisma',
++      'fingerfertigkeit',
++      'gewandheit',
++      'konstitution',
++      'körperkraft',
++      'koerperkraft',
++    ];
++    const hasKnownAttribute =
++      attribute !== undefined && knownAttributeKeys.some((key) => key in attribute);
++    if (!hasKnownAttribute) {
++      missingCriticalFields.push('attribute');
++    }
++
++    if (missingCriticalFields.length > 0) {
++      errors.push(`custom_dsa5: Pflichtfelder fehlen (${missingCriticalFields.join(', ')}).`);
++    }
++
++    if (!isRecord(normalizedPayload.energien)) {
++      warnings.push('Energien (Lebensenergie etc.) fehlen');
++    }
++
++    const hasTalente = Array.isArray(normalizedPayload.talente) && normalizedPayload.talente.length > 0;
++    const hasVorteile = Array.isArray(normalizedPayload.vorteile) && normalizedPayload.vorteile.length > 0;
++    const hasKampftechniken =
++      Array.isArray(normalizedPayload.kampftechniken) && normalizedPayload.kampftechniken.length > 0;
++    if (!hasTalente && !hasVorteile && !hasKampftechniken) {
++      warnings.push('Keine Items');
++    }
++  }
++
++  if (detectedFormat === 'unknown') {
++    const keyList = availableTopLevelKeys.length > 0 ? availableTopLevelKeys.join(', ') : '(keine)';
++    errors.push(
++      `Format nicht erkannt. Erkannte Felder: [${keyList}]. ` +
++      `Unterstützte Formate: custom_dsa5, optolith_like, raw_foundry. ` +
++      `Für custom_dsa5 wird mindestens 'name' + 'attribute' benötigt. ` +
++      `Für optolith_like wird mindestens 'name' + 'attr.values' benötigt.`
++    );
++  }
++
++  return {
++    isValid: errors.length === 0,
++    errors,
++    warnings,
++    detectedFormat,
++    missingCriticalFields,
++    availableTopLevelKeys,
++  };
++};
++
++export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
++  const attribute = isRecord(payload.attribute) ? payload.attribute : {};
++  const energien = isRecord(payload.energien) ? payload.energien : {};
++  const itemOverrides: Record<string, ItemOverride> = {};
++
++  const species = toStringValue(payload.spezies);
++  const culture = toStringValue(payload.kultur);
++  const profession = toStringValue(payload.profession);
++  const socialStatus = toStringValue(payload.sozialstatus);
++  const koValue = toNumber(attribute.konstitution);
++  const lifeEnergy = toNumber(energien.lebensenergie);
++  const derivedWoundsInitial =
++    lifeEnergy !== undefined && koValue !== undefined
++      ? Math.max(0, Math.round(lifeEnergy - koValue * 2))
++      : undefined;
++
++  const actorData: JsonRecord = {
++    name: toStringValue(payload.name) ?? 'Imported DSA5 Character',
++    type: 'character',
++    system: {
++      characteristics: {
++        mu: { advances: characteristicAdvance(attribute.mut) ?? 0 },
++        kl: { advances: characteristicAdvance(attribute.klugheit) ?? 0 },
++        in: { advances: characteristicAdvance(attribute.intuition) ?? 0 },
++        ch: { advances: characteristicAdvance(attribute.charisma) ?? 0 },
++        ff: { advances: characteristicAdvance(attribute.fingerfertigkeit) ?? 0 },
++        ge: { advances: characteristicAdvance(attribute.gewandheit) ?? 0 },
++        ko: { advances: characteristicAdvance(attribute.konstitution) ?? 0 },
++        kk: {
++          advances:
++            characteristicAdvance(getByKeys(attribute, ['körperkraft', 'koerperkraft'])) ?? 0,
++        },
++      },
++      status: {
++        wounds: {
++          // DSA5 computes max LeP from wounds.initial + KO*2 (+modifiers).
++          // Keep initial aligned with imported lifeEnergy to avoid 27/22 mismatches.
++          initial: derivedWoundsInitial ?? 0,
++          value: lifeEnergy ?? 0,
++          max: lifeEnergy ?? 0,
++        },
++        astralenergy: {
++          value: toNumber(energien.astralenergie) ?? 0,
++          max: toNumber(energien.astralenergie) ?? 0,
++        },
++        karmaenergy: {
++          value: toNumber(energien.karmaenergie) ?? 0,
++          max: toNumber(energien.karmaenergie) ?? 0,
++        },
++        fatePoints: {
++          value: toNumber(energien.schicksalspunkte) ?? 0,
++          max: toNumber(energien.schicksalspunkte) ?? 0,
++        },
++      },
++      details: {
++        species: { value: species ?? '' },
++        culture: { value: culture ?? '' },
++        career: { value: profession ?? '' },
++        socialstate: { value: socialStatus ?? '' },
++        experience: {
++          total: toNumber(payload.abenteuerpunkteGesammelt) ?? 0,
++          spent: toNumber(payload.abenteuerpunkteAusgegeben) ?? 0,
++          available: toNumber(payload.abenteuerpunkteGesamt) ?? 0,
++        },
++      },
++    },
++  };
++
++  const nameBuckets: string[] = [];
++  if (species) nameBuckets.push(species);
++  if (culture) nameBuckets.push(culture);
++  if (profession) nameBuckets.push(profession);
++
++  const pushNames = (value: unknown) => {
++    if (!Array.isArray(value)) return;
++    for (const entry of value) {
++      if (isRecord(entry)) {
++        const entryName = toStringValue(entry.name);
++        if (entryName) nameBuckets.push(entryName);
++      } else if (typeof entry === 'string' && entry.trim().length > 0) {
++        nameBuckets.push(entry.trim());
++      }
++    }
++  };
++
++  pushNames(payload.vorteile);
++  pushNames(payload.nachteile);
++  pushNames(payload.sonderfertigkeiten);
++  pushNames(payload.talente);
++  pushNames(payload.kampftechniken);
++  pushNames(payload.zauberUndLiturgien);
++  pushNames(payload.nahkampfwaffen);
++  pushNames(payload.fernkampfwaffen);
++  pushNames(payload.gegenstände);
++  pushNames(payload.sprachen);
++  pushNames(payload.schriften);
++
++  collectTalentOverrides(payload.talente, itemOverrides);
++  collectTalentOverrides(payload.kampftechniken, itemOverrides);
++  collectTalentOverrides(payload.zauberUndLiturgien, itemOverrides);
++  collectQuantityOverrides(payload.nahkampfwaffen, itemOverrides);
++  collectQuantityOverrides(payload.fernkampfwaffen, itemOverrides);
++  collectQuantityOverrides(payload.gegenstände, itemOverrides);
++
++  const warnings: string[] = [];
++  if (!species) warnings.push('No species in payload; actor will be created with empty species field.');
++  if (!culture) warnings.push('No culture in payload; actor will be created with empty culture field.');
++  if (!profession) warnings.push('No profession in payload; actor will be created with empty profession field.');
++
++  const knownRoots = new Set([
++    'uid',
++    'grösse',
++    'größe',
++    'grÃ¶sse',
++    'name',
++    'geschlecht',
++    'spezies',
++    'region',
++    'kultur',
++    'kulturpaket',
++    'profession',
++    'sozialstatus',
++    'abenteuerpunkteGesammelt',
++    'abenteuerpunkteAusgegeben',
++    'abenteuerpunkteGesamt',
++    'hintergrund',
++    'attribute',
++    'abgeleiteteWerte',
++    'energien',
++    'vorteile',
++    'nachteile',
++    'sonderfertigkeiten',
++    'berufsgeheimnisse',
++    'sprachen',
++    'schriften',
++    'talente',
++    'kampftechniken',
++    'zauberUndLiturgien',
++    'objektrituale',
++    'rüstungen',
++    'nahkampfwaffen',
++    'fernkampfwaffen',
++    'gegenstände',
++  ]);
++
++  const unmappedFields = Object.keys(payload).filter((key) => !knownRoots.has(key));
++
++  return {
++    actorData,
++    candidateItemNames: uniqueNames(nameBuckets),
++    itemOverrides,
++    warnings,
++    unmappedFields,
++  };
++};
++
++export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
++  const attr = isRecord(payload.attr) ? payload.attr : {};
++  const details = isRecord(payload.pers) ? payload.pers : {};
++  const itemOverrides: Record<string, ItemOverride> = {};
++  const candidateItemNames: string[] = [];
++  const warnings: string[] = [];
++
++  const characteristics: Record<string, { advances: number }> = {
++    mu: { advances: 0 },
++    kl: { advances: 0 },
++    in: { advances: 0 },
++    ch: { advances: 0 },
++    ff: { advances: 0 },
++    ge: { advances: 0 },
++    ko: { advances: 0 },
++    kk: { advances: 0 },
++  };
++
++  const attrValues = Array.isArray(attr.values) ? attr.values : [];
++  const attrToCharacteristic: Record<string, keyof typeof characteristics> = {
++    ATTR_1: 'mu',
++    ATTR_2: 'kl',
++    ATTR_3: 'in',
++    ATTR_4: 'ch',
++    ATTR_5: 'ff',
++    ATTR_6: 'ge',
++    ATTR_7: 'ko',
++    ATTR_8: 'kk',
++  };
++  for (const entry of attrValues) {
++    if (!isRecord(entry)) continue;
++    const idRaw = toStringValue(entry.id);
++    const value = toNumber(entry.value);
++    if (!idRaw || value === undefined) continue;
++    const characteristicKey = attrToCharacteristic[idRaw];
++    if (characteristicKey) {
++      characteristics[characteristicKey] = { advances: Math.round(value) - 8 };
++    }
++  }
++
++  const speciesId = toStringValue(payload.r);
++  const cultureId = toStringValue(payload.c);
++  const professionId = toStringValue(payload.p);
++  if (speciesId) candidateItemNames.push(speciesId);
++  if (cultureId) candidateItemNames.push(cultureId);
++  if (professionId) candidateItemNames.push(professionId);
++  if (speciesId || cultureId || professionId) {
++    warnings.push('Spezies/Kultur/Profession sind als IDs gespeichert - Compendium-Suche kann davon abweichen.');
++  }
++
++  const addIdBasedTalentValues = (source: unknown): boolean => {
++    if (!isRecord(source)) return false;
++    let detected = false;
++    for (const [id, value] of Object.entries(source)) {
++      const numeric = toNumber(value);
++      if (numeric === undefined) continue;
++      candidateItemNames.push(id);
++      addItemOverride(itemOverrides, id, { talentValue: Math.round(numeric) });
++      detected = true;
++    }
++    return detected;
++  };
++
++  const hasTalentIds = [
++    addIdBasedTalentValues(payload.talents),
++    addIdBasedTalentValues(payload.ct),
++    addIdBasedTalentValues(payload.spells),
++    addIdBasedTalentValues(payload.liturgies),
++  ].some(Boolean);
++  if (hasTalentIds) {
++    warnings.push('Talent-IDs (TAL_x) wurden übergeben - Compendium-Treffer hängen vom DSA5-System-Modul ab.');
++  }
++
++  const pushArrayNames = (source: unknown) => {
++    if (!Array.isArray(source)) return;
++    for (const entry of source) {
++      const name = toStringValue(entry);
++      if (name) candidateItemNames.push(name);
++    }
++  };
++  pushArrayNames(payload.cantrips);
++  pushArrayNames(payload.blessings);
++
++  if (isRecord(payload.activatable)) {
++    for (const [id] of Object.entries(payload.activatable)) {
++      candidateItemNames.push(id);
++    }
++  }
++
++  const belongings = isRecord(payload.belongings) ? payload.belongings : {};
++  const belongingsItems = isRecord(belongings.items) ? belongings.items : {};
++  for (const [, itemData] of Object.entries(belongingsItems)) {
++    if (!isRecord(itemData)) continue;
++    const itemName = toStringValue(itemData.name);
++    if (!itemName) continue;
++    candidateItemNames.push(itemName);
++    const amount = toNumber(itemData.amount);
++    if (amount !== undefined) {
++      addItemOverride(itemOverrides, itemName, { quantity: Math.max(0, Math.round(amount)) });
++    }
++  }
++
++  const actorData: JsonRecord = {
++    name: toStringValue(payload.name) ?? 'Imported Optolith Character',
++    type: 'character',
++    system: {
++      characteristics,
++      status: {
++        wounds: {
++          advances: toNumber(attr.lp) ?? 0,
++        },
++        astralenergy: {
++          advances: toNumber(attr.ae) ?? 0,
++          permanentLoss: toNumber(getNested(attr, 'permanentAE.lost')) ?? 0,
++          rebuy: toNumber(getNested(attr, 'permanentAE.redeemed')) ?? 0,
++        },
++        karmaenergy: {
++          advances: toNumber(attr.kp) ?? 0,
++          permanentLoss: toNumber(getNested(attr, 'permanentKP.lost')) ?? 0,
++          rebuy: toNumber(getNested(attr, 'permanentKP.redeemed')) ?? 0,
++        },
++      },
++      details: {
++        species: { value: speciesId ?? '' },
++        culture: { value: cultureId ?? '' },
++        career: { value: professionId ?? '' },
++        socialstate: { value: toStringValue(details.socialstatus) ?? '' },
++        age: { value: toStringValue(details.age) ?? '' },
++        gender: { value: toStringValue(payload.sex) ?? '' },
++        home: { value: toStringValue(details.placeofbirth) ?? '' },
++        family: { value: toStringValue(details.family) ?? '' },
++        haircolor: { value: toStringValue(details.haircolor) ?? '' },
++        eyecolor: { value: toStringValue(details.eyecolor) ?? '' },
++        height: { value: toStringValue(details.height) ?? '' },
++        weight: { value: toStringValue(details.weight) ?? '' },
++        characteristics: { value: toStringValue(details.characteristics) ?? '' },
++        experience: {
++          total: toNumber((isRecord(payload.ap) ? payload.ap.total : undefined)) ?? 0,
++        },
++      },
++    },
++  };
++
++  return {
++    actorData,
++    candidateItemNames: uniqueNames(candidateItemNames),
++    itemOverrides,
++    warnings,
++    unmappedFields: [],
++  };
++};
++
++const sanitizeActorPayload = (payload: JsonRecord): JsonRecord => {
++  const actorData: JsonRecord = { ...payload };
++
++  delete actorData._id;
++  delete actorData.folder;
++  delete actorData.sort;
++
++  actorData.items = sanitizeEmbeddedDocuments(actorData.items);
++  actorData.effects = sanitizeEmbeddedDocuments(actorData.effects);
++
++  if (!actorData.name || typeof actorData.name !== 'string') {
++    actorData.name = 'Imported Actor';
++  }
++
++  if (!actorData.type || typeof actorData.type !== 'string') {
++    actorData.type = 'character';
++  }
++
++  if (!isRecord(actorData.system)) {
++    actorData.system = {};
++  }
++
++  const prototypeToken = isRecord(actorData.prototypeToken) ? actorData.prototypeToken : undefined;
++  const texture = prototypeToken && isRecord(prototypeToken.texture) ? prototypeToken.texture : undefined;
++  const src = texture && typeof texture.src === 'string' ? texture.src : undefined;
++  if (src && src.startsWith('http')) {
++    texture!.src = null;
++  }
++
++  return actorData;
++};
++
++const extractPayload = async (jsonPayload: unknown, filePath: string | undefined): Promise<JsonRecord> => {
++  let parsed: unknown = jsonPayload;
++
++  if (!parsed && filePath) {
++    const content = await fs.readFile(filePath, 'utf8');
++    parsed = JSON.parse(content);
++  }
++
++  if (typeof parsed === 'string') {
++    parsed = JSON.parse(parsed);
++  }
++
++  if (!isRecord(parsed)) {
++    throw new Error('Payload must resolve to a JSON object.');
++  }
++
++  return parsed;
++};
++
++interface ResolvedItemsResult {
++  items: JsonRecord[];
++  unresolvedNames: string[];
++  resolvedCount: number;
++}
++
++export class DSA5JsonActorImporter {
++  private foundryClient: FoundryClient;
++  private logger: Logger;
++  private errorHandler: ErrorHandler;
++
++  constructor({ foundryClient, logger }: DSA5JsonActorImporterOptions) {
++    this.foundryClient = foundryClient;
++    this.logger = logger.child({ component: 'DSA5JsonActorImporter' });
++    this.errorHandler = new ErrorHandler(this.logger);
++  }
++
++  getToolDefinitions() {
++    return [
++      {
++        name: 'import-dsa5-actor-from-json',
++        description:
++          'Import a custom DSA5 actor JSON using multiple strategies (auto/custom_dsa5/optolith_like/raw_foundry). Supports file path or inline JSON payload. Best-effort item resolution is performed via compendium name lookup and unresolved entries are returned as warnings.',
++        inputSchema: {
++          type: 'object',
++          properties: {
++            jsonPayload: {
++              oneOf: [
++                { type: 'string' },
++                { type: 'object' },
++              ],
++              description:
++                'Inline JSON content as object or string. Optional if filePath is provided.',
++            },
++            filePath: {
++              type: 'string',
++              description:
++                'Local file path to a JSON file readable by the MCP server process. Optional if jsonPayload is provided.',
++            },
++            strategy: {
++              type: 'string',
++              enum: ['auto', 'custom_dsa5', 'optolith_like', 'raw_foundry'],
++              default: 'auto',
++              description:
++                'Import strategy. auto detects format and chooses mapping path.',
++            },
++            resolveItems: {
++              type: 'boolean',
++              default: true,
++              description:
++                'Try resolving item-like entries by name from compendiums and embed them into the created actor.',
++            },
++            addToScene: {
++              type: 'boolean',
++              default: false,
++              description: 'Add created actor to active scene as token.',
++            },
++            updateExisting: {
++              type: 'boolean',
++              default: true,
++              description:
++                'If true, update an existing actor (same name by default) instead of creating a duplicate.',
++            },
++            existingActorIdentifier: {
++              type: 'string',
++              description:
++                'Optional actor ID or exact name used when updateExisting is true. Defaults to imported name.',
++            },
++            strict: {
++              type: 'boolean',
++              default: false,
++              description:
++                'If true, unresolved item names abort the import instead of returning warnings.',
++            },
++          },
++        },
++      },
++    ];
++  }
++
++  async handleImportActorFromJson(args: unknown): Promise<Record<string, unknown>> {
++    const schema = z
++      .object({
++        jsonPayload: z.union([z.string(), z.record(z.unknown())]).optional(),
++        filePath: z.string().optional(),
++        strategy: z.enum(['auto', 'custom_dsa5', 'optolith_like', 'raw_foundry']).default('auto'),
++        resolveItems: z.boolean().default(true),
++        addToScene: z.boolean().default(false),
++        updateExisting: z.boolean().default(true),
++        existingActorIdentifier: z.string().optional(),
++        strict: z.boolean().default(false),
++      })
++      .refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
++        message: 'Either jsonPayload or filePath is required.',
++      });
++
++    const {
++      jsonPayload,
++      filePath,
++      strategy,
++      resolveItems,
++      addToScene,
++      updateExisting,
++      existingActorIdentifier,
++      strict,
++    } = schema.parse(args);
++
++    try {
++      await this.assertDsa5World();
++
++      const payload = await extractPayload(jsonPayload, filePath);
++      const normalizedPayload = normalizeInputKeys(payload);
++      const validation = validateImportPayload(normalizedPayload);
++
++      const detectedFormat = validation.detectedFormat;
++      const selectedFormat = strategy === 'auto' ? detectedFormat : strategy;
++
++      if (strategy === 'auto' && validation.errors.length > 0) {
++        return {
++          success: false,
++          error: validation.errors.join(' | '),
++          detectedFormat: validation.detectedFormat,
++          availableTopLevelKeys: validation.availableTopLevelKeys,
++        };
++      }
++
++      let mappingResult: MappingResult;
++      switch (selectedFormat) {
++        case 'raw_foundry':
++          mappingResult = {
++            actorData: sanitizeActorPayload(normalizedPayload),
++            candidateItemNames: [],
++            itemOverrides: {},
++            warnings: [],
++            unmappedFields: [],
++          };
++          break;
++        case 'optolith_like':
++          mappingResult = mapOptolithLikePayload(normalizedPayload);
++          break;
++        case 'custom_dsa5':
++          mappingResult = mapCustomDsa5Payload(normalizedPayload);
++          break;
++        default:
++          throw new Error(
++            `Could not detect supported JSON format. Detected format: ${detectedFormat}. Use strategy override if needed.`
++          );
++      }
++
++      const warnings = Array.from(new Set([...validation.warnings, ...mappingResult.warnings]));
++      const unresolvedItemNames: string[] = [];
++      let appliedItemOverrides = 0;
++      let unappliedItemOverrideNames: string[] = [];
++
++      if (resolveItems && mappingResult.candidateItemNames.length > 0) {
++        const resolved = await this.resolveItemsByName(mappingResult.candidateItemNames);
++        unresolvedItemNames.push(...resolved.unresolvedNames);
++        if (resolved.items.length > 0) {
++          const existingItems = Array.isArray(mappingResult.actorData.items)
++            ? sanitizeEmbeddedDocuments(mappingResult.actorData.items)
++            : [];
++          mappingResult.actorData.items = [...existingItems, ...resolved.items];
++        }
++
++        if (resolved.unresolvedNames.length > 0) {
++          warnings.push(
++            `Unresolved item names (${resolved.unresolvedNames.length}): ${resolved.unresolvedNames.join(', ')}`
++          );
++        }
++      }
++
++      const actorItems = Array.isArray(mappingResult.actorData.items)
++        ? sanitizeEmbeddedDocuments(mappingResult.actorData.items)
++        : [];
++      if (actorItems.length > 0 && Object.keys(mappingResult.itemOverrides).length > 0) {
++        const overrideResult = applyResolvedItemOverrides(actorItems, mappingResult.itemOverrides);
++        appliedItemOverrides = overrideResult.appliedCount;
++        unappliedItemOverrideNames = overrideResult.unappliedSourceNames;
++        mappingResult.actorData.items = actorItems;
++
++        if (overrideResult.unappliedSourceNames.length > 0) {
++          warnings.push(
++            `Unapplied value overrides (${overrideResult.unappliedSourceNames.length}): ${overrideResult.unappliedSourceNames.join(', ')}`
++          );
++        }
++      }
++
++      if (strict && unresolvedItemNames.length > 0) {
++        throw new Error(
++          `Strict import aborted because ${unresolvedItemNames.length} item names could not be resolved.`
++        );
++      }
++
++      const creationResult = await this.foundryClient.query('foundry-mcp-bridge.createActorFromData', {
++        actorData: sanitizeActorPayload(mappingResult.actorData),
++        addToScene,
++        updateExisting,
++        existingActorIdentifier: existingActorIdentifier ?? String(mappingResult.actorData.name ?? ''),
++        ...(updateExisting ? { preserveItemTypes: ['species', 'culture', 'career'] } : {}),
++      });
++
++      const actor = isRecord(creationResult) && isRecord(creationResult.actor)
++        ? creationResult.actor
++        : {};
++
++      return {
++        success: true,
++        summary: `Imported actor "${String(actor.name ?? mappingResult.actorData.name)}" using ${selectedFormat}.`,
++        import: {
++          selectedFormat,
++          detectedFormat,
++          strategy,
++          resolveItems,
++          updateExisting,
++          existingActorIdentifier,
++          strict,
++          source: filePath ? `file:${filePath}` : 'jsonPayload',
++        },
++        actor,
++        warnings,
++        unmappedFields: mappingResult.unmappedFields,
++        unresolvedItemNames,
++        valueOverrides: {
++          total: Object.keys(mappingResult.itemOverrides).length,
++          applied: appliedItemOverrides,
++          unapplied: unappliedItemOverrideNames.length,
++          unappliedNames: unappliedItemOverrideNames,
++        },
++        message:
++          `Import completed via ${selectedFormat}.\n` +
++          `Warnings: ${warnings.length}\n` +
++          `Unmapped root fields: ${mappingResult.unmappedFields.length}`,
++      };
++    } catch (error) {
++      this.errorHandler.handleToolError(error, 'import-dsa5-actor-from-json', 'JSON import');
++    }
++  }
++
++  private async assertDsa5World(): Promise<void> {
++    const worldInfo = await this.foundryClient.query('foundry-mcp-bridge.getWorldInfo');
++    const systemIdRaw =
++      isRecord(worldInfo) && typeof worldInfo.system === 'string' ? worldInfo.system : undefined;
++    const systemId = systemIdRaw?.toLowerCase();
++
++    if (systemId && systemId !== 'dsa5') {
++      throw new Error(
++        `import-dsa5-actor-from-json supports only DSA5 worlds. Detected system: ${systemIdRaw}.`
++      );
++    }
++  }
++
++  private async resolveItemsByName(itemNames: string[]): Promise<ResolvedItemsResult> {
++    const unique = uniqueNames(itemNames).slice(0, 120);
++    const resolvedItems: JsonRecord[] = [];
++    const unresolved: string[] = [];
++
++    for (const candidateName of unique) {
++      try {
++        const searchCandidates = getSearchCandidates(candidateName);
++        let selected: unknown;
++
++        for (const searchName of searchCandidates) {
++          const searchResponse = await this.foundryClient.query('foundry-mcp-bridge.searchCompendium', {
++            query: searchName,
++            packType: 'Item',
++          });
++
++          if (!Array.isArray(searchResponse) || searchResponse.length === 0) {
++            continue;
++          }
++
++          const exact = searchResponse.find((entry: unknown) => {
++            if (!isRecord(entry)) return false;
++            const name = toStringValue(entry.name);
++            if (!name) return false;
++            const normalizedItemName = normalizeName(name);
++            return (
++              normalizedItemName === normalizeName(candidateName) ||
++              normalizedItemName === normalizeName(searchName)
++            );
++          });
++
++          // Avoid false positives like mapping "Piken" -> "Pikenwall".
++          // Only accept normalized exact matches and treat all other hits as unresolved.
++          selected = exact;
++          if (selected) break;
++        }
++
++        if (!isRecord(selected)) {
++          unresolved.push(candidateName);
++          continue;
++        }
++
++        const packId = toStringValue(selected.pack);
++        const itemId = toStringValue(selected.id);
++        if (!packId || !itemId) {
++          unresolved.push(candidateName);
++          continue;
++        }
++
++        const full = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
++          packId,
++          documentId: itemId,
++        });
++
++        if (!isRecord(full) || !isRecord(full.fullData)) {
++          unresolved.push(candidateName);
++          continue;
++        }
++
++        const itemData = sanitizeEmbeddedDocuments([full.fullData])[0];
++        if (!itemData) {
++          unresolved.push(candidateName);
++          continue;
++        }
++
++        resolvedItems.push(itemData);
++      } catch (error) {
++        this.logger.warn('Item resolution failed during import', {
++          candidateName,
++          error: error instanceof Error ? error.message : String(error),
++        });
++        unresolved.push(candidateName);
++      }
++    }
++
++    return {
++      items: resolvedItems,
++      unresolvedNames: unresolved,
++      resolvedCount: resolvedItems.length,
++    };
++  }
++}
