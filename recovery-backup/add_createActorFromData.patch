@@ -1,0 +1,280 @@
+  async createActorFromData(request: {
+    actorData: Record<string, unknown>;
+    addToScene?: boolean;
+    updateExisting?: boolean;
+    existingActorIdentifier?: string;
+    preserveItemTypes?: string[];
+    placement?: {
+      type: 'random' | 'grid' | 'center' | 'coordinates';
+      coordinates?: { x: number; y: number }[];
+    };
+  }): Promise<{
+    success: boolean;
+    actor?: { id: string; name: string; type: string };
+    updatedExisting?: boolean;
+    tokensPlaced?: number;
+    errors?: string[];
+  }> {
+    this.validateFoundryState();
+
+    const permissionCheck = permissionManager.checkWritePermission('createActor', { quantity: 1 });
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+    permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
+
+    try {
+      const actorData = foundry.utils.deepClone(request.actorData) as any;
+
+      delete actorData._id;
+      delete actorData.sort;
+
+      if (!actorData.name || typeof actorData.name !== 'string') {
+        throw new Error('actorData.name is required and must be a string');
+      }
+      if (!actorData.type || typeof actorData.type !== 'string') {
+        actorData.type = 'character';
+      }
+      if (!actorData.system || typeof actorData.system !== 'object') {
+        actorData.system = {};
+      }
+
+      if (Array.isArray(actorData.items)) {
+        actorData.items = actorData.items
+          .filter((item: any) => item && typeof item === 'object')
+          .map((item: any) => {
+            const clonedItem = foundry.utils.deepClone(item);
+            delete clonedItem._id;
+            delete clonedItem.folder;
+            delete clonedItem.sort;
+            return clonedItem;
+          });
+      } else {
+        actorData.items = [];
+      }
+
+      if (Array.isArray(actorData.effects)) {
+        actorData.effects = actorData.effects
+          .filter((effect: any) => effect && typeof effect === 'object')
+          .map((effect: any) => {
+            const clonedEffect = foundry.utils.deepClone(effect);
+            delete clonedEffect._id;
+            delete clonedEffect.folder;
+            delete clonedEffect.sort;
+            return clonedEffect;
+          });
+      } else {
+        actorData.effects = [];
+      }
+
+      if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
+        actorData.prototypeToken.texture.src = null;
+      }
+
+      if (!actorData.folder) {
+        const folderId = await this.getOrCreateFolder('Foundry MCP Imported Actors', 'Actor');
+        if (folderId) {
+          actorData.folder = folderId;
+        }
+      }
+
+      const incomingItems = actorData.items;
+      const incomingEffects = actorData.effects;
+      delete actorData.items;
+      delete actorData.effects;
+
+      const findExistingActor = (): Actor | undefined => {
+        if (!request.updateExisting) return undefined;
+
+        const byIdentifier = request.existingActorIdentifier?.trim();
+        if (byIdentifier) {
+          const byId = game.actors.get(byIdentifier);
+          if (byId) return byId;
+
+          const normalizedIdentifier = byIdentifier.toLowerCase();
+          return game.actors.find((actor) => actor.name?.toLowerCase() === normalizedIdentifier);
+        }
+
+        const normalizedName = String(actorData.name).toLowerCase().trim();
+        const desiredType = String(actorData.type || '').toLowerCase().trim();
+        return game.actors.find((actor) => {
+          const actorName = actor.name?.toLowerCase().trim();
+          const actorType = String(actor.type || '').toLowerCase().trim();
+          return actorName === normalizedName && actorType === desiredType;
+        });
+      };
+
+      const existingActor = findExistingActor();
+      let targetActor: Actor | null = null;
+      let updatedExisting = false;
+
+      if (existingActor) {
+        await existingActor.update(actorData);
+
+        let mergedIncomingItems = Array.isArray(incomingItems) ? [...incomingItems] : [];
+        const preserveIdentityTypes = new Set(request.preserveItemTypes ?? []);
+        const incomingTypeSet = new Set(
+          mergedIncomingItems
+            .map((item: any) => String(item?.type || '').toLowerCase().trim())
+            .filter((itemType: string) => itemType.length > 0)
+        );
+        const missingIdentityTypes = [...preserveIdentityTypes].filter((itemType) => !incomingTypeSet.has(itemType));
+        if (missingIdentityTypes.length > 0) {
+          const incomingKeys = new Set(
+            mergedIncomingItems.map(
+              (item: any) => `${String(item?.type || '').toLowerCase().trim()}::${String(item?.name || '').toLowerCase().trim()}`
+            )
+          );
+          const preservedIdentityItems = existingActor.items
+            .filter((item) => missingIdentityTypes.includes(String(item.type || '').toLowerCase().trim()))
+            .map((item) => item.toObject())
+            .filter((itemData: any) => {
+              const key = `${String(itemData?.type || '').toLowerCase().trim()}::${String(itemData?.name || '').toLowerCase().trim()}`;
+              return !incomingKeys.has(key);
+            })
+            .map((itemData: any) => {
+              const clonedItem = foundry.utils.deepClone(itemData);
+              delete clonedItem._id;
+              delete clonedItem.folder;
+              delete clonedItem.sort;
+              return clonedItem;
+            });
+          if (preservedIdentityItems.length > 0) {
+            mergedIncomingItems = [...mergedIncomingItems, ...preservedIdentityItems];
+          }
+        }
+
+        const existingItemIds = existingActor.items
+          .map((item) => item.id)
+          .filter((id): id is string => Boolean(id));
+        if (existingItemIds.length > 0) {
+          await existingActor.deleteEmbeddedDocuments('Item', existingItemIds);
+        }
+
+        if (Array.isArray(mergedIncomingItems) && mergedIncomingItems.length > 0) {
+          await existingActor.createEmbeddedDocuments('Item', mergedIncomingItems as any[]);
+        }
+
+        const existingEffectIds = existingActor.effects
+          .map((effect) => effect.id)
+          .filter((id): id is string => Boolean(id));
+        if (existingEffectIds.length > 0) {
+          await existingActor.deleteEmbeddedDocuments('ActiveEffect', existingEffectIds);
+        }
+
+        if (Array.isArray(incomingEffects) && incomingEffects.length > 0) {
+          await existingActor.createEmbeddedDocuments('ActiveEffect', incomingEffects as any[]);
+        }
+
+        targetActor = existingActor;
+        updatedExisting = true;
+      } else {
+        const createdActor = await Actor.create({
+          ...actorData,
+          items: incomingItems,
+          effects: incomingEffects,
+        });
+        if (!createdActor) {
+          throw new Error('Failed to create actor from provided data');
+        }
+        targetActor = createdActor;
+      }
+
+      if (!targetActor?.id) {
+        throw new Error('Target actor could not be created or resolved');
+      }
+
+      let tokensPlaced = 0;
+      const errors: string[] = [];
+      if (request.addToScene) {
+        try {
+          const sceneResult = await this.addActorsToScene({
+            actorIds: [targetActor.id],
+            placement: request.placement?.type || 'grid',
+            hidden: false,
+            ...(request.placement?.coordinates ? { coordinates: request.placement.coordinates } : {}),
+          });
+          tokensPlaced = sceneResult.success ? sceneResult.tokensCreated : 0;
+        } catch (error) {
+          errors.push(`Failed to add actor to scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      const result: {
+        success: boolean;
+        actor: { id: string; name: string; type: string };
+        updatedExisting: boolean;
+        tokensPlaced: number;
+        errors?: string[];
+      } = {
+        success: true,
+        actor: {
+          id: targetActor.id,
+          name: targetActor.name ?? String(actorData.name),
+          type: targetActor.type ?? String(actorData.type ?? 'character'),
+        },
+        updatedExisting,
+        tokensPlaced,
+      };
+      if (errors.length > 0) {
+        result.errors = errors;
+      }
+
+      this.auditLog('createActorFromData', request, 'success');
+      return result;
+    } catch (error) {
+      this.auditLog('createActorFromData', request, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  /**
+   * List world-level Item documents from the Items sidebar.
+   * Optionally filters by type, folder (name or id), or a case-insensitive name substring.
+   */
+  async listWorldItems(params: { type?: string; folder?: string; nameFilter?: string }): Promise<
+    Array<{
+      id: string;
+      name: string;
+      type: string;
+      img?: string;
+      folderId: string | null;
+      folderName: string | null;
+    }>
+  > {
+    this.validateFoundryState();
+
+    const { type, folder, nameFilter } = params;
+    const nameLower = nameFilter ? nameFilter.toLowerCase() : null;
+
+    // Resolve folder filter to an id if a name/id was provided
+    let folderId: string | null = null;
+    if (folder && folder.trim().length > 0) {
+      const folderTrimmed = folder.trim();
+      const folderDoc =
+        (game as any).folders?.find(
+          (f: any) => f.type === 'Item' && (f.name === folderTrimmed || f.id === folderTrimmed)
+        ) ?? null;
+      if (!folderDoc) {
+        return [];
+      }
+      folderId = folderDoc.id;
+    }
+
+    const result: Array<{
+      id: string;
+      name: string;
+      type: string;
+      img?: string;
+      folderId: string | null;
+      folderName: string | null;
+    }> = [];
+
+    for (const item of (game as any).items) {
+      if (type && item.type !== type) continue;
+      if (folderId && item.folder?.id !== folderId) continue;
+      if (nameLower && !(item.name ?? '').toLowerCase().includes(nameLower)) continue;
+
+      result.push({
+        id: item.id ?? '',
+        name: item.name ?? '',
