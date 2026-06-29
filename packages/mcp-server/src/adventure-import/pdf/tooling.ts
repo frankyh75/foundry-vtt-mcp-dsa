@@ -1,10 +1,17 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
+
+// Pfad zum PaddleOCR-Adapter (relativ zu dieser Datei)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PADDLE_ADAPTER_PATH = join(__dirname, '..', '..', '..', 'scripts', 'paddle_ocr_adapter.py');
+const PADDLE_VENV_PYTHON = '/Users/agent/.hermes/jarvis-workspace/paddle-test/.venv/bin/python3';
 
 export type OcrBlockKind = 'heading' | 'paragraph' | 'list' | 'illustration' | 'decoration' | 'unknown';
 
@@ -24,7 +31,7 @@ export interface OcrBlock {
 
 export interface OcrPageResult {
   available: boolean;
-  engine: 'tesseract' | 'missing' | 'failed';
+  engine: 'tesseract' | 'paddleocr' | 'missing' | 'failed';
   reason?: string;
   text: string;
   blocks: OcrBlock[];
@@ -79,12 +86,19 @@ export function createDefaultPdfToolRunner(): PdfToolRunner {
       }
     },
     async ocrPage(pdfPath: string, pageNumber: number, options?: { languageHint?: string }): Promise<OcrPageResult> {
+      // 1) PaddleOCR versuchen
+      const paddleResult = await runPaddleOcr(pdfPath, pageNumber);
+      if (paddleResult.available) {
+        return paddleResult;
+      }
+
+      // 2) Fallback: Tesseract
       const tesseractAvailable = await isCommandAvailable('tesseract');
       if (!tesseractAvailable) {
         return {
           available: false,
           engine: 'missing',
-          reason: 'tesseract binary is not available on this machine',
+          reason: `paddleocr: ${paddleResult.reason ?? 'unknown'}; tesseract binary is not available on this machine`,
           text: '',
           blocks: [],
           pageWidth: 0,
@@ -147,6 +161,48 @@ export function createDefaultPdfToolRunner(): PdfToolRunner {
       }
     },
   };
+}
+
+async function runPaddleOcr(pdfPath: string, pageNumber: number): Promise<OcrPageResult> {
+  try {
+    await stat(PADDLE_ADAPTER_PATH);
+  } catch {
+    return {
+      available: false,
+      engine: 'paddleocr',
+      reason: `paddle_ocr_adapter.py not found at ${PADDLE_ADAPTER_PATH}`,
+      text: '',
+      blocks: [],
+      pageWidth: 0,
+      pageHeight: 0,
+    };
+  }
+
+  try {
+    const result = await execFileAsync(
+      PADDLE_VENV_PYTHON,
+      [PADDLE_ADAPTER_PATH, pdfPath, String(pageNumber), '--dpi', '150'],
+      {
+        encoding: 'utf8',
+        maxBuffer: 50 * 1024 * 1024,
+        timeout: 120_000,
+      },
+    );
+
+    const parsed = JSON.parse(result.stdout ?? '{}') as OcrPageResult;
+    return parsed;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      available: false,
+      engine: 'paddleocr',
+      reason: message,
+      text: '',
+      blocks: [],
+      pageWidth: 0,
+      pageHeight: 0,
+    };
+  }
 }
 
 async function isCommandAvailable(command: string): Promise<boolean> {
