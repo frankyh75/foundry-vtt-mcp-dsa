@@ -1579,6 +1579,11 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'delete-scene':
+                  result = await sceneTools.handleDeleteScene(args);
+
+                  break;
+
                 // Actor creation tools
 
                 case 'create-actor-from-compendium':

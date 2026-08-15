@@ -88,6 +88,21 @@ export class SceneTools {
           required: ['name'],
         },
       },
+      {
+        name: 'delete-scene',
+        description:
+          'Delete a Foundry scene by ID. Use list-scenes first to get the scene ID.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sceneId: {
+              type: 'string',
+              description: 'ID of the scene to delete',
+            },
+          },
+          required: ['sceneId'],
+        },
+      },
     ];
   }
 
@@ -158,6 +173,39 @@ export class SceneTools {
       this.logger.error('Failed to create scene', error);
       throw new Error(
         `Failed to create scene: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async handleDeleteScene(args: any): Promise<any> {
+    const schema = z.object({
+      sceneId: z.string().min(1),
+    });
+
+    const parsed = schema.parse(args);
+
+    this.logger.info('Deleting scene', { sceneId: parsed.sceneId });
+
+    try {
+      const result = await this.foundryClient.query(
+        'foundry-mcp-bridge.deleteScene',
+        { sceneId: parsed.sceneId }
+      );
+
+      this.logger.debug('Scene deleted successfully', {
+        sceneId: parsed.sceneId,
+        deleted: result.deleted,
+      });
+
+      return {
+        sceneId: parsed.sceneId,
+        success: result.success,
+        deleted: result.deleted,
+      };
+    } catch (error) {
+      this.logger.error('Failed to delete scene', error);
+      throw new Error(
+        `Failed to delete scene: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
