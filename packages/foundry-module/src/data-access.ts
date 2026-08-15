@@ -6394,7 +6394,7 @@ export class FoundryDataAccess {
           height: scene.dimensions?.height || (scene as any).height || 0,
         },
         gridSize: scene.grid?.size || 100,
-        background: scene._source?.background?.src || scene.img || '',
+        background: scene._source?.background?.src || scene.background?.src || scene.img || '',
         walls: scene.walls?.size || 0,
         tokens: scene.tokens?.size || 0,
         lighting: scene.lights?.size || 0,

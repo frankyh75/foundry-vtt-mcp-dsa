@@ -49,6 +49,45 @@ export class SceneTools {
           properties: {},
         },
       },
+      {
+        name: 'create-scene',
+        description:
+          'Create a new Foundry scene with an optional background image. Use this to turn a generated image (e.g. from Dungeon Alchemist, Codex, or any image URL) into a playable scene. The background image is set via backgroundImageUrl.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Name of the new scene (e.g. "Bruchtal", "Der Düsterwald")',
+            },
+            backgroundImageUrl: {
+              type: 'string',
+              description:
+                'URL or path to the background image to use for the scene. Can be a web URL or a Foundry data path (e.g. "worlds/test/images/bruchtal.webp").',
+            },
+            description: {
+              type: 'string',
+              description: 'Optional description for the scene',
+            },
+            gridSize: {
+              type: 'number',
+              description: 'Grid size in pixels (default: 100)',
+              default: 100,
+            },
+            width: {
+              type: 'number',
+              description: 'Scene width in pixels (default: 4000)',
+              default: 4000,
+            },
+            height: {
+              type: 'number',
+              description: 'Scene height in pixels (default: 3000)',
+              default: 3000,
+            },
+          },
+          required: ['name'],
+        },
+      },
     ];
   }
 
@@ -76,6 +115,49 @@ export class SceneTools {
       this.logger.error('Failed to get current scene', error);
       throw new Error(
         `Failed to get current scene: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async handleCreateScene(args: any): Promise<any> {
+    const schema = z.object({
+      name: z.string().min(1),
+      description: z.string().optional(),
+      backgroundImageUrl: z.string().optional(),
+      gridSize: z.number().optional(),
+      width: z.number().optional(),
+      height: z.number().optional(),
+    });
+
+    const parsed = schema.parse(args);
+
+    this.logger.info('Creating scene', { name: parsed.name });
+
+    try {
+      const result = await this.foundryClient.query(
+        'foundry-mcp-bridge.createScenePlaceholder',
+        parsed
+      );
+
+      this.logger.debug('Scene created successfully', {
+        sceneId: result.sceneId,
+        sceneName: result.name,
+      });
+
+      return {
+        id: result.sceneId,
+        name: result.name,
+        success: result.success,
+        description: parsed.description || null,
+        backgroundImageUrl: parsed.backgroundImageUrl || null,
+        gridSize: parsed.gridSize ?? 100,
+        width: parsed.width ?? 4000,
+        height: parsed.height ?? 3000,
+      };
+    } catch (error) {
+      this.logger.error('Failed to create scene', error);
+      throw new Error(
+        `Failed to create scene: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
