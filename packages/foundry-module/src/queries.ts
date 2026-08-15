@@ -43,6 +43,7 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
     CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
     CONFIG.queries[`${modulePrefix}.createScenePlaceholder`] = this.handleCreateScenePlaceholder.bind(this);
+    CONFIG.queries[`${modulePrefix}.deleteScene`] = this.handleDeleteScene.bind(this);
 
     // World queries
     CONFIG.queries[`${modulePrefix}.getWorldInfo`] = this.handleGetWorldInfo.bind(this);
@@ -990,6 +991,22 @@ export class QueryHandlers {
     }
 
     return await this.dataAccess.createScenePlaceholder(data);
+  }
+
+  private async handleDeleteScene(data: { sceneId: string }): Promise<any> {
+    // SECURITY: Silent GM validation
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) {
+      return { error: 'Access denied', success: false };
+    }
+
+    this.dataAccess.validateFoundryState();
+
+    if (!data.sceneId || typeof data.sceneId !== 'string') {
+      throw new Error('sceneId is required');
+    }
+
+    return await this.dataAccess.deleteScene(data);
   }
 
   /**

@@ -6365,6 +6365,16 @@ export class FoundryDataAccess {
     return { sceneId: scene.id as string, name: scene.name as string, success: true };
   }
 
+  async deleteScene(data: { sceneId: string }): Promise<{ success: boolean; deleted: number }> {
+    this.validateFoundryState();
+    const scene = game.scenes?.get(data.sceneId);
+    if (!scene) {
+      throw new Error(`Scene "${data.sceneId}" not found`);
+    }
+    await scene.delete();
+    return { success: true, deleted: 1 };
+  }
+
   async listScenes(
     options: { filter?: string; include_active_only?: boolean } = {}
   ): Promise<any[]> {
