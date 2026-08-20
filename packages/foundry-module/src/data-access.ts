@@ -7209,4 +7209,152 @@ export class FoundryDataAccess {
       );
     }
   }
+
+  // ─── Generic actor CRUD ─────────────────────────────────────────────────────
+
+  /**
+   * Create one or more actors (any system, any type).
+   * System data is passed through as-is — no system-specific normalization.
+   */
+  async createActors(params: {
+    actors: Array<{
+      name: string;
+      type: string;
+      img?: string;
+      system?: Record<string, any>;
+    }>;
+    folder?: string;
+  }): Promise<{ created: Array<{ id: string; name: string; type: string }>; total: number }> {
+    const folderName = params.folder ?? 'Foundry MCP Actors';
+    const folderId = await this.getOrCreateFolder(folderName, 'Actor');
+
+    const docs = params.actors.map(a => {
+      const doc: Record<string, any> = { name: a.name, type: a.type };
+      if (a.img) doc.img = a.img;
+      if (a.system) doc.system = a.system;
+      if (folderId) doc.folder = folderId;
+      return doc;
+    });
+
+    const created = await Actor.createDocuments(docs as any[]);
+    if (!created || created.length === 0) {
+      throw new Error('Foundry failed to create actor documents');
+    }
+
+    return {
+      created: (created as any[]).map(a => ({ id: a.id, name: a.name, type: a.type })),
+      total: created.length,
+    };
+  }
+
+  /**
+   * Update one or more existing actors by ID.
+   * Merges supplied fields into the actor (top-level keys overwrite).
+   * Dot-notation keys in system (e.g. "crewed.passengers.-=actorId") are
+   * expanded to nested objects so Foundry's mergeObject honours the "-=" deletion
+   * operator at any depth.
+   */
+  async updateActors(
+    updates: Array<{ id: string; name?: string; img?: string; system?: Record<string, any> }>
+  ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
+    const updatedActors: Array<{ id: string; name: string }> = [];
+
+    for (const u of updates) {
+      const actor = game.actors.get(u.id) as any;
+      if (!actor) throw new Error(`Actor not found: ${u.id}`);
+
+      const patch: Record<string, any> = {};
+      if (u.name !== undefined) patch.name = u.name;
+      if (u.img !== undefined) patch.img = u.img;
+      if (u.system !== undefined) {
+        const systemPatch: Record<string, any> = {};
+        for (const [key, val] of Object.entries(u.system)) {
+          if (key.includes('.')) {
+            const parts = key.split('.');
+            let cur = systemPatch;
+            for (let i = 0; i < parts.length - 1; i++) {
+              if (!(parts[i] in cur)) cur[parts[i]] = {};
+              cur = cur[parts[i]];
+            }
+            cur[parts[parts.length - 1]] = val;
+          } else {
+            systemPatch[key] = val;
+          }
+        }
+        patch.system = systemPatch;
+      }
+
+      await actor.update(patch);
+      updatedActors.push({ id: actor.id, name: u.name ?? actor.name });
+    }
+
+    return { updated: updatedActors, total: updatedActors.length };
+  }
+
+  /**
+   * Update one or more items embedded in an actor.
+   * actorIdentifier can be an actor ID or actor name (case-insensitive).
+   */
+  async updateActorItems(
+    actorIdentifier: string,
+    itemUpdates: Array<{ id: string; name?: string; img?: string; system?: Record<string, any> }>
+  ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
+    const actor =
+      (game.actors.get(actorIdentifier) as any) ??
+      (game.actors.find(
+        (a: any) => a.name?.toLowerCase() === actorIdentifier.toLowerCase()
+      ) as any);
+    if (!actor) throw new Error(`Actor not found: ${actorIdentifier}`);
+
+    const updated: Array<{ id: string; name: string }> = [];
+
+    for (const u of itemUpdates) {
+      const item = actor.items.get(u.id) as any;
+      if (!item) throw new Error(`Item ${u.id} not found on actor "${actor.name}"`);
+
+      const patch: Record<string, any> = {};
+      if (u.name !== undefined) patch.name = u.name;
+      if (u.img !== undefined) patch.img = u.img;
+      if (u.system !== undefined) patch.system = u.system;
+
+      await item.update(patch);
+      updated.push({ id: item.id, name: u.name ?? item.name });
+    }
+
+    return { updated, total: updated.length };
+  }
+
+  /**
+   * Delete one or more items embedded in an actor.
+   * actorIdentifier can be an actor ID or actor name (case-insensitive).
+   */
+  async deleteActorItems(
+    actorIdentifier: string,
+    itemIds: string[]
+  ): Promise<{ deleted: string[]; total: number }> {
+    const actor =
+      (game.actors.get(actorIdentifier) as any) ??
+      (game.actors.find(
+        (a: any) => a.name?.toLowerCase() === actorIdentifier.toLowerCase()
+      ) as any);
+    if (!actor) throw new Error(`Actor not found: ${actorIdentifier}`);
+
+    const existing = itemIds.filter(id => actor.items.get(id));
+    if (existing.length === 0)
+      throw new Error('None of the provided item IDs were found on this actor');
+
+    await actor.deleteEmbeddedDocuments('Item', existing);
+    return { deleted: existing, total: existing.length };
+  }
+
+  /**
+   * Delete one or more actors by ID.
+   */
+  async deleteActors(ids: string[]): Promise<{ deleted: string[]; total: number }> {
+    const existing = ids.filter(id => game.actors.get(id));
+    if (existing.length === 0) throw new Error('None of the provided actor IDs were found');
+
+    await Actor.deleteDocuments(existing);
+    return { deleted: existing, total: existing.length };
+  }
 }
