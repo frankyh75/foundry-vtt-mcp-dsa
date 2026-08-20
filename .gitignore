@@ -3,6 +3,15 @@ CLAUDE.md
 DISTRIBUTION.md  
 RELEASE-PROCESS.md
 
+# Campaign / working documentation (private, not for the repo)
+IDEA.md
+docs/gruppe-und-abenteuerstand.md
+docs/guide-foundry-abenteueraufbau.md
+docs/lore-methumis.md
+docs/prompt-build-dsa5-normalizePayload.md
+docs/prompt-build-dsa5-schema.md
+docs/prompt-repair-manage-actors.md
+
 # Dependencies
 node_modules/
 .pnpm-debug.log*
