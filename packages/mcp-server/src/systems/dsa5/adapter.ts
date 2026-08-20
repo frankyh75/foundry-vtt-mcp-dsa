@@ -5,8 +5,18 @@
  * Handles creature indexing, filtering, formatting, and data extraction.
  */
 
-import type { SystemAdapter, SystemMetadata, SystemCreatureIndex, DSA5CreatureIndex } from '../types.js';
-import { DSA5FiltersSchema, matchesDSA5Filters, describeDSA5Filters, type DSA5Filters } from './filters.js';
+import type {
+  SystemAdapter,
+  SystemMetadata,
+  SystemCreatureIndex,
+  DSA5CreatureIndex,
+} from '../types.js';
+import {
+  DSA5FiltersSchema,
+  matchesDSA5Filters,
+  describeDSA5Filters,
+  type DSA5Filters,
+} from './filters.js';
 import { FIELD_PATHS, getExperienceLevel, EIGENSCHAFT_NAMES } from './constants.js';
 
 /**
@@ -19,13 +29,14 @@ export class DSA5Adapter implements SystemAdapter {
       name: 'dsa5',
       displayName: 'Das Schwarze Auge 5',
       version: '1.0.0',
-      description: 'Support for DSA5 (Das Schwarze Auge 5. Edition) with Eigenschaften, Talente, Erfahrungsgrade, and LeP/AsP/KaP resources',
+      description:
+        'Support for DSA5 (Das Schwarze Auge 5. Edition) with Eigenschaften, Talente, Erfahrungsgrade, and LeP/AsP/KaP resources',
       supportedFeatures: {
         creatureIndex: true,
         characterStats: true,
         spellcasting: true,
-        powerLevel: true // Uses Experience Level (Erfahrungsgrad 1-7)
-      }
+        powerLevel: true, // Uses Experience Level (Erfahrungsgrad 1-7)
+      },
     };
   }
 
@@ -37,7 +48,10 @@ export class DSA5Adapter implements SystemAdapter {
    * Extract creature data from Foundry document for indexing
    * This is called by the index builder in Foundry's browser context
    */
-  extractCreatureData(doc: any, pack: any): { creature: SystemCreatureIndex; errors: number } | null {
+  extractCreatureData(
+    doc: any,
+    pack: any
+  ): { creature: SystemCreatureIndex; errors: number } | null {
     // Implementation is in index-builder.ts since it runs in browser
     // This method is here for type compliance but delegates to IndexBuilder
     throw new Error('extractCreatureData should be called from DSA5IndexBuilder, not the adapter');
@@ -114,8 +128,8 @@ export class DSA5Adapter implements SystemAdapter {
       type: creature.type,
       pack: {
         id: creature.packName,
-        label: creature.packLabel
-      }
+        label: creature.packLabel,
+      },
     };
 
     // Add DSA5 specific stats
@@ -180,7 +194,7 @@ export class DSA5Adapter implements SystemAdapter {
           name: expLevel.name,
           nameEn: expLevel.nameEn,
           level: expLevel.level,
-          apRange: `${expLevel.min}-${expLevel.max === Infinity ? '∞' : expLevel.max}`
+          apRange: `${expLevel.min}-${expLevel.max === Infinity ? '∞' : expLevel.max}`,
         },
         experiencePoints: dsa5Creature.systemData.experiencePoints,
         species: dsa5Creature.systemData.species,
@@ -249,7 +263,7 @@ export class DSA5Adapter implements SystemAdapter {
         available: totalAP - spentAP,
         level: expLevel.level,
         levelName: expLevel.name,
-        levelNameEn: expLevel.nameEn
+        levelNameEn: expLevel.nameEn,
       };
     }
 
@@ -290,7 +304,7 @@ export class DSA5Adapter implements SystemAdapter {
           value: eigenschaftData.value ?? 8,
           initial: eigenschaftData.initial ?? 8,
           name: EIGENSCHAFT_NAMES[upperKey]?.german,
-          nameEn: EIGENSCHAFT_NAMES[upperKey]?.english
+          nameEn: EIGENSCHAFT_NAMES[upperKey]?.english,
         };
       }
     }
@@ -368,11 +382,282 @@ export class DSA5Adapter implements SystemAdapter {
     if (hasSpells) {
       stats.spellcasting = {
         hasSpells: true,
-        hasAstralEnergy: !!(astral?.max),
-        hasKarmaEnergy: !!(karma?.max)
+        hasAstralEnergy: !!astral?.max,
+        hasKarmaEnergy: !!karma?.max,
       };
     }
 
     return stats;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // normalizePayload – map caller-friendly DSA5 shorthands onto the real
+  // Foundry DSA5 system paths before the payload is sent to the server.
+  // Receives ONLY the `system` sub-object and returns a normalised `system`
+  // object.  Unknown keys are left untouched.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Valid Eigenschaft keys in lowercase (the canonical Foundry form).
+   */
+  private static readonly EIGENSCHAFT_KEYS = [
+    'mu',
+    'kl',
+    'in',
+    'ch',
+    'ff',
+    'ge',
+    'ko',
+    'kk',
+  ] as const;
+
+  /**
+   * Normalise a single Eigenschaft entry to {value, initial?, advances?}.
+   * Accepts:
+   *   - naked number  →  { value: n, initial: n }
+   *   - { value, initial?, advances? }
+   * If `value` is missing but `advances` is present, value = (initial ?? 8) + advances.
+   * `value` is ALWAYS set after normalisation.
+   */
+  private normalizeEigenschaft(raw: any): { value: number; initial?: number; advances?: number } {
+    if (typeof raw === 'number') {
+      return { value: raw, initial: raw };
+    }
+    if (raw && typeof raw === 'object') {
+      const result: any = {};
+      const initial = raw.initial ?? 8;
+      if (raw.value !== undefined) {
+        result.value = raw.value;
+      } else if (raw.advances !== undefined) {
+        result.value = initial + raw.advances;
+      } else {
+        result.value = initial;
+      }
+      if (raw.initial !== undefined) result.initial = raw.initial;
+      if (raw.advances !== undefined) result.advances = raw.advances;
+      return result;
+    }
+    // Fallback
+    return { value: 8, initial: 8 };
+  }
+
+  /**
+   * Helper: normalise a resource block (LeP/AsP/KaP/fatePoints).
+   * Accepts {current, max}, {value, max}, or a naked number.
+   * Returns a minimal {value, max} object (or {current, max} for wounds).
+   */
+  private normalizeResource(
+    raw: any,
+    opts?: { useCurrent?: boolean }
+  ): Record<string, number> | undefined {
+    if (raw === undefined || raw === null) return undefined;
+    if (typeof raw === 'number') {
+      return { value: raw, max: raw };
+    }
+    if (typeof raw === 'object') {
+      const result: any = {};
+      const current = raw.current ?? raw.value;
+      if (current !== undefined) {
+        result[opts?.useCurrent ? 'current' : 'value'] = current;
+      }
+      if (raw.max !== undefined) result.max = raw.max;
+      if (raw.initial !== undefined) result.initial = raw.initial;
+      return result;
+    }
+    return undefined;
+  }
+
+  /**
+   * Helper: normalise a detail field that may arrive as a string or {value}.
+   * Always returns {value: string}.
+   */
+  private normalizeDetail(raw: any): { value: string } | undefined {
+    if (raw === undefined || raw === null) return undefined;
+    if (typeof raw === 'string') return { value: raw };
+    if (typeof raw === 'object' && raw.value !== undefined) {
+      return { value: String(raw.value) };
+    }
+    return undefined;
+  }
+
+  /**
+   * Deep-merge helper: copy values from `src` into `dst` for keys that exist
+   * in `src`, creating intermediate objects as needed.  Does not overwrite
+   * keys that already exist in `dst` with higher priority — src wins for
+   * keys it explicitly provides.
+   */
+  private static mergeInto(dst: Record<string, any>, src: Record<string, any> | undefined): void {
+    if (!src) return;
+    for (const [key, val] of Object.entries(src)) {
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        if (typeof dst[key] !== 'object' || dst[key] === null || Array.isArray(dst[key])) {
+          dst[key] = {};
+        }
+        DSA5Adapter.mergeInto(dst[key], val);
+      } else {
+        dst[key] = val;
+      }
+    }
+  }
+
+  normalizePayload(system: Record<string, any>): Record<string, any> {
+    // Work on the caller's object but only add/overwrite normalised paths.
+    // We collect changes in a separate object and merge at the end to avoid
+    // intermediate corruption.
+    const out: Record<string, any> = {};
+
+    // ── 1. Eigenschaften (characteristics) ──────────────────────────────
+    // Accept MU/KL/... (uppercase) or mu/kl/... (lowercase) keys, each as
+    // a naked number or {value, initial?, advances?}.
+    const charSource = system.characteristics ?? system.eigenschaften;
+    if (charSource && typeof charSource === 'object') {
+      const normalized: Record<string, any> = {};
+      for (const [key, raw] of Object.entries(charSource)) {
+        const lower = key.toLowerCase();
+        if (DSA5Adapter.EIGENSCHAFT_KEYS.includes(lower as any)) {
+          normalized[lower] = this.normalizeEigenschaft(raw);
+        }
+      }
+      if (Object.keys(normalized).length > 0) {
+        out.characteristics = normalized;
+      }
+    }
+
+    // ── 2. LeP (wounds / lifePoints) ────────────────────────────────────
+    // If system.status.wounds already exists, leave it untouched.
+    // Otherwise map from system.lifePoints or system.status.lifePoints.
+    const existingWounds = system.status?.wounds;
+    if (!existingWounds) {
+      const lp = system.lifePoints ?? system.status?.lifePoints;
+      const lpNormalized = this.normalizeResource(lp, { useCurrent: true });
+      if (lpNormalized) {
+        // Fallback: if max missing, derive from KO
+        if (lpNormalized.max === undefined) {
+          const koVal =
+            out.characteristics?.ko?.value ??
+            system.characteristics?.ko?.value ??
+            system.characteristics?.KO?.value ??
+            8;
+          const initial = (lpNormalized as any).initial ?? 8;
+          lpNormalized.max = initial + koVal * 2;
+        }
+        out.status = out.status ?? {};
+        out.status.wounds = lpNormalized;
+      }
+    }
+
+    // ── 3. AsP / KaP / fatePoints ───────────────────────────────────────
+    const asp = system.astralEnergy ?? system.status?.astralEnergy ?? system.status?.astralenergy;
+    const aspNorm = this.normalizeResource(asp);
+    if (aspNorm) {
+      out.status = out.status ?? {};
+      out.status.astralenergy = aspNorm;
+    }
+
+    const kap = system.karmaEnergy ?? system.status?.karmaEnergy ?? system.status?.karmaenergy;
+    const kapNorm = this.normalizeResource(kap);
+    if (kapNorm) {
+      out.status = out.status ?? {};
+      out.status.karmaenergy = kapNorm;
+    }
+
+    const fate = system.fatePoints ?? system.status?.fatePoints;
+    const fateNorm = this.normalizeResource(fate);
+    if (fateNorm) {
+      out.status = out.status ?? {};
+      out.status.fatePoints = fateNorm;
+    }
+
+    // ── 4. Details (species / culture / career / socialstate / experience) ─
+    const details: Record<string, any> = {};
+
+    // Direct system.details.* (may already be correct or use string shorthand)
+    const srcDetails = system.details;
+    const species = this.normalizeDetail(srcDetails?.species ?? system.species);
+    if (species) details.species = species;
+
+    const culture = this.normalizeDetail(srcDetails?.culture ?? system.culture);
+    if (culture) details.culture = culture;
+
+    // career — accept career, profession, or identity.profession
+    const career = this.normalizeDetail(
+      srcDetails?.career ??
+        srcDetails?.profession ??
+        system.career ??
+        system.profession ??
+        system.identity?.profession
+    );
+    if (career) details.career = career;
+
+    const social = this.normalizeDetail(srcDetails?.socialstate ?? system.socialstate);
+    if (social) details.socialstate = social;
+
+    // Experience (AP)
+    const exp = srcDetails?.experience ?? system.experience;
+    if (exp && typeof exp === 'object') {
+      details.experience = {
+        ...(exp.total !== undefined ? { total: exp.total } : {}),
+        ...(exp.spent !== undefined ? { spent: exp.spent } : {}),
+        ...(exp.available !== undefined ? { available: exp.available } : {}),
+      };
+    }
+
+    // identity.* → details.*  (profession→career already handled above)
+    if (system.identity?.species && !details.species) {
+      const idSpecies = this.normalizeDetail(system.identity.species);
+      if (idSpecies) details.species = idSpecies;
+    }
+    if (system.identity?.culture && !details.culture) {
+      const idCulture = this.normalizeDetail(system.identity.culture);
+      if (idCulture) details.culture = idCulture;
+    }
+
+    if (Object.keys(details).length > 0) {
+      out.details = details;
+    }
+
+    // ── 5. Status / Kampf values ────────────────────────────────────────
+    const status: Record<string, any> = {};
+
+    const init = system.initiative ?? system.status?.initiative;
+    if (init !== undefined) {
+      status.initiative = typeof init === 'number' ? { value: init } : init;
+    }
+
+    const speed = system.speed ?? system.status?.speed;
+    if (speed !== undefined) {
+      status.speed = typeof speed === 'number' ? { value: speed } : speed;
+    }
+
+    const dodge = system.dodge ?? system.status?.dodge;
+    if (dodge !== undefined) {
+      status.dodge = typeof dodge === 'number' ? { value: dodge } : dodge;
+    }
+
+    const armour = system.armour ?? system.armor ?? system.status?.armour ?? system.status?.armor;
+    if (armour !== undefined) {
+      status.armour = typeof armour === 'number' ? { value: armour } : armour;
+    }
+
+    const size = system.size ?? system.status?.size;
+    if (size !== undefined) {
+      status.size = typeof size === 'string' ? { value: size } : size;
+    }
+
+    if (Object.keys(status).length > 0) {
+      out.status = out.status ?? {};
+      DSA5Adapter.mergeInto(out.status, status);
+    }
+
+    // ── 6. Tradition ────────────────────────────────────────────────────
+    if (system.tradition) {
+      out.tradition = system.tradition;
+    }
+
+    // ── Merge normalised paths back into the original system object ──────
+    // This preserves unknown keys and only overwrites/adds the normalised ones.
+    DSA5Adapter.mergeInto(system, out);
+
+    return system;
   }
 }
