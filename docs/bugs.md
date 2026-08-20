@@ -7,7 +7,7 @@
 
 ## 🐛 Bug 1 — `manage_actors` schreibt DSA5-Systemdaten nicht
 
-**Status: FIX (im Code, nicht verifiziert) · Fix: normalizePayload + system-detection**
+**Status: FIXED (live verifiziert 2026-08-20 Session 3) · Fix: normalizePayload + system-detection**
 
 - **Symptom:** `manage_actors` (create + update) meldet Erfolg, aber DSA5-Werte wie `characteristics.MU`, `lifePoints` werden NICHT gesetzt. Test: Bardo (PL55IoQ6cfwiZ98N) → MU blieb 8, LP blieb 16 trotz Update.
 - **Ursachen (zwei Ebenen):**
@@ -17,17 +17,18 @@
      - Profession: `system.details.career.value` (nicht `profession`)
      - AsP/KaP: `system.status.astralenergy/karmaenergy.value/.max`
   2. **Adapter-Auflösung (eigentliche Root-Cause, erst beim E2E-Test gefunden):** `detectGameSystem()` in `packages/mcp-server/src/utils/system-detection.ts` kannte `dsa5` NICHT → lieferte `'other'` für die dsa5-World → `SystemRegistry.getAdapter('other')` fand keinen Adapter (DSA5Adapter.canHandle('other')=false) → **null** → `adapter?.normalizePayload` wurde NIE ausgeführt. Deshalb griff der Fix weder bei create noch update.
-- **Fix (implementiert):**
-  - `normalizePayload()` + `describeActorSchema()` im DSA5-Adapter (`packages/mcp-server/src/systems/dsa5/adapter.ts`) — Commit `f74790a`.
-  - `detectGameSystem()` um `dsa5` (+`wfrp4e`) erweitert in `system-detection.ts` (neue Änderung, noch nicht committet). Damit löst der Registry-Lookup den DSA5-Adapter korrekt auf.
-- **Verifikation:** statisch bestätigt (detect→dsa5, getAdapter→DSA5Adapter, normalize→`mu:{value:13}`/`wounds:{max:32}`/`career:{value:"Krieger"}`). Direkte DSA5-Pfade (`mu:{initial:15}`) schreiben live korrekt in Foundry (MU=15). **Live-Test des vollständigen Wegs offen:** braucht Server-Neustart (Desktop-App beenden + neu, `/new` reicht NICHT).
-- **Hinweis `status.wounds.max`:** DSA5 speichert `wounds.max` meist als `0` in der Datei; das Maximum wird zur Laufzeit aus `initial`+KO×2+Steigerungen abgeleitet. Ein hart geschriebenes `wounds.max` könnte beim nächsten `prepareData` überschrieben werden → beim Live-Test prüfen.
+- **Fix (implementiert + live verifiziert):**
+  - `normalizePayload()` + `describeActorSchema()` im DSA5-Adapter (`packages/mcp-server/src/systems/dsa5/adapter.ts`).
+  - `detectGameSystem()` um `dsa5` (+`wfrp4e`) erweitert in `system-detection.ts`.
+- **Verifikation (E2E in Session 3, 2026-08-20):** Test-NPC via `manage_actors` create mit intuitivem Payload (`MU:13…KK:13`, `lifePoints.max:32`, `identity.profession:"Krieger"`) → LevelDB-Rohdaten bestätigen `characteristics.mu.initial=13`, `status.wounds.max=32`, `details.career.value="Krieger"`, `details.species.value="Mensch"`, `details.culture.value="Mittelreich"`. 29/29 `normalize-payload`-Unit-Tests grün. Plot-1-NPCs (7) mit echten DSA5-Werten befüllt (MU/KL/species/culture/career pro Rolle) und in LevelDB bestätigt.
+- **Hinweis `status.wounds.max`:** DSA5 speichert `wounds.max` meist als `0` in der Datei; das Maximum wird zur Laufzeit aus `initial`+KO×2+Steigerungen abgeleitet. `get_character` zeigt daher den abgeleiteten Wert (z. B. 24), auch wenn `wounds.max=32` persistiert ist — das ist korrektes DSA5-Verhalten.
 
 ## 2 — Kein DSA5-Schema für `describe`
 
-**Status: OPEN (verknüpft mit Bug 1)**
+**Status: FIXED (Commit 4287791, 2026-08-20)**
 
-- `manage_actors` action=describe liefert "No system-specific actor schema notes available" (kein DSA5-Schema). DSA5-Adapter fehlt `describeActorSchema()`.
+- `manage_actors` action=describe lieferte "No system-specific actor schema notes available" für DSA5, weil dem DSA5-Adapter `describeActorSchema()` fehlte.
+- **Fix:** `describeActorSchema()` im DSA5-Adapter ergänzt (Commit `4287791`) — beschreibt Actor-Typen (character/npc/creature), Eigenschaften-Shorthands (MU..KK), status.wounds/astralenergy/karmaenergy, details species/culture/career und Kampfstatus-Shorthands. typecheck + 182 Tests + Build grün.
 
 ## 3 — Versions-Mismatch: `manage_actors`-Queries fehlten im Modul
 
