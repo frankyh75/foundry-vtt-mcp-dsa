@@ -424,11 +424,10 @@ export class QuestCreationTools {
       }
 
       // Format the update based on type
-      // For specific page updates, use append-style since the page may not have quest HTML structure
+      // For specific page updates, REPLACE the page content entirely (not append)
       let updatedContent: string;
       if (request.pageId) {
-        const formattedNew = this.formatUpdateContentForFoundry(request.newContent);
-        updatedContent = currentContent + formattedNew;
+        updatedContent = this.formatUpdateContentForFoundry(request.newContent);
       } else {
         updatedContent = this.formatQuestUpdate(
           currentContent,
