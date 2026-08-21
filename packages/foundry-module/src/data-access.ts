@@ -3536,11 +3536,15 @@ export class FoundryDataAccess {
       }
 
       const indexArray = Array.from(pack.index.values());
-      console.log(`[${this.moduleId}] Retrieved pack index for ${packId}: ${indexArray.length} entries`);
+      console.log(
+        `[${this.moduleId}] Retrieved pack index for ${packId}: ${indexArray.length} entries`
+      );
       return indexArray;
     } catch (error) {
       console.error(`[${this.moduleId}] Failed to get pack index for ${packId}:`, error);
-      throw new Error(`Failed to get pack index for ${packId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get pack index for ${packId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -4470,12 +4474,20 @@ export class FoundryDataAccess {
 
       return {
         success: true,
-        actor: { id: createdActor.id as string, name: createdActor.name as string, type: createdActor.type },
+        actor: {
+          id: createdActor.id as string,
+          name: createdActor.name as string,
+          type: createdActor.type,
+        },
         tokensPlaced,
       };
-
     } catch (error) {
-      this.auditLog('createActorFromData', request, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      this.auditLog(
+        'createActorFromData',
+        request,
+        'failure',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
       throw error;
     }
   }
@@ -6360,6 +6372,14 @@ export class FoundryDataAccess {
     const scene = await Scene.create(sceneData as any);
     if (!scene) {
       throw new Error(`Failed to create scene "${data.name}"`);
+    }
+
+    // In Foundry v14, the background field set during Scene.create is not
+    // reliably persisted.  We follow up with an explicit update so that
+    // scene._source.background.src is populated correctly and listScenes
+    // (which reads scene._source?.background?.src) returns the image URL.
+    if (data.backgroundImageUrl) {
+      await scene.update({ background: { src: data.backgroundImageUrl } });
     }
 
     return { sceneId: scene.id as string, name: scene.name as string, success: true };
