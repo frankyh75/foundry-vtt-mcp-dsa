@@ -17,14 +17,31 @@ export interface AdventureImportToolsOptions {
 export class AdventureImportTools {
   private readonly foundryClient: FoundryClient;
   private readonly logger: Logger;
-  private readonly worker: AdventureImportWorker;
+  private readonly workerOverride: AdventureImportWorker | undefined;
+  private workerInstance: AdventureImportWorker | undefined;
   private readonly importer: FoundryAdventureImporter;
 
   constructor(options: AdventureImportToolsOptions) {
     this.foundryClient = options.foundryClient;
     this.logger = options.logger.child({ component: 'AdventureImportTools' });
-    this.worker = options.worker ?? new AdventureImportWorker();
+    this.workerOverride = options.worker;
     this.importer = options.importer ?? new FoundryAdventureImporter(this.foundryClient, this.logger);
+  }
+
+  /**
+   * Lazily resolve the AdventureImportWorker.  The constructor no longer
+   * instantiates the worker eagerly so the backend can boot without an
+   * LLM base URL configured.  The URL is only required when an adventure
+   * import is actually requested.
+   */
+  private getWorker(): AdventureImportWorker {
+    if (this.workerOverride) {
+      return this.workerOverride;
+    }
+    if (!this.workerInstance) {
+      this.workerInstance = new AdventureImportWorker();
+    }
+    return this.workerInstance;
   }
 
   getToolDefinitions() {
@@ -102,7 +119,7 @@ export class AdventureImportTools {
 
     for (let index = 0; index < sourceChunks.length; index += 1) {
       const chunk = sourceChunks[index];
-      const extracted = await this.worker.extractAdventure({
+      const extracted = await this.getWorker().extractAdventure({
         title: request.title,
         sourceText: chunk,
         chunkIndex: index + 1,
