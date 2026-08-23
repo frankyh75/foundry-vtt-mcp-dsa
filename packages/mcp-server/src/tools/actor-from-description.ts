@@ -69,24 +69,33 @@ export class ActorFromDescriptionTools {
       descriptionLength: request.description.length,
     });
 
-    const extracted = await this.worker.extractActor(request.description);
+    try {
+      const extracted = await this.worker.extractActor(request.description);
 
-    if (request.mode === 'dry-run') {
-      return {
-        mode: 'dry-run',
-        extractedPayload: extracted.payload,
-        rawText: extracted.rawText,
-        message: 'Preview only - call again with mode: "import" to create the actor in Foundry.',
-      };
+      if (request.mode === 'dry-run') {
+        return {
+          mode: 'dry-run',
+          extractedPayload: extracted.payload,
+          rawText: extracted.rawText,
+          message: 'Preview only - call again with mode: "import" to create the actor in Foundry.',
+        };
+      }
+
+      return this.importer.handleImportActorFromJson({
+        jsonPayload: extracted.payload,
+        strategy: 'custom_dsa5',
+        resolveItems: request.resolveItems,
+        addToScene: false,
+        updateExisting: false,
+        strict: false,
+      });
+    } catch (error) {
+      this.logger.error('Actor-from-description failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error instanceof Error
+        ? new Error(`create-actor-from-description: ${error.message}`)
+        : new Error('create-actor-from-description: unknown error');
     }
-
-    return this.importer.handleImportActorFromJson({
-      jsonPayload: extracted.payload,
-      strategy: 'custom_dsa5',
-      resolveItems: request.resolveItems,
-      addToScene: false,
-      updateExisting: false,
-      strict: false,
-    });
   }
 }
