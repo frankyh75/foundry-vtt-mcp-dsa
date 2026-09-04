@@ -329,31 +329,6 @@ export class QueryHandlers {
   }
 
   /**
-   * Handle get pack index request
-   */
-  private async handleGetPackIndex(data: { packId: string }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
-      if (!data.packId) {
-        throw new Error('packId is required');
-      }
-
-      return await this.dataAccess.getPackIndex(data.packId);
-    } catch (error) {
-      throw new Error(
-        `Failed to get pack index: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  /**
    * Handle get pack index request. Returns a compendium pack's index entries,
    * optionally including extra system fields (e.g. dsa5 species/career) so callers
    * can filter without loading every full document. Used by list-dsa5-archetypes.
