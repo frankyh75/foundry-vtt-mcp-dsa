@@ -34,7 +34,8 @@ export class QueryHandlers {
 
     // Compendium queries
     CONFIG.queries[`${modulePrefix}.searchCompendium`] = this.handleSearchCompendium.bind(this);
-    CONFIG.queries[`${modulePrefix}.listCreaturesByCriteria`] = this.handleListCreaturesByCriteria.bind(this);
+    CONFIG.queries[`${modulePrefix}.listCreaturesByCriteria`] =
+      this.handleListCreaturesByCriteria.bind(this);
     CONFIG.queries[`${modulePrefix}.getAvailablePacks`] = this.handleGetAvailablePacks.bind(this);
     CONFIG.queries[`${modulePrefix}.getPackIndex`] = this.handleGetPackIndex.bind(this);
 
@@ -42,7 +43,8 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.getActiveScene`] = this.handleGetActiveScene.bind(this);
     CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
     CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
-    CONFIG.queries[`${modulePrefix}.createScenePlaceholder`] = this.handleCreateScenePlaceholder.bind(this);
+    CONFIG.queries[`${modulePrefix}.createScenePlaceholder`] =
+      this.handleCreateScenePlaceholder.bind(this);
     CONFIG.queries[`${modulePrefix}.deleteScene`] = this.handleDeleteScene.bind(this);
 
     // World queries
@@ -52,39 +54,48 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.ping`] = this.handlePing.bind(this);
 
     // Phase 2 & 3: Write operation queries
-    CONFIG.queries[`${modulePrefix}.createActorFromCompendium`] = this.handleCreateActorFromCompendium.bind(this);
-    CONFIG.queries[`${modulePrefix}.createActorFromData`] = this.handleCreateActorFromData.bind(this);
+    CONFIG.queries[`${modulePrefix}.createActorFromCompendium`] =
+      this.handleCreateActorFromCompendium.bind(this);
+    CONFIG.queries[`${modulePrefix}.createActorFromData`] =
+      this.handleCreateActorFromData.bind(this);
     // Generic actor CRUD (any system, any type)
     CONFIG.queries[`${modulePrefix}.createActors`] = this.handleCreateActors.bind(this);
     CONFIG.queries[`${modulePrefix}.updateActors`] = this.handleUpdateActors.bind(this);
     CONFIG.queries[`${modulePrefix}.deleteActors`] = this.handleDeleteActors.bind(this);
     CONFIG.queries[`${modulePrefix}.updateActorItems`] = this.handleUpdateActorItems.bind(this);
     CONFIG.queries[`${modulePrefix}.deleteActorItems`] = this.handleDeleteActorItems.bind(this);
-    CONFIG.queries[`${modulePrefix}.getCompendiumDocumentFull`] = this.handleGetCompendiumDocumentFull.bind(this);
+    CONFIG.queries[`${modulePrefix}.getCompendiumDocumentFull`] =
+      this.handleGetCompendiumDocumentFull.bind(this);
     CONFIG.queries[`${modulePrefix}.addActorsToScene`] = this.handleAddActorsToScene.bind(this);
-    CONFIG.queries[`${modulePrefix}.validateWritePermissions`] = this.handleValidateWritePermissions.bind(this);
+    CONFIG.queries[`${modulePrefix}.validateWritePermissions`] =
+      this.handleValidateWritePermissions.bind(this);
     CONFIG.queries[`${modulePrefix}.createJournalEntry`] = this.handleCreateJournalEntry.bind(this);
     CONFIG.queries[`${modulePrefix}.listJournals`] = this.handleListJournals.bind(this);
     CONFIG.queries[`${modulePrefix}.getJournalContent`] = this.handleGetJournalContent.bind(this);
-    CONFIG.queries[`${modulePrefix}.getJournalPageContent`] = this.handleGetJournalPageContent.bind(this);
-    CONFIG.queries[`${modulePrefix}.updateJournalContent`] = this.handleUpdateJournalContent.bind(this);
+    CONFIG.queries[`${modulePrefix}.getJournalPageContent`] =
+      this.handleGetJournalPageContent.bind(this);
+    CONFIG.queries[`${modulePrefix}.updateJournalContent`] =
+      this.handleUpdateJournalContent.bind(this);
 
     // Phase 4: Dice roll queries
-    CONFIG.queries[`${modulePrefix}.request-player-rolls`] = this.handleRequestPlayerRolls.bind(this);
+    CONFIG.queries[`${modulePrefix}.request-player-rolls`] =
+      this.handleRequestPlayerRolls.bind(this);
 
     // Enhanced creature index for campaign analysis
-    CONFIG.queries[`${modulePrefix}.getEnhancedCreatureIndex`] = this.handleGetEnhancedCreatureIndex.bind(this);
-    
-    // Campaign management queries
-    CONFIG.queries[`${modulePrefix}.updateCampaignProgress`] = this.handleUpdateCampaignProgress.bind(this);
+    CONFIG.queries[`${modulePrefix}.getEnhancedCreatureIndex`] =
+      this.handleGetEnhancedCreatureIndex.bind(this);
 
+    // Campaign management queries
+    CONFIG.queries[`${modulePrefix}.updateCampaignProgress`] =
+      this.handleUpdateCampaignProgress.bind(this);
 
     // Phase 6: Actor ownership management
     CONFIG.queries[`${modulePrefix}.setActorOwnership`] = this.handleSetActorOwnership.bind(this);
     CONFIG.queries[`${modulePrefix}.getActorOwnership`] = this.handleGetActorOwnership.bind(this);
     CONFIG.queries[`${modulePrefix}.getFriendlyNPCs`] = this.handleGetFriendlyNPCs.bind(this);
     CONFIG.queries[`${modulePrefix}.getPartyCharacters`] = this.handleGetPartyCharacters.bind(this);
-    CONFIG.queries[`${modulePrefix}.getConnectedPlayers`] = this.handleGetConnectedPlayers.bind(this);
+    CONFIG.queries[`${modulePrefix}.getConnectedPlayers`] =
+      this.handleGetConnectedPlayers.bind(this);
     CONFIG.queries[`${modulePrefix}.findPlayers`] = this.handleFindPlayers.bind(this);
     CONFIG.queries[`${modulePrefix}.findActor`] = this.handleFindActor.bind(this);
 
@@ -93,20 +104,24 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.updateToken`] = this.handleUpdateToken.bind(this);
     CONFIG.queries[`${modulePrefix}.deleteTokens`] = this.handleDeleteTokens.bind(this);
     CONFIG.queries[`${modulePrefix}.getTokenDetails`] = this.handleGetTokenDetails.bind(this);
-    CONFIG.queries[`${modulePrefix}.toggleTokenCondition`] = this.handleToggleTokenCondition.bind(this);
-    CONFIG.queries[`${modulePrefix}.getAvailableConditions`] = this.handleGetAvailableConditions.bind(this);
+    CONFIG.queries[`${modulePrefix}.toggleTokenCondition`] =
+      this.handleToggleTokenCondition.bind(this);
+    CONFIG.queries[`${modulePrefix}.getAvailableConditions`] =
+      this.handleGetAvailableConditions.bind(this);
 
     // Map generation queries (hybrid architecture)
     CONFIG.queries[`${modulePrefix}.generate-map`] = this.handleGenerateMap.bind(this);
     CONFIG.queries[`${modulePrefix}.check-map-status`] = this.handleCheckMapStatus.bind(this);
     CONFIG.queries[`${modulePrefix}.cancel-map-job`] = this.handleCancelMapJob.bind(this);
-    CONFIG.queries[`${modulePrefix}.upload-generated-map`] = this.handleUploadGeneratedMap.bind(this);
+    CONFIG.queries[`${modulePrefix}.upload-generated-map`] =
+      this.handleUploadGeneratedMap.bind(this);
 
     // Item usage queries
     CONFIG.queries[`${modulePrefix}.useItem`] = this.handleUseItem.bind(this);
 
     // Character search queries
-    CONFIG.queries[`${modulePrefix}.searchCharacterItems`] = this.handleSearchCharacterItems.bind(this);
+    CONFIG.queries[`${modulePrefix}.searchCharacterItems`] =
+      this.handleSearchCharacterItems.bind(this);
 
     // World-level item creation
     CONFIG.queries[`${modulePrefix}.createWorldItems`] = this.handleCreateWorldItems.bind(this);
@@ -124,9 +139,10 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.update-token`] = this.handleUpdateToken.bind(this);
     CONFIG.queries[`${modulePrefix}.delete-tokens`] = this.handleDeleteTokens.bind(this);
     CONFIG.queries[`${modulePrefix}.get-token-details`] = this.handleGetTokenDetails.bind(this);
-    CONFIG.queries[`${modulePrefix}.toggle-token-condition`] = this.handleToggleTokenCondition.bind(this);
-    CONFIG.queries[`${modulePrefix}.get-available-conditions`] = this.handleGetAvailableConditions.bind(this);
-
+    CONFIG.queries[`${modulePrefix}.toggle-token-condition`] =
+      this.handleToggleTokenCondition.bind(this);
+    CONFIG.queries[`${modulePrefix}.get-available-conditions`] =
+      this.handleGetAvailableConditions.bind(this);
   }
 
   /**
@@ -135,11 +151,10 @@ export class QueryHandlers {
   unregisterHandlers(): void {
     const modulePrefix = MODULE_ID;
     const keysToRemove = Object.keys(CONFIG.queries).filter(key => key.startsWith(modulePrefix));
-    
+
     for (const key of keysToRemove) {
       delete CONFIG.queries[key];
     }
-
   }
 
   /**
@@ -155,9 +170,9 @@ export class QueryHandlers {
       return await handler(data);
     } catch (error) {
       console.error(`[${MODULE_ID}] Query failed: ${queryName}`, error);
-      return { 
+      return {
         error: error instanceof Error ? error.message : 'Unknown error',
-        success: false 
+        success: false,
       };
     }
   }
@@ -165,7 +180,10 @@ export class QueryHandlers {
   /**
    * Handle character information request
    */
-  private async handleGetCharacterInfo(data: { characterName?: string; characterId?: string }): Promise<any> {
+  private async handleGetCharacterInfo(data: {
+    characterName?: string;
+    characterId?: string;
+  }): Promise<any> {
     try {
       // SECURITY: Silent GM validation
       const gmCheck = this.validateGMAccess();
@@ -182,7 +200,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.getCharacterInfo(identifier);
     } catch (error) {
-      throw new Error(`Failed to get character info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get character info: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -200,7 +220,7 @@ export class QueryHandlers {
       this.dataAccess.validateFoundryState();
 
       const actors = await this.dataAccess.listActors();
-      
+
       // Filter by type if specified
       if (data.type) {
         return actors.filter(actor => actor.type === data.type);
@@ -208,15 +228,17 @@ export class QueryHandlers {
 
       return actors;
     } catch (error) {
-      throw new Error(`Failed to list actors: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list actors: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   /**
    * Handle compendium search request
    */
-  private async handleSearchCompendium(data: { 
-    query: string; 
+  private async handleSearchCompendium(data: {
+    query: string;
     packType?: string;
     filters?: {
       challengeRating?: number | { min?: number; max?: number };
@@ -225,7 +247,7 @@ export class QueryHandlers {
       alignment?: string;
       hasLegendaryActions?: boolean;
       spellcaster?: boolean;
-    }
+    };
   }): Promise<any> {
     try {
       // SECURITY: Silent GM validation
@@ -245,10 +267,11 @@ export class QueryHandlers {
         throw new Error('query parameter is required and must be a string');
       }
 
-
       return await this.dataAccess.searchCompendium(data.query, data.packType, data.filters);
     } catch (error) {
-      throw new Error(`Failed to search compendium: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to search compendium: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -272,15 +295,16 @@ export class QueryHandlers {
 
       this.dataAccess.validateFoundryState();
 
-
       const result = await this.dataAccess.listCreaturesByCriteria(data);
-      
+
       // Handle the new format with search summary
       return {
-        response: result
+        response: result,
       };
     } catch (error) {
-      throw new Error(`Failed to list creatures by criteria: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list creatures by criteria: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -298,7 +322,9 @@ export class QueryHandlers {
       this.dataAccess.validateFoundryState();
       return await this.dataAccess.getAvailablePacks();
     } catch (error) {
-      throw new Error(`Failed to get available packs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get available packs: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -321,7 +347,34 @@ export class QueryHandlers {
 
       return await this.dataAccess.getPackIndex(data.packId);
     } catch (error) {
-      throw new Error(`Failed to get pack index: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get pack index: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle get pack index request. Returns a compendium pack's index entries,
+   * optionally including extra system fields (e.g. dsa5 species/career) so callers
+   * can filter without loading every full document. Used by list-dsa5-archetypes.
+   */
+  private async handleGetPackIndex(data: { packId: string; fields?: string[] }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+      if (!data?.packId) {
+        throw new Error('packId is required');
+      }
+      return await this.dataAccess.getPackIndex(data.packId, data.fields);
+    } catch (error) {
+      throw new Error(
+        `Failed to get pack index: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -339,7 +392,9 @@ export class QueryHandlers {
       this.dataAccess.validateFoundryState();
       return await this.dataAccess.getActiveScene();
     } catch (error) {
-      throw new Error(`Failed to get active scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get active scene: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -357,7 +412,9 @@ export class QueryHandlers {
       this.dataAccess.validateFoundryState();
       return await this.dataAccess.getWorldInfo();
     } catch (error) {
-      throw new Error(`Failed to get world info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get world info: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -404,10 +461,12 @@ export class QueryHandlers {
     customNames?: string[] | undefined;
     quantity?: number | undefined;
     addToScene?: boolean | undefined;
-    placement?: {
-      type: 'random' | 'grid' | 'center' | 'coordinates';
-      coordinates?: { x: number; y: number }[];
-    } | undefined;
+    placement?:
+      | {
+          type: 'random' | 'grid' | 'center' | 'coordinates';
+          coordinates?: { x: number; y: number }[];
+        }
+      | undefined;
   }): Promise<any> {
     try {
       // SECURITY: Silent GM validation
@@ -426,14 +485,16 @@ export class QueryHandlers {
         quantity: data.quantity || 1,
         addToScene: data.addToScene || false,
       };
-      
+
       if (data.placement) {
         requestData.placement = data.placement;
       }
-      
+
       return await this.dataAccess.createActorFromCompendiumEntry(requestData);
     } catch (error) {
-      throw new Error(`Failed to create actor from compendium: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create actor from compendium: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -491,7 +552,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.createActorFromData(requestData);
     } catch (error) {
-      throw new Error(`Failed to create actor from data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create actor from data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -521,7 +584,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.getCompendiumDocumentFull(data.packId, data.documentId);
     } catch (error) {
-      throw new Error(`Failed to get compendium document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get compendium document: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -552,7 +617,9 @@ export class QueryHandlers {
         hidden: data.hidden || false,
       });
     } catch (error) {
-      throw new Error(`Failed to add actors to scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to add actors to scene: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -577,7 +644,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.validateWritePermissions(data.operation);
     } catch (error) {
-      throw new Error(`Failed to validate write permissions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to validate write permissions: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -606,7 +675,9 @@ export class QueryHandlers {
         folderName: data.folderName,
       });
     } catch (error) {
-      throw new Error(`Failed to create journal entry: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create journal entry: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -624,7 +695,9 @@ export class QueryHandlers {
       this.dataAccess.validateFoundryState();
       return await this.dataAccess.listJournals();
     } catch (error) {
-      throw new Error(`Failed to list journals: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list journals: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -647,7 +720,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.getJournalContent(data.journalId);
     } catch (error) {
-      throw new Error(`Failed to get journal content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get journal content: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -673,14 +748,21 @@ export class QueryHandlers {
 
       return await this.dataAccess.getJournalPageContent(data.journalId, data.pageId);
     } catch (error) {
-      throw new Error(`Failed to get journal page content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get journal page content: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   /**
    * Handle update journal content request
    */
-  async handleUpdateJournalContent(data: { journalId: string; content: string; pageId?: string; newPageName?: string }): Promise<any> {
+  async handleUpdateJournalContent(data: {
+    journalId: string;
+    content: string;
+    pageId?: string;
+    newPageName?: string;
+  }): Promise<any> {
     try {
       // SECURITY: Silent GM validation
       const gmCheck = this.validateGMAccess();
@@ -697,7 +779,12 @@ export class QueryHandlers {
         throw new Error('content is required');
       }
 
-      const updateRequest: { journalId: string; content: string; pageId?: string | undefined; newPageName?: string | undefined } = {
+      const updateRequest: {
+        journalId: string;
+        content: string;
+        pageId?: string | undefined;
+        newPageName?: string | undefined;
+      } = {
         journalId: data.journalId,
         content: data.content,
       };
@@ -706,7 +793,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.updateJournalContent(updateRequest);
     } catch (error) {
-      throw new Error(`Failed to update journal content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to update journal content: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -736,7 +825,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.requestPlayerRolls(data);
     } catch (error) {
-      throw new Error(`Failed to request player rolls: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to request player rolls: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -755,14 +846,20 @@ export class QueryHandlers {
 
       return await this.dataAccess.getEnhancedCreatureIndex();
     } catch (error) {
-      throw new Error(`Failed to get enhanced creature index: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get enhanced creature index: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   /**
    * Handle campaign progress update request
    */
-  async handleUpdateCampaignProgress(data: { campaignId: string; partId: string; newStatus: string }): Promise<any> {
+  async handleUpdateCampaignProgress(data: {
+    campaignId: string;
+    partId: string;
+    newStatus: string;
+  }): Promise<any> {
     try {
       // SECURITY: Silent GM validation
       const gmCheck = this.validateGMAccess();
@@ -775,18 +872,18 @@ export class QueryHandlers {
       // For now, this is a pass-through to the MCP server
       // In the future, campaign data might be stored in Foundry world flags
       // Currently, the campaign dashboard regeneration happens server-side
-      
 
       return {
         success: true,
         message: `Campaign progress updated: ${data.partId} is now ${data.newStatus}`,
         campaignId: data.campaignId,
         partId: data.partId,
-        newStatus: data.newStatus
+        newStatus: data.newStatus,
       };
-
     } catch (error) {
-      throw new Error(`Failed to update campaign progress: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to update campaign progress: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -809,7 +906,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.setActorOwnership(data);
     } catch (error) {
-      throw new Error(`Failed to set actor ownership: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to set actor ownership: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -828,7 +927,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.getActorOwnership(data);
     } catch (error) {
-      throw new Error(`Failed to get actor ownership: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get actor ownership: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -847,7 +948,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.getFriendlyNPCs();
     } catch (error) {
-      throw new Error(`Failed to get friendly NPCs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get friendly NPCs: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -866,7 +969,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.getPartyCharacters();
     } catch (error) {
-      throw new Error(`Failed to get party characters: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get party characters: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -885,7 +990,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.getConnectedPlayers();
     } catch (error) {
-      throw new Error(`Failed to get connected players: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get connected players: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -908,7 +1015,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.findPlayers(data);
     } catch (error) {
-      throw new Error(`Failed to find players: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to find players: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -931,7 +1040,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.findActor(data);
     } catch (error) {
-      throw new Error(`Failed to find actor: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to find actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -949,7 +1060,9 @@ export class QueryHandlers {
       this.dataAccess.validateFoundryState();
       return await this.dataAccess.listScenes(data);
     } catch (error) {
-      throw new Error(`Failed to list scenes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list scenes: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -972,7 +1085,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.switchScene(data);
     } catch (error) {
-      throw new Error(`Failed to switch scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to switch scene: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1042,19 +1157,20 @@ export class QueryHandlers {
         scene_name: data.scene_name.trim(),
         size: data.size || 'medium',
         grid_size: data.grid_size || 70,
-        quality: quality
+        quality: quality,
       };
 
       // Use ComfyUIManager to communicate with backend via WebSocket
       const response = await this.comfyuiManager.generateMap(params);
-      const isSuccess = typeof response?.success === 'boolean' ? response.success : response?.status === 'success';
+      const isSuccess =
+        typeof response?.success === 'boolean' ? response.success : response?.status === 'success';
 
       if (!isSuccess) {
         const errorMessage = response?.error || response?.message || 'Map generation failed';
         return {
           error: errorMessage,
           success: false,
-          status: response?.status ?? 'error'
+          status: response?.status ?? 'error',
         };
       }
 
@@ -1063,13 +1179,12 @@ export class QueryHandlers {
         status: response?.status ?? 'success',
         jobId: response.jobId,
         message: response.message || 'Map generation started',
-        estimatedTime: response.estimatedTime || '30-90 seconds'
+        estimatedTime: response.estimatedTime || '30-90 seconds',
       };
-
     } catch (error: any) {
       return {
         error: error.message,
-        success: false
+        success: false,
       };
     }
   }
@@ -1091,27 +1206,27 @@ export class QueryHandlers {
 
       // Use ComfyUIManager to communicate with backend via WebSocket
       const response = await this.comfyuiManager.checkMapStatus(data);
-      const isSuccess = typeof response?.success === 'boolean' ? response.success : response?.status === 'success';
+      const isSuccess =
+        typeof response?.success === 'boolean' ? response.success : response?.status === 'success';
 
       if (!isSuccess) {
         const errorMessage = response?.error || response?.message || 'Status check failed';
         return {
           error: errorMessage,
           success: false,
-          status: response?.status ?? 'error'
+          status: response?.status ?? 'error',
         };
       }
 
       return {
         success: true,
         status: response?.status ?? 'success',
-        job: response.job
+        job: response.job,
       };
-
     } catch (error: any) {
       return {
         error: error.message,
-        success: false
+        success: false,
       };
     }
   }
@@ -1133,27 +1248,27 @@ export class QueryHandlers {
 
       // Use ComfyUIManager to communicate with backend via WebSocket
       const response = await this.comfyuiManager.cancelMapJob(data);
-      const isSuccess = typeof response?.success === 'boolean' ? response.success : response?.status === 'success';
+      const isSuccess =
+        typeof response?.success === 'boolean' ? response.success : response?.status === 'success';
 
       if (!isSuccess) {
         const errorMessage = response?.error || response?.message || 'Job cancellation failed';
         return {
           error: errorMessage,
           success: false,
-          status: response?.status ?? 'error'
+          status: response?.status ?? 'error',
         };
       }
 
       return {
         success: true,
         status: response?.status ?? 'success',
-        message: response.message || 'Job cancelled successfully'
+        message: response.message || 'Job cancelled successfully',
       };
-
     } catch (error: any) {
       return {
         error: error.message,
-        success: false
+        success: false,
       };
     }
   }
@@ -1166,7 +1281,7 @@ export class QueryHandlers {
     console.log(`[${MODULE_ID}] Upload generated map request received`, {
       hasFilename: !!data.filename,
       hasImageData: !!data.imageData,
-      imageDataLength: data.imageData?.length
+      imageDataLength: data.imageData?.length,
     });
 
     try {
@@ -1190,13 +1305,17 @@ export class QueryHandlers {
       console.log(`[${MODULE_ID}] Validating filename...`);
       // Validate filename for security (prevent path traversal)
       const safeFilename = data.filename.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
-      if (!safeFilename.endsWith('.png') && !safeFilename.endsWith('.jpg') && !safeFilename.endsWith('.jpeg')) {
+      if (
+        !safeFilename.endsWith('.png') &&
+        !safeFilename.endsWith('.jpg') &&
+        !safeFilename.endsWith('.jpeg')
+      ) {
         throw new Error('Only PNG and JPEG images are supported');
       }
 
       console.log(`[${MODULE_ID}] Converting base64 to blob...`, {
         base64Length: data.imageData.length,
-        estimatedSizeMB: (data.imageData.length / 1024 / 1024).toFixed(2)
+        estimatedSizeMB: (data.imageData.length / 1024 / 1024).toFixed(2),
       });
 
       // Convert base64 to Blob
@@ -1210,7 +1329,7 @@ export class QueryHandlers {
 
       console.log(`[${MODULE_ID}] Creating file object...`, {
         filename: safeFilename,
-        blobSize: blob.size
+        blobSize: blob.size,
       });
 
       // Create a File object from the Blob
@@ -1224,27 +1343,28 @@ export class QueryHandlers {
       const uploadPath = `worlds/${worldId}/ai-generated-maps`;
       try {
         // Use the modern Foundry API (v13+) with fallback for older versions
-        const FilePickerAPI = (globalThis as any).foundry?.applications?.apps?.FilePicker?.implementation || (globalThis as any).FilePicker;
+        const FilePickerAPI =
+          (globalThis as any).foundry?.applications?.apps?.FilePicker?.implementation ||
+          (globalThis as any).FilePicker;
 
         await FilePickerAPI.createDirectory('data', uploadPath, { bucket: null });
         console.log(`[${MODULE_ID}] Directory created/verified: ${uploadPath}`);
       } catch (dirError: any) {
         // Directory might already exist, that's okay
-        if (!dirError.message?.includes('EEXIST') && !dirError.message?.includes('already exists')) {
+        if (
+          !dirError.message?.includes('EEXIST') &&
+          !dirError.message?.includes('already exists')
+        ) {
           console.warn(`[${MODULE_ID}] Directory creation warning:`, dirError.message);
         }
       }
 
       console.log(`[${MODULE_ID}] Uploading to FilePicker...`);
       // Upload using Foundry's FilePicker.upload method with modern API
-      const FilePickerAPI = (globalThis as any).foundry?.applications?.apps?.FilePicker?.implementation || (globalThis as any).FilePicker;
-      const response = await FilePickerAPI.upload(
-        'data',
-        uploadPath,
-        file,
-        {},
-        { notify: false }
-      );
+      const FilePickerAPI =
+        (globalThis as any).foundry?.applications?.apps?.FilePicker?.implementation ||
+        (globalThis as any).FilePicker;
+      const response = await FilePickerAPI.upload('data', uploadPath, file, {}, { notify: false });
 
       console.log(`[${MODULE_ID}] FilePicker.upload response:`, JSON.stringify(response, null, 2));
       console.log(`[${MODULE_ID}] Response keys:`, Object.keys(response || {}));
@@ -1254,14 +1374,13 @@ export class QueryHandlers {
         success: true,
         path: response.path,
         filename: safeFilename,
-        message: `Map uploaded successfully to ${response.path}`
+        message: `Map uploaded successfully to ${response.path}`,
       };
-
     } catch (error: any) {
       console.error(`[${MODULE_ID}] Failed to upload generated map:`, error);
       return {
         error: error.message || 'Failed to upload generated map',
-        success: false
+        success: false,
       };
     }
   }
@@ -1275,7 +1394,7 @@ export class QueryHandlers {
     tokenId: string;
     x: number;
     y: number;
-    animate?: boolean
+    animate?: boolean;
   }): Promise<any> {
     try {
       // SECURITY: Silent GM validation
@@ -1295,7 +1414,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.moveToken(data);
     } catch (error) {
-      throw new Error(`Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1304,7 +1425,7 @@ export class QueryHandlers {
    */
   private async handleUpdateToken(data: {
     tokenId: string;
-    updates: Record<string, any>
+    updates: Record<string, any>;
   }): Promise<any> {
     try {
       // SECURITY: Silent GM validation
@@ -1324,7 +1445,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.updateToken(data);
     } catch (error) {
-      throw new Error(`Failed to update token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to update token: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1347,7 +1470,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.deleteTokens(data);
     } catch (error) {
-      throw new Error(`Failed to delete tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to delete tokens: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1370,7 +1495,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.getTokenDetails(data);
     } catch (error) {
-      throw new Error(`Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1380,7 +1507,7 @@ export class QueryHandlers {
   private async handleToggleTokenCondition(data: {
     tokenId: string;
     conditionId: string;
-    active: boolean
+    active: boolean;
   }): Promise<any> {
     try {
       // SECURITY: Silent GM validation
@@ -1403,7 +1530,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.toggleTokenCondition(data);
     } catch (error) {
-      throw new Error(`Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1422,7 +1551,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.getAvailableConditions();
     } catch (error) {
-      throw new Error(`Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1463,7 +1594,9 @@ export class QueryHandlers {
         options: data.options,
       });
     } catch (error) {
-      throw new Error(`Failed to use item: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to use item: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1498,7 +1631,9 @@ export class QueryHandlers {
         limit: data.limit,
       });
     } catch (error) {
-      throw new Error(`Failed to search character items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to search character items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1561,7 +1696,9 @@ export class QueryHandlers {
 
       return await this.dataAccess.updateWorldItems({ updates: data.updates });
     } catch (error) {
-      throw new Error(`Failed to update world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to update world items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -1584,7 +1721,9 @@ export class QueryHandlers {
         ...(data.nameFilter !== undefined ? { nameFilter: data.nameFilter } : {}),
       });
     } catch (error) {
-      throw new Error(`Failed to list world items: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list world items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 

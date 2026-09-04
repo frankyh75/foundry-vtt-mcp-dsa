@@ -3455,7 +3455,12 @@ export class FoundryDataAccess {
       id: scene.id,
       name: scene.name,
       img: scene.img || undefined,
-      background: scene._source?.background?.src || undefined,
+      // Foundry v14 removed Scene#background; the image now lives on the Scene's first
+      // Level document instead (see foundry.documents.Level / LevelData#background).
+      background:
+        scene._source?.background?.src ||
+        (scene as any).levels?.contents?.[0]?.background?.src ||
+        undefined,
       width: scene.width,
       height: scene.height,
       padding: scene.padding,
@@ -3522,30 +3527,31 @@ export class FoundryDataAccess {
   }
 
   /**
-   * Retrieve the full index for a compendium pack.
+   * Return a compendium pack's index entries as a plain array.
+   * `fields` requests extra (dot-notation) fields be included in the index —
+   * e.g. ['type', 'system.details.species.value'] — so callers can filter
+   * without loading every full document. Mirrors the getIndex({ fields })
+   * pattern used elsewhere, with a fallback for older Foundry APIs.
    */
-  async getPackIndex(packId: string): Promise<any[]> {
-    try {
-      const pack = game.packs.get(packId);
-      if (!pack) {
-        throw new Error(`Compendium pack "${packId}" not found`);
-      }
-
-      if (!pack.indexed) {
-        await pack.getIndex({});
-      }
-
-      const indexArray = Array.from(pack.index.values());
-      console.log(
-        `[${this.moduleId}] Retrieved pack index for ${packId}: ${indexArray.length} entries`
-      );
-      return indexArray;
-    } catch (error) {
-      console.error(`[${this.moduleId}] Failed to get pack index for ${packId}:`, error);
-      throw new Error(
-        `Failed to get pack index for ${packId}: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+  async getPackIndex(packId: string, fields?: string[]): Promise<any[]> {
+    const pack = game.packs.get(packId);
+    if (!pack) {
+      throw new Error(`Compendium pack not found: ${packId}`);
     }
+
+    let packIndex: any;
+    try {
+      packIndex = await (pack as any).getIndex(
+        fields && fields.length > 0 ? { fields } : undefined
+      );
+    } catch {
+      // Fallback: older Foundry API without the fields option
+      packIndex = await (pack as any).getIndex();
+    }
+
+    const source =
+      packIndex && typeof packIndex.values === 'function' ? packIndex : (pack as any).index;
+    return Array.from((source as any).values()).map((entry: any) => this.sanitizeData(entry));
   }
 
   /**
@@ -6424,7 +6430,13 @@ export class FoundryDataAccess {
           height: scene.dimensions?.height || (scene as any).height || 0,
         },
         gridSize: scene.grid?.size || 100,
-        background: scene._source?.background?.src || scene.background?.src || scene.img || '',
+        // Foundry v14 removed Scene#background; the image now lives on the Scene's first
+        // Level document instead (see foundry.documents.Level / LevelData#background).
+        background:
+          scene._source?.background?.src ||
+          scene.levels?.contents?.[0]?.background?.src ||
+          scene.img ||
+          '',
         walls: scene.walls?.size || 0,
         tokens: scene.tokens?.size || 0,
         lighting: scene.lights?.size || 0,

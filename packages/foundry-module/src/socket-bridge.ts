@@ -97,12 +97,20 @@ export class SocketBridge {
   private async connectWebSocket(): Promise<void> {
     this.activeConnectionType = 'websocket';
 
-    // Auto-detect protocol: wss for HTTPS pages, ws for HTTP.
+    // Protocol selection follows the browser's mixed-content rules:
+    //   - ws:// to a loopback host (localhost / 127.0.0.1 / ::1) is allowed even
+    //     from an HTTPS page — loopback is a "potentially trustworthy" secure
+    //     context — and the local MCP server speaks plain ws, so a loopback host
+    //     must always use ws:// (#74: forcing wss on "WebSocket (Local Only)"
+    //     broke local setups behind an HTTPS Foundry page).
+    //   - ws:// to a remote host from an HTTPS page IS blocked as mixed content,
+    //     so a remote host on an HTTPS page must use wss:// (#49: TLS reverse-proxy).
     // The port always comes from the configured serverPort setting, the same as
-    // the WebRTC path and everywhere else in the module. Reverse-proxy users set
-    // serverPort to whatever port their proxy exposes (e.g. 443).
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    // the WebRTC path and everywhere else in the module.
     const host = this.config.serverHost;
+    const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(host);
+    const useSecure = window.location.protocol === 'https:' && !isLoopback;
+    const protocol = useSecure ? 'wss' : 'ws';
     this.log(
       `Using WebSocket (${protocol}://${host}:${this.config.serverPort}${this.config.namespace})`
     );
@@ -323,17 +331,54 @@ export class SocketBridge {
         console.log(`[foundry-mcp-bridge] Added folder ID to scene data`);
       }
 
+      // Capture the intended background path BEFORE calling Scene.create() - Foundry's
+      // Document constructor explicitly owns and may mutate the data object passed to it
+      // (its own JSDoc says so), and since `background` isn't a valid top-level Scene field
+      // on v14 it gets stripped from `sceneData` in place during schema cleaning. Reading
+      // this after create() would always see it as already-gone.
+      const expectedBackgroundSrc = sceneData.background?.src;
+
       // Create the scene using the complete payload from backend
       console.log(`[foundry-mcp-bridge] Attempting to create scene...`);
       const scene = await (globalThis as any).Scene.create(sceneData);
       console.log(`[foundry-mcp-bridge] Scene created successfully:`, scene);
 
-      // CRITICAL: Foundry v13 bug workaround (like working mapgen system)
-      if (!scene.img && sceneData.img) {
-        await scene.update({
-          img: sceneData.img,
-          background: { src: sceneData.img },
-        });
+      // Set/verify the background image. Foundry v14 removed Scene#background entirely -
+      // the background image now lives on a Level document in the Scene's `levels`
+      // embedded collection instead (see foundry.documents.Level / LevelData#background).
+      // Foundry v13 and earlier still use the flat `background.src` field on the Scene
+      // itself, and some Scene.create() calls there silently fail to persist a nested
+      // `background` payload, so that path is verified and repaired if needed.
+      if (expectedBackgroundSrc) {
+        const foundryGeneration = (globalThis as any).game?.release?.generation ?? 0;
+        if (foundryGeneration >= 14) {
+          try {
+            const existingLevel = (scene as any).levels?.contents?.[0];
+            if (existingLevel) {
+              if (existingLevel.background?.src !== expectedBackgroundSrc) {
+                await existingLevel.update({ background: { src: expectedBackgroundSrc } });
+              }
+            } else {
+              await scene.createEmbeddedDocuments('Level', [
+                { name: 'Base', background: { src: expectedBackgroundSrc } },
+              ]);
+            }
+            console.log(
+              `[foundry-mcp-bridge] Scene background set via Level document (Foundry v${foundryGeneration}).`
+            );
+          } catch (levelError) {
+            console.error(
+              `[foundry-mcp-bridge] Failed to set background via Level document:`,
+              levelError
+            );
+          }
+        } else if (scene.background?.src !== expectedBackgroundSrc) {
+          console.warn(
+            `[foundry-mcp-bridge] Scene background did not persist on create (got "${scene.background?.src}"), repairing via update()...`
+          );
+          await scene.update({ background: { src: expectedBackgroundSrc } });
+          console.log(`[foundry-mcp-bridge] Scene background after repair:`, scene.background?.src);
+        }
       }
 
       if (sceneData.walls && sceneData.walls.length > 0) {
