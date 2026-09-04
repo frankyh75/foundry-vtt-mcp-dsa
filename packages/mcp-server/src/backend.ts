@@ -40,6 +40,9 @@ import { MapGenerationTools } from './tools/map-generation.js';
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
 import { DSA5CharacterCreator } from './systems/dsa5/character-creator.js';
+import { ActorFromDescriptionTools } from './tools/actor-from-description.js';
+import { AdventureImportTools } from './tools/adventure-import.js';
+import { DSA5JsonActorImporter } from './systems/dsa5/json-actor-importer.js';
 
 import { DnD5eAddFeatureTool } from './tools/dnd5e/add-feature.js';
 import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
@@ -1197,6 +1200,10 @@ async function startBackend(): Promise<void> {
 
   const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
 
+  const actorFromDescriptionTools = new ActorFromDescriptionTools({ foundryClient, logger });
+  const adventureImportTools = new AdventureImportTools({ foundryClient, logger });
+  const dsa5JsonActorImporter = new DSA5JsonActorImporter({ foundryClient, logger });
+
   const dnd5eAddFeatureTool = new DnD5eAddFeatureTool({ foundryClient, logger });
   const dnd5eNpcTools = new DnD5eNpcTools({ foundryClient, logger });
   const dnd5eFeaturesFromCompendiumTools = new DnD5eFeaturesFromCompendiumTools({
@@ -1424,6 +1431,9 @@ async function startBackend(): Promise<void> {
     ...actorManagementTools.getToolDefinitions(),
 
     ...dsa5CharacterCreator.getToolDefinitions(),
+    ...actorFromDescriptionTools.getToolDefinitions(),
+    ...adventureImportTools.getToolDefinitions(),
+    ...dsa5JsonActorImporter.getToolDefinitions(),
 
     ...dnd5eAddFeatureTool.getToolDefinitions(),
     ...dnd5eNpcTools.getToolDefinitions(),
@@ -1623,6 +1633,23 @@ async function startBackend(): Promise<void> {
 
                 case 'list-dsa5-archetypes':
                   result = await dsa5CharacterCreator.handleListArchetypes(args);
+
+                  break;
+
+                // DSA5 actor creation from description, adventure import, JSON import
+
+                case 'create-actor-from-description':
+                  result = await actorFromDescriptionTools.handleCreateActorFromDescription(args);
+
+                  break;
+
+                case 'import-dsa5-adventure-from-text':
+                  result = await adventureImportTools.handleImportAdventureFromText(args);
+
+                  break;
+
+                case 'import-dsa5-actor-from-json':
+                  result = await dsa5JsonActorImporter.handleImportActorFromJson(args);
 
                   break;
 

@@ -80,7 +80,7 @@ mcp_servers:
   foundry:
     command: /opt/homebrew/bin/node
     args:
-    - /Users/agent/.hermes/foundry-vtt-mcp-dsa/packages/mcp-server/dist/index.js
+      - /Users/agent/.hermes/foundry-vtt-mcp-dsa/packages/mcp-server/dist/index.js
     env:
       FOUNDRY_HOST: localhost
       FOUNDRY_PORT: '31415'
@@ -169,6 +169,7 @@ Der MCP-Server wartet nicht auf Verbindungen. Er empfängt nur eingehende Querie
 **Ursache**: WebSocket-Verbindung fehlt
 
 **Lösung**:
+
 1. FoundryVTT neu starten → Modul initialisiert SocketBridge neu
 2. Reconnect abwarten (bis 63 Sekunden)
 3. FoundryVTT-Modul in Settings aktivieren
@@ -178,6 +179,7 @@ Der MCP-Server wartet nicht auf Verbindungen. Er empfängt nur eingehende Querie
 **Ursache**: FoundryVTT-Modul verliert Verbindung
 
 **Lösung**:
+
 1. MCP-Server neu starten
 2. FoundryVTT-Modul wartet auf Reconnect (1s → 30s Backoff)
 3. Wenn max 5 Attempts erreicht, Fehler melden
@@ -187,6 +189,7 @@ Der MCP-Server wartet nicht auf Verbindungen. Er empfängt nur eingehende Querie
 **Ursache**: `module.json` defekt oder Module disabled
 
 **Lösung**:
+
 1. `module.json` prüfen
 2. FoundryVTT-Modul in Settings aktivieren
 3. FoundryVTT neu starten
@@ -196,6 +199,7 @@ Der MCP-Server wartet nicht auf Verbindungen. Er empfängt nur eingehende Querie
 **Ursache**: Firewall blockiert WebSocket
 
 **Lösung**:
+
 1. Port 31415 in Firewall erlauben
 2. localhost-Verbindung testen (`nc -zv localhost 31415`)
 3. FoundryVTT-Modul restarten
@@ -245,18 +249,97 @@ nc -zv localhost 31415
 
 ## Zusammenfassung
 
-| Aspekt | Client | Server |
-|--------|--------|--------|
-| **Verbindungsaufbau** | Ja (SocketBridge.connect()) | Nein (wartet nur) |
-| **Reconnect** | Ja (exponentielles Backoff) | Nein |
-| **Max Attempts** | 5 | N/A |
-| **Total Time** | ~63 Sekunden | N/A |
-| **Clean Disconnect** | Kein Reconnect | Kein Reconnect |
-| **Unclean Disconnect** | Reconnect mit Backoff | Kein Reconnect |
+| Aspekt                 | Client                      | Server            |
+| ---------------------- | --------------------------- | ----------------- |
+| **Verbindungsaufbau**  | Ja (SocketBridge.connect()) | Nein (wartet nur) |
+| **Reconnect**          | Ja (exponentielles Backoff) | Nein              |
+| **Max Attempts**       | 5                           | N/A               |
+| **Total Time**         | ~63 Sekunden                | N/A               |
+| **Clean Disconnect**   | Kein Reconnect              | Kein Reconnect    |
+| **Unclean Disconnect** | Reconnect mit Backoff       | Kein Reconnect    |
 
 **Wichtig:** Client (FoundryVTT-Modul) ist für Reconnect zuständig. Server (MCP-Server) wartet nicht auf Verbindungen.
 
 ---
 
-*Erstellt: 2026-08-16*
-*Quelle: FoundryVTT MCP Bridge Repository*
+## Adventure-Import & Actor-aus-Beschreibung: optionales LLM (DSGVO-lokal)
+
+> **Dieser Abschnitt betrifft die Fork-Funktionen `import-dsa5-adventure-from-text` und `create-actor-from-description` (DSA5).** Sie sind **optional** — für die reine Nutzung der Foundry-Datenbrücke (Scenes, Actors, Journals, Dice-Rolls) wird **kein LLM** gebraucht. Nur wer Adventure-Text oder Actor-Beschreibungen per LLM importieren will, muss die Base-URL setzen.
+
+### Warum der Backend-Start ohne diese URL fehlschlägt
+
+Der Backend-Prozess (`backend.js`) instanziiert beim Start den `AdventureImportTools`-Wrapper, dessen Constructor sofort einen `AdventureImportWorker` erzeugt. Dieser wirft beim Boot eine Exception, wenn **keine** dieser Env-Variablen gesetzt ist:
+
+```
+Failed to start backend: Adventure import LLM base URL is missing.
+Set ADVENTURE_IMPORT_LLM_BASE_URL, OPENAI_BASE_URL or ANTHROPIC_BASE_URL.
+```
+
+Konsequenz: Der MCP-Server (`index.js`) spawnet das Backend, das sofort mit Exit-Code 1 stirbt → alle `foundry_mcp`-Tools antworten mit **Timeout** statt `module not connected`. Das ist ein Boot-Blocker, kein Verbindungsproblem.
+
+> **Hinweis (Roadmap):** Der sauberere Fix wäre, den Worker lazy (erst beim Tool-Aufruf) zu instanziieren, damit das Backend auch ohne LLM-URL startet. Bis dahin muss die Base-URL gesetzt sein, wenn der Backend-Prozess läuft.
+
+### Welche Env-Variable (Priorität)
+
+Der Worker liest die erste vorhandene (in dieser Reihenfolge):
+
+1. `ADVENTURE_IMPORT_LLM_BASE_URL` (speziell)
+2. `OPENAI_BASE_URL` (generisch — auch von anderen Tools genutzt)
+3. `ANTHROPIC_BASE_URL`
+
+Modell (analog): `ADVENTURE_IMPORT_LLM_MODEL` → `OPENAI_MODEL` → Default `gemma-4`.
+API-Key: `ADVENTURE_IMPORT_LLM_API_KEY` → `OPENAI_API_KEY` → `ANTHROPIC_API_KEY` → Default `local`.
+
+### Empfohlene Konfiguration — lokaler llama.cpp / Ollama-Server
+
+Für eine DSGVO-sichere, kostenlose Einrichtung auf demselben Rechner (z.B. lokaler llama.cpp-Router auf Port 8081, Modell `ornith-1.5:35B`):
+
+```bash
+# In der Shell, die den MCP-Server startet (npm start) ODER in der Hermes-MCP-Config:
+export OPENAI_BASE_URL="http://127.0.0.1:8081/v1"
+export OPENAI_MODEL="ornith-1.5:35B"
+```
+
+### In Hermes (empfohlener Weg)
+
+Ergänze die `env:`-Sektion der foundry-MCP-Server-Konfiguration:
+
+```yaml
+mcp_servers:
+  foundry:
+    command: /opt/homebrew/bin/node
+    args:
+      - /Users/<user>/.hermes/foundry-vtt-mcp-dsa/packages/mcp-server/dist/index.js
+    env:
+      FOUNDRY_HOST: localhost
+      FOUNDRY_PORT: '31415'
+      FOUNDRY_PROTOCOL: ws
+      OPENAI_BASE_URL: http://127.0.0.1:8081/v1
+      OPENAI_MODEL: ornith-1.5:35B
+    connect_timeout: 60.0
+```
+
+Nach der Änderung den MCP-Server neu starten (bzw. Hermes-Gateway), damit das Backend mit der URL bootet.
+
+### Cloud-Alternative (falls kein lokales LLM)
+
+```yaml
+env:
+  OPENAI_BASE_URL: https://ollama.com/v1
+  OPENAI_MODEL: deepseek-v4-flash:0731-cloud
+```
+
+Kostet Tokens, läuft aber ohne lokale GPU/Server.
+
+### Fehlerbehebung
+
+| Symptom                                                 | Ursache                                 | Fix                                                                              |
+| ------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| `foundry_mcp`-Tools → **Timeout (30s)**                 | Backend bootet nicht (fehlende LLM-URL) | `OPENAI_BASE_URL` (oder `ADVENTURE_IMPORT_LLM_BASE_URL`) setzen, MCP neu starten |
+| Backend-Log: `Adventure import LLM base URL is missing` | Keine der 3 Env-Vars gesetzt            | Eine der drei setzen                                                             |
+| `Foundry VTT module not connected` (sofort)             | WebSocket fehlt (nicht LLM)             | Foundry neu starten, Modul aktivieren (siehe Problem 1 oben)                     |
+
+---
+
+_Erstellt: 2026-08-16_
+_Quelle: FoundryVTT MCP Bridge Repository_

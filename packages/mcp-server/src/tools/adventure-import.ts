@@ -17,27 +17,47 @@ export interface AdventureImportToolsOptions {
 export class AdventureImportTools {
   private readonly foundryClient: FoundryClient;
   private readonly logger: Logger;
-  private readonly worker: AdventureImportWorker;
+  private readonly workerOverride: AdventureImportWorker | undefined;
+  private workerInstance: AdventureImportWorker | undefined;
   private readonly importer: FoundryAdventureImporter;
 
   constructor(options: AdventureImportToolsOptions) {
     this.foundryClient = options.foundryClient;
     this.logger = options.logger.child({ component: 'AdventureImportTools' });
-    this.worker = options.worker ?? new AdventureImportWorker();
-    this.importer = options.importer ?? new FoundryAdventureImporter(this.foundryClient, this.logger);
+    this.workerOverride = options.worker;
+    this.importer =
+      options.importer ?? new FoundryAdventureImporter(this.foundryClient, this.logger);
+  }
+
+  /**
+   * Lazily resolve the AdventureImportWorker.  The constructor no longer
+   * instantiates the worker eagerly so the backend can boot without an
+   * LLM base URL configured.  The URL is only required when an adventure
+   * import is actually requested.
+   */
+  private getWorker(): AdventureImportWorker {
+    if (this.workerOverride) {
+      return this.workerOverride;
+    }
+    if (!this.workerInstance) {
+      this.workerInstance = new AdventureImportWorker();
+    }
+    return this.workerInstance;
   }
 
   getToolDefinitions() {
     return [
       {
         name: 'import-dsa5-adventure-from-text',
-        description: 'Extract a DSA5 adventure from text, validate it against the adventure schema, and optionally import journals and actors into Foundry VTT.',
+        description:
+          'Extract a DSA5 adventure from text, validate it against the adventure schema, and optionally import journals and actors into Foundry VTT.',
         inputSchema: {
           type: 'object',
           properties: {
             title: {
               type: 'string',
-              description: 'Adventure title used for extraction, validation and the journal entry title',
+              description:
+                'Adventure title used for extraction, validation and the journal entry title',
             },
             sourceText: {
               type: 'string',
@@ -61,7 +81,8 @@ export class AdventureImportTools {
             },
             linkNpcs: {
               type: 'boolean',
-              description: 'Add link references between Journal content and created Actors (default: true)',
+              description:
+                'Add link references between Journal content and created Actors (default: true)',
               default: true,
             },
             languageHint: {
@@ -102,7 +123,7 @@ export class AdventureImportTools {
 
     for (let index = 0; index < sourceChunks.length; index += 1) {
       const chunk = sourceChunks[index];
-      const extracted = await this.worker.extractAdventure({
+      const extracted = await this.getWorker().extractAdventure({
         title: request.title,
         sourceText: chunk,
         chunkIndex: index + 1,
@@ -160,12 +181,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function dedupeStrings(values: string[]): string[] {
-  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+  return Array.from(new Set(values.map(value => value.trim()).filter(Boolean)));
 }
 
 function mergeArrayByKey<T>(items: T[], keyFn: (item: T) => string): T[] {
   const seen = new Map<string, T>();
-  items.forEach((item) => {
+  items.forEach(item => {
     const key = keyFn(item);
     if (!seen.has(key)) {
       seen.set(key, item);
@@ -173,15 +194,17 @@ function mergeArrayByKey<T>(items: T[], keyFn: (item: T) => string): T[] {
   });
 
   const result: T[] = [];
-  seen.forEach((value) => {
+  seen.forEach(value => {
     result.push(value);
   });
   return result;
 }
 
-function mergeRecordArrays(items: Array<Record<string, unknown>>[]): Array<Record<string, unknown>> {
+function mergeRecordArrays(
+  items: Array<Record<string, unknown>>[]
+): Array<Record<string, unknown>> {
   const flattened = items.flat();
-  return mergeArrayByKey(flattened, (item) => {
+  return mergeArrayByKey(flattened, item => {
     const name = typeof item.name === 'string' ? item.name.trim().toLowerCase() : '';
     const title = typeof item.title === 'string' ? item.title.trim().toLowerCase() : '';
     const id = typeof item.id === 'string' ? item.id.trim().toLowerCase() : '';
@@ -200,42 +223,36 @@ function mergeAdventurePayloads(payloads: AdventureImportPayload[]): AdventureIm
 
   const [first, ...rest] = payloads;
   const chapters = mergeArrayByKey(
-    [
-      ...(first.chapters ?? []),
-      ...rest.flatMap((payload) => payload.chapters ?? []),
-    ],
-    (chapter) => chapter.title.trim().toLowerCase() || JSON.stringify(chapter),
+    [...(first.chapters ?? []), ...rest.flatMap(payload => payload.chapters ?? [])],
+    chapter => chapter.title.trim().toLowerCase() || JSON.stringify(chapter)
   );
 
   const npcs = mergeArrayByKey(
-    [
-      ...(first.npcs ?? []),
-      ...rest.flatMap((payload) => payload.npcs ?? []),
-    ],
-    (npc) => npc.name.trim().toLowerCase(),
+    [...(first.npcs ?? []), ...rest.flatMap(payload => payload.npcs ?? [])],
+    npc => npc.name.trim().toLowerCase()
   );
 
-  const items = mergeRecordArrays([
-    first.items ?? [],
-    ...rest.map((payload) => payload.items ?? []),
-  ]);
+  const items = mergeRecordArrays([first.items ?? [], ...rest.map(payload => payload.items ?? [])]);
 
   const locations = mergeRecordArrays([
     first.locations ?? [],
-    ...rest.map((payload) => payload.locations ?? []),
+    ...rest.map(payload => payload.locations ?? []),
   ]);
 
   const warnings = dedupeStrings([
     ...(first.warnings ?? []),
-    ...rest.flatMap((payload) => payload.warnings ?? []),
+    ...rest.flatMap(payload => payload.warnings ?? []),
   ]);
 
-  const imports = rest.reduce<Record<string, unknown>>((accumulator, payload) => {
-    if (isRecord(payload.imports)) {
-      return { ...accumulator, ...payload.imports };
-    }
-    return accumulator;
-  }, isRecord(first.imports) ? { ...first.imports } : {});
+  const imports = rest.reduce<Record<string, unknown>>(
+    (accumulator, payload) => {
+      if (isRecord(payload.imports)) {
+        return { ...accumulator, ...payload.imports };
+      }
+      return accumulator;
+    },
+    isRecord(first.imports) ? { ...first.imports } : {}
+  );
 
   return adventureImportSchema.parse({
     ...first,

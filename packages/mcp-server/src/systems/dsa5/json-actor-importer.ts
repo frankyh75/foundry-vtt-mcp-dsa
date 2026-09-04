@@ -1,4 +1,4 @@
-﻿import { promises as fs } from 'node:fs';
+import { promises as fs } from 'node:fs';
 import { z } from 'zod';
 import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
@@ -11,9 +11,19 @@ export interface DSA5JsonActorImporterOptions {
 
 type JsonRecord = Record<string, unknown>;
 
-export type DSA5ImportFormat = 'raw_foundry' | 'optolith_like' | 'custom_dsa5' | 'unknown';
+export type DSA5ImportFormat =
+  | 'raw_foundry'
+  | 'optolith_like'
+  | 'custom_dsa5'
+  | 'darkaid'
+  | 'unknown';
 
-export type DSA5ImportStrategy = 'auto' | 'raw_foundry' | 'optolith_like' | 'custom_dsa5';
+export type DSA5ImportStrategy =
+  | 'auto'
+  | 'raw_foundry'
+  | 'optolith_like'
+  | 'custom_dsa5'
+  | 'darkaid';
 
 interface MappingResult {
   actorData: JsonRecord;
@@ -33,7 +43,8 @@ const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const fixMojibake = (s: string): string =>
-  s.replace(/Ã¶/g, 'ö')
+  s
+    .replace(/Ã¶/g, 'ö')
     .replace(/Ã¼/g, 'ü')
     .replace(/Ã¤/g, 'ä')
     .replace(/ÃŸ/g, 'ß')
@@ -43,7 +54,7 @@ const fixMojibake = (s: string): string =>
 
 const normalizeValue = (value: unknown, parentKey?: string): unknown => {
   if (Array.isArray(value)) {
-    return value.map((entry) => normalizeValue(entry, parentKey));
+    return value.map(entry => normalizeValue(entry, parentKey));
   }
 
   if (isRecord(value)) {
@@ -130,7 +141,7 @@ const sanitizeEmbeddedDocuments = (docs: unknown): JsonRecord[] => {
   if (!Array.isArray(docs)) return [];
   return docs
     .filter((entry): entry is JsonRecord => isRecord(entry))
-    .map((entry) => {
+    .map(entry => {
       const cloned = { ...entry };
       delete cloned._id;
       delete cloned.folder;
@@ -247,8 +258,8 @@ const getSearchCandidates = (name: string): string[] => {
     name.replace(/\s+[ivx]+$/i, ''),
     name.replace(/\s*\([^)]*\)\s*/g, ' ').trim(),
   ]
-    .map((candidate) => candidate.trim())
-    .filter((candidate) => candidate.length > 0);
+    .map(candidate => candidate.trim())
+    .filter(candidate => candidate.length > 0);
 
   return uniqueNames(candidates);
 };
@@ -263,6 +274,13 @@ export const detectDSA5ImportFormat = (payload: JsonRecord): DSA5ImportFormat =>
   const attr = normalizedPayload.attr;
   const optolithLike = isRecord(attr) && Array.isArray(attr.values);
   if (optolithLike) return 'optolith_like';
+
+  const darkaidLike =
+    Array.isArray(normalizedPayload.attributes) ||
+    Array.isArray(normalizedPayload.skills) ||
+    Array.isArray(normalizedPayload.chants) ||
+    Array.isArray(normalizedPayload.baseValues);
+  if (darkaidLike) return 'darkaid';
 
   const customLike =
     isRecord(normalizedPayload.attribute) ||
@@ -324,7 +342,10 @@ export const validateImportPayload = (
     if (!hasR || !hasC || !hasP) {
       warnings.push('Spezies/Kultur/Profession fehlen');
     }
-    if (!isRecord(normalizedPayload.talents) || Object.keys(normalizedPayload.talents).length === 0) {
+    if (
+      !isRecord(normalizedPayload.talents) ||
+      Object.keys(normalizedPayload.talents).length === 0
+    ) {
       warnings.push('Keine Talente gefunden');
     }
   }
@@ -334,7 +355,9 @@ export const validateImportPayload = (
       missingCriticalFields.push('name');
     }
 
-    const attribute = isRecord(normalizedPayload.attribute) ? normalizedPayload.attribute : undefined;
+    const attribute = isRecord(normalizedPayload.attribute)
+      ? normalizedPayload.attribute
+      : undefined;
     const knownAttributeKeys = [
       'mut',
       'klugheit',
@@ -347,7 +370,7 @@ export const validateImportPayload = (
       'koerperkraft',
     ];
     const hasKnownAttribute =
-      attribute !== undefined && knownAttributeKeys.some((key) => key in attribute);
+      attribute !== undefined && knownAttributeKeys.some(key => key in attribute);
     if (!hasKnownAttribute) {
       missingCriticalFields.push('attribute');
     }
@@ -360,10 +383,13 @@ export const validateImportPayload = (
       warnings.push('Energien (Lebensenergie etc.) fehlen');
     }
 
-    const hasTalente = Array.isArray(normalizedPayload.talente) && normalizedPayload.talente.length > 0;
-    const hasVorteile = Array.isArray(normalizedPayload.vorteile) && normalizedPayload.vorteile.length > 0;
+    const hasTalente =
+      Array.isArray(normalizedPayload.talente) && normalizedPayload.talente.length > 0;
+    const hasVorteile =
+      Array.isArray(normalizedPayload.vorteile) && normalizedPayload.vorteile.length > 0;
     const hasKampftechniken =
-      Array.isArray(normalizedPayload.kampftechniken) && normalizedPayload.kampftechniken.length > 0;
+      Array.isArray(normalizedPayload.kampftechniken) &&
+      normalizedPayload.kampftechniken.length > 0;
     if (!hasTalente && !hasVorteile && !hasKampftechniken) {
       warnings.push('Keine Items');
     }
@@ -373,9 +399,9 @@ export const validateImportPayload = (
     const keyList = availableTopLevelKeys.length > 0 ? availableTopLevelKeys.join(', ') : '(keine)';
     errors.push(
       `Format nicht erkannt. Erkannte Felder: [${keyList}]. ` +
-      `Unterstützte Formate: custom_dsa5, optolith_like, raw_foundry. ` +
-      `Für custom_dsa5 wird mindestens 'name' + 'attribute' benötigt. ` +
-      `Für optolith_like wird mindestens 'name' + 'attr.values' benötigt.`
+        `Unterstützte Formate: custom_dsa5, optolith_like, raw_foundry. ` +
+        `Für custom_dsa5 wird mindestens 'name' + 'attribute' benötigt. ` +
+        `Für optolith_like wird mindestens 'name' + 'attr.values' benötigt.`
     );
   }
 
@@ -494,9 +520,12 @@ export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
   collectQuantityOverrides(payload.gegenstände, itemOverrides);
 
   const warnings: string[] = [];
-  if (!species) warnings.push('No species in payload; actor will be created with empty species field.');
-  if (!culture) warnings.push('No culture in payload; actor will be created with empty culture field.');
-  if (!profession) warnings.push('No profession in payload; actor will be created with empty profession field.');
+  if (!species)
+    warnings.push('No species in payload; actor will be created with empty species field.');
+  if (!culture)
+    warnings.push('No culture in payload; actor will be created with empty culture field.');
+  if (!profession)
+    warnings.push('No profession in payload; actor will be created with empty profession field.');
 
   const knownRoots = new Set([
     'uid',
@@ -534,7 +563,7 @@ export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
     'gegenstände',
   ]);
 
-  const unmappedFields = Object.keys(payload).filter((key) => !knownRoots.has(key));
+  const unmappedFields = Object.keys(payload).filter(key => !knownRoots.has(key));
 
   return {
     actorData,
@@ -543,6 +572,201 @@ export const mapCustomDsa5Payload = (payload: JsonRecord): MappingResult => {
     warnings,
     unmappedFields,
   };
+};
+
+export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
+  const attributes = Array.isArray(payload.attributes) ? payload.attributes : [];
+  const skills = Array.isArray(payload.skills) ? payload.skills : [];
+  const chants = Array.isArray(payload.chants) ? payload.chants : [];
+  const combatTechniques = Array.isArray(payload.combatTechniques) ? payload.combatTechniques : [];
+  const disadvantages = Array.isArray(payload.disadvantages) ? payload.disadvantages : [];
+  const specialAbilities = Array.isArray(payload.specialAbilities) ? payload.specialAbilities : [];
+  const baseValues = Array.isArray(payload.baseValues) ? payload.baseValues : [];
+  const itemOverrides: Record<string, ItemOverride> = {};
+
+  const normalize = (id: unknown): string =>
+    fixMojibake(String(id ?? ''))
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
+  const idToCharacteristic: Record<string, keyof typeof characteristicsMap> = {
+    mut: 'mu',
+    klugheit: 'kl',
+    intuition: 'in',
+    charisma: 'ch',
+    fingerfertigkeit: 'ff',
+    gewandheit: 'ge',
+    konstitution: 'ko',
+    körperkraft: 'kk',
+    koerperkraft: 'kk',
+  };
+  const characteristics = {
+    mu: { advances: 0 },
+    kl: { advances: 0 },
+    in: { advances: 0 },
+    ch: { advances: 0 },
+    ff: { advances: 0 },
+    ge: { advances: 0 },
+    ko: { advances: 0 },
+    kk: { advances: 0 },
+  };
+  const characteristicsMap = characteristics;
+
+  // Find KO for wound-initial derivation (aligns with custom_dsa5 mapping).
+  let koLevel = 0;
+  for (const entry of attributes) {
+    if (!isRecord(entry)) continue;
+    const id = normalize(getByKeys(entry, ['id', 'name']));
+    const level = toNumber(getByKeys(entry, ['level', 'value']));
+    if (!id || level === undefined) continue;
+    const characteristicKey = idToCharacteristic[id];
+    if (characteristicKey === 'ko') koLevel = Math.round(level);
+  }
+
+  for (const entry of attributes) {
+    if (!isRecord(entry)) continue;
+    const id = normalize(getByKeys(entry, ['id', 'name']));
+    const level = toNumber(getByKeys(entry, ['level', 'value']));
+    if (!id || level === undefined) continue;
+    const characteristicKey = idToCharacteristic[id];
+    if (characteristicKey && characteristicKey !== 'ko') {
+      characteristics[characteristicKey] = { advances: Math.round(level) - 8 };
+    }
+  }
+
+  const species = toStringValue(payload.race);
+  const culture = toStringValue(payload.culture);
+  const profession = toStringValue(payload.profession);
+  const socialStatus = toStringValue(payload.socialstatus);
+  const lifeEnergy = toNumber(getBaseValue(baseValues, 'lebensenergie')) ?? 0;
+  const derivedWoundsInitial = Math.max(0, lifeEnergy - koLevel * 2);
+
+  const actorData: JsonRecord = {
+    name: toStringValue(payload.name) ?? 'Imported Dark Aid Character',
+    type: 'character',
+    system: {
+      characteristics,
+      status: {
+        wounds: {
+          initial: derivedWoundsInitial,
+          value: lifeEnergy,
+          max: lifeEnergy,
+        },
+        astralenergy: {
+          value: toNumber(getBaseValue(baseValues, 'astralenergie')) ?? 0,
+          max: toNumber(getBaseValue(baseValues, 'astralenergie')) ?? 0,
+        },
+        karmaenergy: {
+          value: toNumber(getBaseValue(baseValues, 'karmaenergie')) ?? 0,
+          max: toNumber(getBaseValue(baseValues, 'karmaenergie')) ?? 0,
+        },
+        fatePoints: {
+          value: toNumber(getBaseValue(baseValues, 'schicksalspunkte')) ?? 0,
+          max: toNumber(getBaseValue(baseValues, 'schicksalspunkte')) ?? 0,
+        },
+      },
+      details: {
+        species: { value: species ?? '' },
+        culture: { value: culture ?? '' },
+        career: { value: profession ?? '' },
+        socialstate: { value: socialStatus ?? '' },
+        age: { value: toStringValue(payload.age) ?? '' },
+        gender: { value: toStringValue(payload.sex) ?? '' },
+        height: { value: toStringValue(payload.height) ?? '' },
+        weight: { value: toStringValue(payload.weight) ?? '' },
+        haircolor: { value: toStringValue(payload.haircolor) ?? '' },
+        eyecolor: { value: toStringValue(payload.eyecolor) ?? '' },
+        home: { value: toStringValue(payload.placeofbirth) ?? '' },
+        experience: {
+          total: xpTotal(payload) ?? 0,
+        },
+      },
+    },
+  };
+
+  const nameBuckets: string[] = [];
+  if (species) nameBuckets.push(species);
+  if (culture) nameBuckets.push(culture);
+  if (profession) nameBuckets.push(profession);
+
+  const pushArrayNames = (source: unknown) => {
+    if (!Array.isArray(source)) return;
+    for (const entry of source) {
+      if (isRecord(entry)) {
+        const name = toStringValue(getByKeys(entry, ['name', 'id']));
+        if (name) nameBuckets.push(name);
+      } else if (typeof entry === 'string' && entry.trim().length > 0) {
+        nameBuckets.push(entry.trim());
+      }
+    }
+  };
+
+  pushArrayNames(skills);
+  pushArrayNames(chants);
+  pushArrayNames(combatTechniques);
+  pushArrayNames(disadvantages);
+  pushArrayNames(specialAbilities);
+
+  const collectTalentValue = (source: unknown, nameField: string, valueField: string) => {
+    if (!Array.isArray(source)) return;
+    for (const entry of source) {
+      if (!isRecord(entry)) continue;
+      const name = toStringValue(getByKeys(entry, ['name', nameField]));
+      const value = toNumber(getByKeys(entry, ['level', valueField]));
+      if (!name || value === undefined) continue;
+      addItemOverride(itemOverrides, name, { talentValue: Math.round(value) });
+    }
+  };
+
+  collectTalentValue(skills, 'id', 'level');
+  collectTalentValue(combatTechniques, 'id', 'level');
+  collectTalentValue(chants, 'id', 'level');
+
+  const warnings: string[] = [];
+  if (!species)
+    warnings.push('No species in payload; actor will be created with empty species field.');
+  if (!culture)
+    warnings.push('No culture in payload; actor will be created with empty culture field.');
+  if (!profession)
+    warnings.push('No profession in payload; actor will be created with empty profession field.');
+
+  return {
+    actorData,
+    candidateItemNames: uniqueNames(nameBuckets),
+    itemOverrides,
+    warnings,
+    unmappedFields: [],
+  };
+};
+
+const getBaseValue = (baseValues: JsonRecord[], key: string): unknown => {
+  for (const entry of baseValues) {
+    if (!isRecord(entry)) continue;
+    if (normalizeName(String(getByKeys(entry, ['id', 'name']))) === normalizeName(String(key))) {
+      return getByKeys(entry, ['value', 'level']);
+    }
+  }
+  return undefined;
+};
+
+const xpTotal = (payload: JsonRecord): number | undefined => {
+  const xp = isRecord(payload.xp) ? payload.xp : undefined;
+  if (!xp) return undefined;
+  const startLevel = toStringValue(xp.startinglevel);
+  if (!startLevel) return undefined;
+  const map: Record<string, number> = {
+    grundgeschickt: 0,
+    geschickt: 1,
+    kompetent: 2,
+    beherrschend: 3,
+    meister: 4,
+  };
+  const total = toNumber(getByKeys(xp, ['total', 'abenteuerpunkteGesamt', 'points']));
+  if (total !== undefined) return Math.round(total);
+  const mapped = map[startLevel.toLowerCase()];
+  return mapped !== undefined ? mapped : undefined;
 };
 
 export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
@@ -592,7 +816,9 @@ export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
   if (cultureId) candidateItemNames.push(cultureId);
   if (professionId) candidateItemNames.push(professionId);
   if (speciesId || cultureId || professionId) {
-    warnings.push('Spezies/Kultur/Profession sind als IDs gespeichert - Compendium-Suche kann davon abweichen.');
+    warnings.push(
+      'Spezies/Kultur/Profession sind als IDs gespeichert - Compendium-Suche kann davon abweichen.'
+    );
   }
 
   const addIdBasedTalentValues = (source: unknown): boolean => {
@@ -615,7 +841,9 @@ export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
     addIdBasedTalentValues(payload.liturgies),
   ].some(Boolean);
   if (hasTalentIds) {
-    warnings.push('Talent-IDs (TAL_x) wurden übergeben - Compendium-Treffer hängen vom DSA5-System-Modul ab.');
+    warnings.push(
+      'Talent-IDs (TAL_x) wurden übergeben - Compendium-Treffer hängen vom DSA5-System-Modul ab.'
+    );
   }
 
   const pushArrayNames = (source: unknown) => {
@@ -682,7 +910,7 @@ export const mapOptolithLikePayload = (payload: JsonRecord): MappingResult => {
         weight: { value: toStringValue(details.weight) ?? '' },
         characteristics: { value: toStringValue(details.characteristics) ?? '' },
         experience: {
-          total: toNumber((isRecord(payload.ap) ? payload.ap.total : undefined)) ?? 0,
+          total: toNumber(isRecord(payload.ap) ? payload.ap.total : undefined) ?? 0,
         },
       },
     },
@@ -720,7 +948,8 @@ const sanitizeActorPayload = (payload: JsonRecord): JsonRecord => {
   }
 
   const prototypeToken = isRecord(actorData.prototypeToken) ? actorData.prototypeToken : undefined;
-  const texture = prototypeToken && isRecord(prototypeToken.texture) ? prototypeToken.texture : undefined;
+  const texture =
+    prototypeToken && isRecord(prototypeToken.texture) ? prototypeToken.texture : undefined;
   const src = texture && typeof texture.src === 'string' ? texture.src : undefined;
   if (src && src.startsWith('http')) {
     texture!.src = null;
@@ -729,7 +958,10 @@ const sanitizeActorPayload = (payload: JsonRecord): JsonRecord => {
   return actorData;
 };
 
-const extractPayload = async (jsonPayload: unknown, filePath: string | undefined): Promise<JsonRecord> => {
+const extractPayload = async (
+  jsonPayload: unknown,
+  filePath: string | undefined
+): Promise<JsonRecord> => {
   let parsed: unknown = jsonPayload;
 
   if (!parsed && filePath) {
@@ -775,10 +1007,7 @@ export class DSA5JsonActorImporter {
           type: 'object',
           properties: {
             jsonPayload: {
-              oneOf: [
-                { type: 'string' },
-                { type: 'object' },
-              ],
+              oneOf: [{ type: 'string' }, { type: 'object' }],
               description:
                 'Inline JSON content as object or string. Optional if filePath is provided.',
             },
@@ -791,8 +1020,7 @@ export class DSA5JsonActorImporter {
               type: 'string',
               enum: ['auto', 'custom_dsa5', 'optolith_like', 'raw_foundry'],
               default: 'auto',
-              description:
-                'Import strategy. auto detects format and chooses mapping path.',
+              description: 'Import strategy. auto detects format and chooses mapping path.',
             },
             resolveItems: {
               type: 'boolean',
@@ -833,14 +1061,16 @@ export class DSA5JsonActorImporter {
       .object({
         jsonPayload: z.union([z.string(), z.record(z.unknown())]).optional(),
         filePath: z.string().optional(),
-        strategy: z.enum(['auto', 'custom_dsa5', 'optolith_like', 'raw_foundry']).default('auto'),
+        strategy: z
+          .enum(['auto', 'custom_dsa5', 'optolith_like', 'raw_foundry', 'darkaid'])
+          .default('auto'),
         resolveItems: z.boolean().default(true),
         addToScene: z.boolean().default(false),
         updateExisting: z.boolean().default(true),
         existingActorIdentifier: z.string().optional(),
         strict: z.boolean().default(false),
       })
-      .refine((value) => Boolean(value.jsonPayload) || Boolean(value.filePath), {
+      .refine(value => Boolean(value.jsonPayload) || Boolean(value.filePath), {
         message: 'Either jsonPayload or filePath is required.',
       });
 
@@ -890,6 +1120,9 @@ export class DSA5JsonActorImporter {
           break;
         case 'custom_dsa5':
           mappingResult = mapCustomDsa5Payload(normalizedPayload);
+          break;
+        case 'darkaid':
+          mappingResult = mapDarkAidPayload(normalizedPayload);
           break;
         default:
           throw new Error(
@@ -941,17 +1174,20 @@ export class DSA5JsonActorImporter {
         );
       }
 
-      const creationResult = await this.foundryClient.query('foundry-mcp-bridge.createActorFromData', {
-        actorData: sanitizeActorPayload(mappingResult.actorData),
-        addToScene,
-        updateExisting,
-        existingActorIdentifier: existingActorIdentifier ?? String(mappingResult.actorData.name ?? ''),
-        ...(updateExisting ? { preserveItemTypes: ['species', 'culture', 'career'] } : {}),
-      });
+      const creationResult = await this.foundryClient.query(
+        'foundry-mcp-bridge.createActorFromData',
+        {
+          actorData: sanitizeActorPayload(mappingResult.actorData),
+          addToScene,
+          updateExisting,
+          existingActorIdentifier:
+            existingActorIdentifier ?? String(mappingResult.actorData.name ?? ''),
+          ...(updateExisting ? { preserveItemTypes: ['species', 'culture', 'career'] } : {}),
+        }
+      );
 
-      const actor = isRecord(creationResult) && isRecord(creationResult.actor)
-        ? creationResult.actor
-        : {};
+      const actor =
+        isRecord(creationResult) && isRecord(creationResult.actor) ? creationResult.actor : {};
 
       return {
         success: true,
@@ -1010,10 +1246,13 @@ export class DSA5JsonActorImporter {
         let selected: unknown;
 
         for (const searchName of searchCandidates) {
-          const searchResponse = await this.foundryClient.query('foundry-mcp-bridge.searchCompendium', {
-            query: searchName,
-            packType: 'Item',
-          });
+          const searchResponse = await this.foundryClient.query(
+            'foundry-mcp-bridge.searchCompendium',
+            {
+              query: searchName,
+              packType: 'Item',
+            }
+          );
 
           if (!Array.isArray(searchResponse) || searchResponse.length === 0) {
             continue;
@@ -1048,10 +1287,13 @@ export class DSA5JsonActorImporter {
           continue;
         }
 
-        const full = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
-          packId,
-          documentId: itemId,
-        });
+        const full = await this.foundryClient.query(
+          'foundry-mcp-bridge.getCompendiumDocumentFull',
+          {
+            packId,
+            documentId: itemId,
+          }
+        );
 
         if (!isRecord(full) || !isRecord(full.fullData)) {
           unresolved.push(candidateName);

@@ -13,14 +13,32 @@ export interface ActorFromDescriptionToolsOptions {
 
 export class ActorFromDescriptionTools {
   private readonly logger: Logger;
-  private readonly worker: AdventureImportWorker;
+  private readonly workerOverride: AdventureImportWorker | undefined;
+  private workerInstance: AdventureImportWorker | undefined;
   private readonly importer: DSA5JsonActorImporter;
 
   constructor(options: ActorFromDescriptionToolsOptions) {
     this.logger = options.logger.child({ component: 'ActorFromDescriptionTools' });
-    this.worker = options.worker ?? new AdventureImportWorker();
+    this.workerOverride = options.worker;
     this.importer =
-      options.importer ?? new DSA5JsonActorImporter({ foundryClient: options.foundryClient, logger: options.logger });
+      options.importer ??
+      new DSA5JsonActorImporter({ foundryClient: options.foundryClient, logger: this.logger });
+  }
+
+  /**
+   * Lazily resolve the AdventureImportWorker.  The constructor no longer
+   * instantiates the worker eagerly so the backend can boot without an
+   * LLM base URL configured.  The URL is only required when an actor
+   * extraction is actually requested.
+   */
+  private getWorker(): AdventureImportWorker {
+    if (this.workerOverride) {
+      return this.workerOverride;
+    }
+    if (!this.workerInstance) {
+      this.workerInstance = new AdventureImportWorker();
+    }
+    return this.workerInstance;
   }
 
   getToolDefinitions() {
@@ -35,13 +53,15 @@ export class ActorFromDescriptionTools {
           properties: {
             description: {
               type: 'string',
-              description: 'Free-text NPC description in German (e.g. "Alaric ist ein erfahrener Soeldner, MU 13, KK 15...")',
+              description:
+                'Free-text NPC description in German (e.g. "Alaric ist ein erfahrener Soeldner, MU 13, KK 15...")',
             },
             mode: {
               type: 'string',
               enum: ['dry-run', 'import'],
               default: 'dry-run',
-              description: 'dry-run returns a preview without writing to Foundry; import creates the actor',
+              description:
+                'dry-run returns a preview without writing to Foundry; import creates the actor',
             },
             resolveItems: {
               type: 'boolean',
@@ -69,24 +89,33 @@ export class ActorFromDescriptionTools {
       descriptionLength: request.description.length,
     });
 
-    const extracted = await this.worker.extractActor(request.description);
+    try {
+      const extracted = await this.getWorker().extractActor(request.description);
 
-    if (request.mode === 'dry-run') {
-      return {
-        mode: 'dry-run',
-        extractedPayload: extracted.payload,
-        rawText: extracted.rawText,
-        message: 'Preview only - call again with mode: "import" to create the actor in Foundry.',
-      };
+      if (request.mode === 'dry-run') {
+        return {
+          mode: 'dry-run',
+          extractedPayload: extracted.payload,
+          rawText: extracted.rawText,
+          message: 'Preview only - call again with mode: "import" to create the actor in Foundry.',
+        };
+      }
+
+      return this.importer.handleImportActorFromJson({
+        jsonPayload: extracted.payload,
+        strategy: 'custom_dsa5',
+        resolveItems: request.resolveItems,
+        addToScene: false,
+        updateExisting: false,
+        strict: false,
+      });
+    } catch (error) {
+      this.logger.error('Actor-from-description failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error instanceof Error
+        ? new Error(`create-actor-from-description: ${error.message}`)
+        : new Error('create-actor-from-description: unknown error');
     }
-
-    return this.importer.handleImportActorFromJson({
-      jsonPayload: extracted.payload,
-      strategy: 'custom_dsa5',
-      resolveItems: request.resolveItems,
-      addToScene: false,
-      updateExisting: false,
-      strict: false,
-    });
   }
 }
