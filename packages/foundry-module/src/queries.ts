@@ -58,12 +58,6 @@ export class QueryHandlers {
       this.handleCreateActorFromCompendium.bind(this);
     CONFIG.queries[`${modulePrefix}.createActorFromData`] =
       this.handleCreateActorFromData.bind(this);
-    // Generic actor CRUD (any system, any type)
-    CONFIG.queries[`${modulePrefix}.createActors`] = this.handleCreateActors.bind(this);
-    CONFIG.queries[`${modulePrefix}.updateActors`] = this.handleUpdateActors.bind(this);
-    CONFIG.queries[`${modulePrefix}.deleteActors`] = this.handleDeleteActors.bind(this);
-    CONFIG.queries[`${modulePrefix}.updateActorItems`] = this.handleUpdateActorItems.bind(this);
-    CONFIG.queries[`${modulePrefix}.deleteActorItems`] = this.handleDeleteActorItems.bind(this);
     CONFIG.queries[`${modulePrefix}.getCompendiumDocumentFull`] =
       this.handleGetCompendiumDocumentFull.bind(this);
     CONFIG.queries[`${modulePrefix}.addActorsToScene`] = this.handleAddActorsToScene.bind(this);
@@ -99,6 +93,10 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.findPlayers`] = this.handleFindPlayers.bind(this);
     CONFIG.queries[`${modulePrefix}.findActor`] = this.handleFindActor.bind(this);
 
+    // WFRP4e actor stat-block update
+    CONFIG.queries[`${modulePrefix}.updateWfrp4eActor`] = this.handleUpdateWfrp4eActor.bind(this);
+    CONFIG.queries[`${modulePrefix}.addWfrp4eItems`] = this.handleAddWfrp4eItems.bind(this);
+
     // Token manipulation queries
     CONFIG.queries[`${modulePrefix}.moveToken`] = this.handleMoveToken.bind(this);
     CONFIG.queries[`${modulePrefix}.updateToken`] = this.handleUpdateToken.bind(this);
@@ -123,16 +121,22 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.searchCharacterItems`] =
       this.handleSearchCharacterItems.bind(this);
 
-    // World-level item creation
-    CONFIG.queries[`${modulePrefix}.createWorldItems`] = this.handleCreateWorldItems.bind(this);
+    // Item authoring on actor sheets
+    CONFIG.queries[`${modulePrefix}.addActorItems`] = this.handleAddActorItems.bind(this);
+    CONFIG.queries[`${modulePrefix}.removeActorItems`] = this.handleRemoveActorItems.bind(this);
 
     // World-level item CRUD
     CONFIG.queries[`${modulePrefix}.createWorldItems`] = this.handleCreateWorldItems.bind(this);
     CONFIG.queries[`${modulePrefix}.listWorldItems`] = this.handleListWorldItems.bind(this);
     CONFIG.queries[`${modulePrefix}.updateWorldItems`] = this.handleUpdateWorldItems.bind(this);
+    CONFIG.queries[`${modulePrefix}.getSystemSchema`] = this.handleGetSystemSchema.bind(this);
 
-    // Item authoring on actor sheets
-    CONFIG.queries[`${modulePrefix}.addActorItems`] = this.handleAddActorItems.bind(this);
+    // Generic actor CRUD (any system, any type)
+    CONFIG.queries[`${modulePrefix}.createActors`] = this.handleCreateActors.bind(this);
+    CONFIG.queries[`${modulePrefix}.updateActors`] = this.handleUpdateActors.bind(this);
+    CONFIG.queries[`${modulePrefix}.deleteActors`] = this.handleDeleteActors.bind(this);
+    CONFIG.queries[`${modulePrefix}.updateActorItems`] = this.handleUpdateActorItems.bind(this);
+    CONFIG.queries[`${modulePrefix}.deleteActorItems`] = this.handleDeleteActorItems.bind(this);
 
     // Phase 7: Token manipulation queries
     CONFIG.queries[`${modulePrefix}.move-token`] = this.handleMoveToken.bind(this);
@@ -143,6 +147,22 @@ export class QueryHandlers {
       this.handleToggleTokenCondition.bind(this);
     CONFIG.queries[`${modulePrefix}.get-available-conditions`] =
       this.handleGetAvailableConditions.bind(this);
+
+    // D&D 5e queries
+    CONFIG.queries[`${modulePrefix}.addSaveFeatureToActor`] =
+      this.handleAddSaveFeatureToActor.bind(this);
+    CONFIG.queries[`${modulePrefix}.createNpcActor`] = this.handleCreateNpcActor.bind(this);
+    CONFIG.queries[`${modulePrefix}.addAttackToActor`] = this.handleAddAttackToActor.bind(this);
+    CONFIG.queries[`${modulePrefix}.addAuraToActor`] = this.handleAddAuraToActor.bind(this);
+    CONFIG.queries[`${modulePrefix}.addPassiveFeatureToActor`] =
+      this.handleAddPassiveFeatureToActor.bind(this);
+    CONFIG.queries[`${modulePrefix}.addAttackWithSaveToActor`] =
+      this.handleAddAttackWithSaveToActor.bind(this);
+    CONFIG.queries[`${modulePrefix}.setActorSpellcasting`] =
+      this.handleSetActorSpellcasting.bind(this);
+    CONFIG.queries[`${modulePrefix}.addSpellsToActor`] = this.handleAddSpellsToActor.bind(this);
+    CONFIG.queries[`${modulePrefix}.addFeaturesFromCompendium`] =
+      this.handleAddFeaturesFromCompendium.bind(this);
   }
 
   /**
@@ -469,66 +489,6 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(
         `Failed to create actor from compendium: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  /**
-   * Handle actor creation from raw actor data payload
-   */
-  private async handleCreateActorFromData(data: {
-    actorData: Record<string, unknown>;
-    addToScene?: boolean;
-    updateExisting?: boolean;
-    existingActorIdentifier?: string;
-    preserveItemTypes?: string[];
-    placement?: {
-      type: 'random' | 'grid' | 'center' | 'coordinates';
-      coordinates?: { x: number; y: number }[];
-    };
-  }): Promise<any> {
-    try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
-      this.dataAccess.validateFoundryState();
-
-      if (!data?.actorData || typeof data.actorData !== 'object') {
-        throw new Error('actorData object is required');
-      }
-
-      const requestData: {
-        actorData: Record<string, unknown>;
-        addToScene?: boolean;
-        updateExisting?: boolean;
-        existingActorIdentifier?: string;
-        preserveItemTypes?: string[];
-        placement?: {
-          type: 'random' | 'grid' | 'center' | 'coordinates';
-          coordinates?: { x: number; y: number }[];
-        };
-      } = {
-        actorData: data.actorData,
-        addToScene: data.addToScene ?? false,
-        updateExisting: data.updateExisting ?? false,
-      };
-      if (data.existingActorIdentifier) {
-        requestData.existingActorIdentifier = data.existingActorIdentifier;
-      }
-      if (data.preserveItemTypes?.length) {
-        requestData.preserveItemTypes = data.preserveItemTypes;
-      }
-      if (data.placement) {
-        requestData.placement = data.placement;
-      }
-
-      return await this.dataAccess.createActorFromData(requestData);
-    } catch (error) {
-      throw new Error(
-        `Failed to create actor from data: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
@@ -888,6 +848,60 @@ export class QueryHandlers {
   }
 
   /**
+   * Handle WFRP4e actor stat-block update request
+   */
+  async handleUpdateWfrp4eActor(data: any): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actor) {
+        throw new Error('actor (name or id) is required');
+      }
+
+      return await this.dataAccess.updateWfrp4eActor(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to update WFRP4e actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Add items (skills, talents, careers, trappings, …) to a WFRP4e actor,
+   * resolved from the installed compendiums. GM-only.
+   */
+  async handleAddWfrp4eItems(data: any): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actor) {
+        throw new Error('actor (name or id) is required');
+      }
+      if (!Array.isArray(data.items) || data.items.length === 0) {
+        throw new Error('items array is required and must contain at least one entry');
+      }
+
+      return await this.dataAccess.addWfrp4eItems(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to add WFRP4e items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
    * Handle get actor ownership request
    */
   async handleGetActorOwnership(data: any): Promise<any> {
@@ -1066,6 +1080,63 @@ export class QueryHandlers {
     }
   }
 
+  private async handleCreateActorFromData(data: {
+    actorData: Record<string, unknown>;
+    addToScene?: boolean;
+    updateExisting?: boolean;
+    existingActorIdentifier?: string;
+    preserveItemTypes?: string[];
+    placement?: {
+      type: 'random' | 'grid' | 'center' | 'coordinates';
+      coordinates?: { x: number; y: number }[];
+    };
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data?.actorData || typeof data.actorData !== 'object') {
+        throw new Error('actorData object is required');
+      }
+
+      const requestData: {
+        actorData: Record<string, unknown>;
+        addToScene?: boolean;
+        updateExisting?: boolean;
+        existingActorIdentifier?: string;
+        preserveItemTypes?: string[];
+        placement?: {
+          type: 'random' | 'grid' | 'center' | 'coordinates';
+          coordinates?: { x: number; y: number }[];
+        };
+      } = {
+        actorData: data.actorData,
+        addToScene: data.addToScene ?? false,
+        updateExisting: data.updateExisting ?? false,
+      };
+      if (data.existingActorIdentifier) {
+        requestData.existingActorIdentifier = data.existingActorIdentifier;
+      }
+      if (data.preserveItemTypes?.length) {
+        requestData.preserveItemTypes = data.preserveItemTypes;
+      }
+      if (data.placement) {
+        requestData.placement = data.placement;
+      }
+
+      return await this.dataAccess.createActorFromData(requestData);
+    } catch (error) {
+      throw new Error(
+        `Failed to create actor from data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
   private async handleCreateScenePlaceholder(data: {
     name: string;
     description?: string;
@@ -1132,7 +1203,7 @@ export class QueryHandlers {
         scene_name: data.scene_name.trim(),
         size: data.size || 'medium',
         grid_size: data.grid_size || 70,
-        quality: quality,
+        quality,
       };
 
       // Use ComfyUIManager to communicate with backend via WebSocket
@@ -1648,6 +1719,43 @@ export class QueryHandlers {
     }
   }
 
+  private async handleRemoveActorItems(data: {
+    actorIdentifier: string;
+    itemIds?: string[];
+    itemNames?: string[];
+    type?: string;
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation - writes to actor sheets are GM-only
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data?.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      const hasIds = Array.isArray(data?.itemIds) && data.itemIds.length > 0;
+      const hasNames = Array.isArray(data?.itemNames) && data.itemNames.length > 0;
+      if (!hasIds && !hasNames) {
+        throw new Error('Provide itemIds and/or itemNames identifying the items to remove');
+      }
+
+      return await this.dataAccess.removeActorItems({
+        actorIdentifier: data.actorIdentifier,
+        ...(data.itemIds !== undefined ? { itemIds: data.itemIds } : {}),
+        ...(data.itemNames !== undefined ? { itemNames: data.itemNames } : {}),
+        ...(data.type !== undefined ? { type: data.type } : {}),
+      });
+    } catch (error) {
+      throw new Error(
+        `Failed to remove actor items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
   private async handleUpdateWorldItems(data: {
     updates: Array<{
       id: string;
@@ -1735,6 +1843,289 @@ export class QueryHandlers {
     }
   }
 
+  // ===== D&D 5E HANDLERS =====
+
+  /**
+   * Handle add save feature to actor request (D&D 5e only)
+   */
+  private async handleAddSaveFeatureToActor(data: any): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      if (!data.featureName) {
+        throw new Error('featureName is required');
+      }
+
+      return await this.dataAccess.addSaveFeatureToActor(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to add save feature to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle create NPC actor request (D&D 5e only)
+   */
+  private async handleCreateNpcActor(data: any): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.name) {
+        throw new Error('name is required');
+      }
+      if (data.cr === undefined || data.cr === null) {
+        throw new Error('cr is required');
+      }
+      if (!data.creatureType) {
+        throw new Error('creatureType is required');
+      }
+      if (!data.size) {
+        throw new Error('size is required');
+      }
+      if (!data.abilities || typeof data.abilities !== 'object') {
+        throw new Error('abilities is required and must be an object');
+      }
+      if (data.hpAverage === undefined || data.hpAverage === null) {
+        throw new Error('hpAverage is required');
+      }
+      if (!data.hpFormula) {
+        throw new Error('hpFormula is required');
+      }
+      if (!data.acMode) {
+        throw new Error('acMode is required');
+      }
+
+      return await this.dataAccess.createNpcActor(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to create NPC actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle add attack feature to actor request (D&D 5e only)
+   */
+  private async handleAddAttackToActor(data: any): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      if (!data.featureName) {
+        throw new Error('featureName is required');
+      }
+      if (!data.attackType) {
+        throw new Error('attackType is required');
+      }
+      if (!Array.isArray(data.damageParts) || data.damageParts.length === 0) {
+        throw new Error('damageParts is required and must contain at least one element');
+      }
+
+      return await this.dataAccess.addAttackToActor(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to add attack to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle add aura feature to actor request (D&D 5e only)
+   */
+  private async handleAddAuraToActor(data: any): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      if (!data.featureName) {
+        throw new Error('featureName is required');
+      }
+      if (!Array.isArray(data.damageParts) || data.damageParts.length === 0) {
+        throw new Error('damageParts is required and must contain at least one element');
+      }
+      if (!data.areaType) {
+        throw new Error('areaType is required');
+      }
+      if (data.areaSize === undefined || data.areaSize === null) {
+        throw new Error('areaSize is required');
+      }
+
+      return await this.dataAccess.addAuraToActor(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to add aura to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle add passive feature to actor request (D&D 5e only)
+   */
+  private async handleAddPassiveFeatureToActor(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      if (!data.featureName) {
+        throw new Error('featureName is required');
+      }
+
+      return await this.dataAccess.addPassiveFeatureToActor(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to add passive feature to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle add attack+save feature to actor request (D&D 5e only)
+   */
+  private async handleAddAttackWithSaveToActor(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actorIdentifier) throw new Error('actorIdentifier is required');
+      if (!data.featureName) throw new Error('featureName is required');
+      if (!data.attackType) throw new Error('attackType is required');
+      if (!Array.isArray(data.damageParts) || data.damageParts.length === 0) {
+        throw new Error('damageParts is required and must contain at least one element');
+      }
+      if (!data.saveAbility) throw new Error('saveAbility is required');
+      if (!data.saveDC) throw new Error('saveDC is required');
+      if (!Array.isArray(data.saveDamageParts) || data.saveDamageParts.length === 0) {
+        throw new Error('saveDamageParts is required and must contain at least one element');
+      }
+
+      return await this.dataAccess.addAttackWithSaveToActor(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to add attack+save to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleSetActorSpellcasting(data: any): Promise<any> {
+    try {
+      if (!data.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      if (!data.spellcastingClass) {
+        throw new Error('spellcastingClass is required');
+      }
+      if (
+        typeof data.spellcastingLevel !== 'number' ||
+        data.spellcastingLevel < 1 ||
+        data.spellcastingLevel > 20
+      ) {
+        throw new Error('spellcastingLevel must be a number between 1 and 20');
+      }
+      if (!data.effectiveAbility) {
+        throw new Error('effectiveAbility is required');
+      }
+
+      return await this.dataAccess.setActorSpellcasting(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to set actor spellcasting: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleAddSpellsToActor(data: any): Promise<any> {
+    try {
+      if (!data.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      if (!Array.isArray(data.spellNames) || data.spellNames.length === 0) {
+        throw new Error('spellNames is required and must contain at least one element');
+      }
+      if (data.spellNames.length > 50) {
+        throw new Error('spellNames cannot contain more than 50 elements');
+      }
+
+      return await this.dataAccess.addSpellsToActor(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to add spells to actor: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleAddFeaturesFromCompendium(data: any): Promise<any> {
+    try {
+      if (!data.actorIdentifier) {
+        throw new Error('actorIdentifier is required');
+      }
+      if (!Array.isArray(data.featureNames) || data.featureNames.length === 0) {
+        throw new Error('featureNames is required and must contain at least one element');
+      }
+      if (data.featureNames.length > 50) {
+        throw new Error('featureNames cannot contain more than 50 elements');
+      }
+
+      return await this.dataAccess.addFeaturesFromCompendium(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to add features from compendium: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleGetSystemSchema(_data: any): Promise<any> {
+    try {
+      return this.dataAccess.getSystemSchema();
+    } catch (error) {
+      throw new Error(
+        `Failed to get system schema: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
   // ─── Generic actor CRUD ─────────────────────────────────────────────────────
 
   private async handleCreateActors(data: {
@@ -1746,19 +2137,13 @@ export class QueryHandlers {
     }>;
     folder?: string;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
-      this.dataAccess.validateFoundryState();
-      if (!Array.isArray(data?.actors) || data.actors.length === 0) {
-        throw new Error('actors array is required and must contain at least one entry');
-      }
-      return await this.dataAccess.createActors(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to create actors: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+    this.dataAccess.validateFoundryState();
+    if (!Array.isArray(data?.actors) || data.actors.length === 0) {
+      throw new Error('actors array is required and must contain at least one entry');
     }
+    return this.dataAccess.createActors(data);
   }
 
   private async handleUpdateActors(data: {
@@ -1769,66 +2154,42 @@ export class QueryHandlers {
       system?: Record<string, any>;
     }>;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
-      this.dataAccess.validateFoundryState();
-      if (!Array.isArray(data?.updates) || data.updates.length === 0) {
-        throw new Error('updates array is required');
-      }
-      return await this.dataAccess.updateActors(data.updates);
-    } catch (error) {
-      throw new Error(
-        `Failed to update actors: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+    this.dataAccess.validateFoundryState();
+    if (!Array.isArray(data?.updates) || data.updates.length === 0) {
+      throw new Error('updates array is required');
     }
+    return this.dataAccess.updateActors(data.updates);
   }
 
   private async handleDeleteActors(data: { ids: string[] }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
-      this.dataAccess.validateFoundryState();
-      if (!Array.isArray(data?.ids) || data.ids.length === 0) {
-        throw new Error('ids array is required');
-      }
-      return await this.dataAccess.deleteActors(data.ids);
-    } catch (error) {
-      throw new Error(
-        `Failed to delete actors: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+    this.dataAccess.validateFoundryState();
+    if (!Array.isArray(data?.ids) || data.ids.length === 0) {
+      throw new Error('ids array is required');
     }
+    return this.dataAccess.deleteActors(data.ids);
   }
 
   private async handleUpdateActorItems(data: {
     actorIdentifier: string;
     itemUpdates: Array<{ id: string; name?: string; img?: string; system?: Record<string, any> }>;
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
-      this.dataAccess.validateFoundryState();
-      return await this.dataAccess.updateActorItems(data.actorIdentifier, data.itemUpdates);
-    } catch (error) {
-      throw new Error(
-        `Failed to update actor items: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+    this.dataAccess.validateFoundryState();
+    return this.dataAccess.updateActorItems(data.actorIdentifier, data.itemUpdates);
   }
 
   private async handleDeleteActorItems(data: {
     actorIdentifier: string;
     itemIds: string[];
   }): Promise<any> {
-    try {
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
-      this.dataAccess.validateFoundryState();
-      return await this.dataAccess.deleteActorItems(data.actorIdentifier, data.itemIds);
-    } catch (error) {
-      throw new Error(
-        `Failed to delete actor items: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+    this.dataAccess.validateFoundryState();
+    return this.dataAccess.deleteActorItems(data.actorIdentifier, data.itemIds);
   }
 }
