@@ -125,6 +125,45 @@ const normalizeName = (name: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
+/**
+ * Dark Aid exports item names as compact IDs without umlauts or spaces
+ * (e.g. "sinnesschaerfe" for "Sinnesschärfe", "kleinerbannstrahl" for
+ * "Kleiner Bannstrahl"). These IDs do not match Foundry compendium names,
+ * so item resolution fails. Map the known Dark Aid IDs to the canonical
+ * Foundry names before compendium lookup.
+ */
+const DARK_AID_ITEM_NAME_MAP: Record<string, string> = {
+  // Talente
+  sinnesschaerfe: 'Sinnesschärfe',
+  bekehrenueberzeugen: 'Bekehren & Überzeugen',
+  einschuechtern: 'Einschüchtern',
+  ueberreden: 'Überreden',
+  fischenangeln: 'Fischen & Angeln',
+  goetterkulte: 'Götter & Kulte',
+  sagenlegenden: 'Sagen & Legenden',
+  sphaerenkunde: 'Sphärenkunde',
+  // Liturgien / Zeremonien / Segen
+  kleinerbannstrahl: 'Kleiner Bannstrahl',
+  machtvollerexorzismus: 'Machtvoller Exorzismus',
+  glueckssegen: 'Glückssegen',
+  kleinerheilsegen: 'Kleiner Heilsegen',
+  kleinerschutzsegen: 'Kleiner Schutzsegen',
+  staerkungssegen: 'Stärkungssegen',
+  bannderdunkelheit: 'Bann der Dunkelheit',
+  // Sonderfertigkeiten / Nachteile
+  hoheseelenkraft: 'Hohe Seelenkraft',
+  schwerzuverzaubern: 'Schwer zu verzaubern',
+  unfaehig: 'Unfähig',
+  persoenlichkeitsschwaeche: 'Persönlichkeitsschwäche (Vorurteile)',
+  // Spezies / Kultur
+  mittellaender: 'Mensch',
+  mittelreicher: 'Mittelreich',
+};
+
+/** Map a Dark Aid item ID to its canonical Foundry name if known. */
+const mapDarkAidItemName = (name: string): string =>
+  DARK_AID_ITEM_NAME_MAP[normalizeName(name)] ?? name;
+
 const uniqueNames = (names: string[]): string[] => {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -598,6 +637,7 @@ export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
     charisma: 'ch',
     fingerfertigkeit: 'ff',
     gewandheit: 'ge',
+    gewandtheit: 'ge',
     konstitution: 'ko',
     körperkraft: 'kk',
     koerperkraft: 'kk',
@@ -631,7 +671,7 @@ export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
     const level = toNumber(getByKeys(entry, ['level', 'value']));
     if (!id || level === undefined) continue;
     const characteristicKey = idToCharacteristic[id];
-    if (characteristicKey && characteristicKey !== 'ko') {
+    if (characteristicKey) {
       characteristics[characteristicKey] = { advances: Math.round(level) - 8 };
     }
   }
@@ -673,18 +713,18 @@ export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
   };
 
   const nameBuckets: string[] = [];
-  if (species) nameBuckets.push(species);
-  if (culture) nameBuckets.push(culture);
-  if (profession) nameBuckets.push(profession);
+  if (species) nameBuckets.push(mapDarkAidItemName(species));
+  if (culture) nameBuckets.push(mapDarkAidItemName(culture));
+  if (profession) nameBuckets.push(mapDarkAidItemName(profession));
 
   const pushArrayNames = (source: unknown) => {
     if (!Array.isArray(source)) return;
     for (const entry of source) {
       if (isRecord(entry)) {
         const name = toStringValue(getByKeys(entry, ['name', 'id']));
-        if (name) nameBuckets.push(name);
+        if (name) nameBuckets.push(mapDarkAidItemName(name));
       } else if (typeof entry === 'string' && entry.trim().length > 0) {
-        nameBuckets.push(entry.trim());
+        nameBuckets.push(mapDarkAidItemName(entry.trim()));
       }
     }
   };
@@ -702,7 +742,7 @@ export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
       const name = toStringValue(getByKeys(entry, ['name', nameField]));
       const value = toNumber(getByKeys(entry, ['level', valueField]));
       if (!name || value === undefined) continue;
-      addItemOverride(itemOverrides, name, { talentValue: Math.round(value) });
+      addItemOverride(itemOverrides, mapDarkAidItemName(name), { talentValue: Math.round(value) });
     }
   };
 
