@@ -155,6 +155,9 @@ const DARK_AID_ITEM_NAME_MAP: Record<string, string> = {
   schwerzuverzaubern: 'Schwer zu verzaubern',
   unfaehig: 'Unfähig',
   persoenlichkeitsschwaeche: 'Persönlichkeitsschwäche (Vorurteile)',
+  // Spezies / Kultur
+  mittellaender: 'Mensch',
+  mittelreicher: 'Mittelreich',
 };
 
 /** Map a Dark Aid item ID to its canonical Foundry name if known. */
