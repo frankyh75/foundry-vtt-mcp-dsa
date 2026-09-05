@@ -598,6 +598,7 @@ export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
     charisma: 'ch',
     fingerfertigkeit: 'ff',
     gewandheit: 'ge',
+    gewandtheit: 'ge',
     konstitution: 'ko',
     körperkraft: 'kk',
     koerperkraft: 'kk',
