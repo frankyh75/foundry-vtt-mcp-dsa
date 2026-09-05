@@ -640,9 +640,9 @@ export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
   const culture = toStringValue(payload.culture);
   const profession = toStringValue(payload.profession);
   const socialStatus = toStringValue(payload.socialstatus);
-  const lifeEnergy = toNumber(getBaseValue(baseValues, 'lebensenergie')) ?? 0;
-  const derivedWoundsInitial = Math.max(0, lifeEnergy - koLevel * 2);
-
+  // Option A: Nur wounds.advances importieren, alles andere entfernt.
+  // DSA5 rechnet wounds.initial, wounds.max, astralenergy, karmaenergy, fatePoints selbst
+  // aus Spezies/Kultur/Abwertstufe.
   const actorData: JsonRecord = {
     name: toStringValue(payload.name) ?? 'Imported Dark Aid Character',
     type: 'character',
@@ -650,21 +650,7 @@ export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
       characteristics,
       status: {
         wounds: {
-          initial: derivedWoundsInitial,
-          value: lifeEnergy,
-          max: lifeEnergy,
-        },
-        astralenergy: {
-          value: toNumber(getBaseValue(baseValues, 'astralenergie')) ?? 0,
-          max: toNumber(getBaseValue(baseValues, 'astralenergie')) ?? 0,
-        },
-        karmaenergy: {
-          value: toNumber(getBaseValue(baseValues, 'karmaenergie')) ?? 0,
-          max: toNumber(getBaseValue(baseValues, 'karmaenergie')) ?? 0,
-        },
-        fatePoints: {
-          value: toNumber(getBaseValue(baseValues, 'schicksalspunkte')) ?? 0,
-          max: toNumber(getBaseValue(baseValues, 'schicksalspunkte')) ?? 0,
+          advances: koLevel,
         },
       },
       details: {
