@@ -727,9 +727,9 @@ export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
   };
 
   const nameBuckets: string[] = [];
-  if (species) nameBuckets.push(species);
-  if (culture) nameBuckets.push(culture);
-  if (profession) nameBuckets.push(profession);
+  if (species) nameBuckets.push(mapDarkAidItemName(species));
+  if (culture) nameBuckets.push(mapDarkAidItemName(culture));
+  if (profession) nameBuckets.push(mapDarkAidItemName(profession));
 
   const pushArrayNames = (source: unknown) => {
     if (!Array.isArray(source)) return;
