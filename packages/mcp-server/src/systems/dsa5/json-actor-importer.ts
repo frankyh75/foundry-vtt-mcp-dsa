@@ -632,7 +632,7 @@ export const mapDarkAidPayload = (payload: JsonRecord): MappingResult => {
     const level = toNumber(getByKeys(entry, ['level', 'value']));
     if (!id || level === undefined) continue;
     const characteristicKey = idToCharacteristic[id];
-    if (characteristicKey && characteristicKey !== 'ko') {
+    if (characteristicKey) {
       characteristics[characteristicKey] = { advances: Math.round(level) - 8 };
     }
   }
