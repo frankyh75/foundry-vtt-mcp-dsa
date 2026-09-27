@@ -1007,7 +1007,15 @@ export const extractPayload = async (
       );
     }
 
-    const content = await fs.readFile(filePath, 'utf8');
+    let content: string;
+    try {
+      content = await fs.readFile(filePath, 'utf8');
+    } catch (err) {
+      throw new Error(
+        `Could not read payload file: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+
     try {
       parsed = JSON.parse(content);
     } catch {
