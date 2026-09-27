@@ -18,6 +18,7 @@
     "installer:stage": "node installer/build-nsis.js --skip-download --skip-nsis",
     "test": "npm run test --workspaces --if-present",
     "version:check": "node scripts/check-version-consistency.mjs",
+    "coverage:handlers": "node scripts/check-query-handler-coverage.mjs",
     "lint": "eslint . --ext .ts,.js",
     "lint:fix": "eslint . --ext .ts,.js --fix",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",

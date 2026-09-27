@@ -30,6 +30,7 @@ export class QueryHandlers {
 
     // Character/Actor queries
     CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
+    CONFIG.queries[`${modulePrefix}.getCharacterEntity`] = this.handleGetCharacterEntity.bind(this);
     CONFIG.queries[`${modulePrefix}.listActors`] = this.handleListActors.bind(this);
 
     // Compendium queries
@@ -140,6 +141,7 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.deleteActors`] = this.handleDeleteActors.bind(this);
     CONFIG.queries[`${modulePrefix}.updateActorItems`] = this.handleUpdateActorItems.bind(this);
     CONFIG.queries[`${modulePrefix}.deleteActorItems`] = this.handleDeleteActorItems.bind(this);
+    CONFIG.queries[`${modulePrefix}.manageEffects`] = this.handleManageEffects.bind(this);
 
     // Phase 7: Token manipulation queries
     CONFIG.queries[`${modulePrefix}.move-token`] = this.handleMoveToken.bind(this);
@@ -2245,5 +2247,47 @@ export class QueryHandlers {
     if (!gmCheck.allowed) return { error: 'Access denied', success: false };
     this.dataAccess.validateFoundryState();
     return this.dataAccess.deleteActorItems(data.actorIdentifier, data.itemIds);
+  }
+
+  private async handleGetCharacterEntity(data: {
+    characterIdentifier: string;
+    entityIdentifier: string;
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.characterIdentifier) {
+        throw new Error('characterIdentifier is required');
+      }
+      if (!data.entityIdentifier) {
+        throw new Error('entityIdentifier is required');
+      }
+
+      return await this.dataAccess.getCharacterEntity(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to get character entity: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleManageEffects(data: {
+    action: 'create' | 'update' | 'delete';
+    actorIdentifier: string;
+    parentType: 'actor' | 'item';
+    parentItemIdentifier?: string;
+    effectId?: string;
+    effectData?: Record<string, any>;
+  }): Promise<any> {
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+    this.dataAccess.validateFoundryState();
+    return this.dataAccess.manageEffects(data);
   }
 }
