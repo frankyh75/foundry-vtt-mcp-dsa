@@ -113,7 +113,7 @@ Once connected, ask Claude Desktop:
 
 ## Features
 
-- **43 MCP Tools** that allow Claude to interact with Foundry
+- **48 MCP Tools** that allow Claude to interact with Foundry
 - **D&D 5e NPC Creation Suite**: Build complete NPCs from prompts — stat block, attacks, saves, auras, and spellcasting
 - **Mongoose Traveller 2e (mgt2e) Support**: Full actor lifecycle — create/update/delete travellers, NPCs, creatures, and spacecraft with skill shorthand normalisation; creature compendium index with characteristic DMs; weapon-trait enum reference
 - **WFRP4e Support**: Character reading plus editing — update characteristics, wounds, skills and careers, and add or remove items on existing actors
@@ -136,44 +136,51 @@ Once connected, ask Claude Desktop:
 - **1** get-world-info
 - **2** list-scenes
 - **3** get-current-scene
-- **4** get-available-conditions  
+- **4** get-available-conditions
 - **5** list-compendium-packs
 - **6** list-characters
-- **7** get-character  
-- **8** search-character-items  
+- **7** get-character
+- **8** search-character-items
 - **9** get-character-entity
 - **10** get-token-details
-- **11** toggle-token-condition (add)  
-- **12** toggle-token-condition (remove)
-- **13** update-token
+- **11** toggle-token-condition (add / remove)
+- **12** update-token
+- **13** delete-tokens
 - **14** search-compendium
 - **15** get-compendium-item
 - **16** get-compendium-entry-full
-- **17** list-creatures-by-criteria  
-- **18** list-journals  
+- **17** list-creatures-by-criteria
+- **18** list-journals
 - **19** create-quest-journal
 - **20** update-quest-journal
 - **21** search-journals
-- **22** link-quest-to-npc
-- **23** list-actor-ownership
-- **24** assign-actor-ownership
-- **25** remove-actor-ownership
-- **26** move-token
-- **27** use-item
-- **28** request-player-rolls
-- **29** generate-map
-- **30** check-map-status
-- **31** cancel-map-job
-- **32** switch-scene  
-- **33** create-actor-from-compendium
-- **34** list-dsa5-archetypes (DSA5 Only)
-- **35** create-dsa5-character-from-archetype (DSA5 Only)
-- **36** create-campaign-dashboard
-- **37** manage-world-items (create / list / update world items, add items to actor, describe system enum schema)
-- **38** dnd5e-create-npc (D&D 5e Only)
-- **39** dnd5e-add-feature (D&D 5e Only)
-- **40** dnd5e-add-features-from-compendium (D&D 5e Only)
-- **41** manage-actors (create / update / delete actors; update / delete embedded items — any system)
+- **22** replace-journal-page
+- **23** link-quest-to-npc
+- **24** list-actor-ownership
+- **25** assign-actor-ownership
+- **26** remove-actor-ownership
+- **27** move-token
+- **28** use-item
+- **29** request-player-rolls
+- **30** generate-map
+- **31** check-map-status
+- **32** cancel-map-job
+- **33** switch-scene
+- **34** update-scene-music
+- **35** manage-playlists (create / update / delete / describe — any system)
+- **36** control-playlist (play / stop / cycle-mode / play-sound / stop-sound)
+- **37** create-actor-from-compendium
+- **38** list-dsa5-archetypes (DSA5 Only)
+- **39** create-dsa5-character-from-archetype (DSA5 Only)
+- **40** create-campaign-dashboard
+- **41** manage-world-items (create / list / update world items, add items to actor, describe system enum schema)
+- **42** manage-effects (create / update / delete ActiveEffects on actors or their items)
+- **43** dnd5e-create-npc (D&D 5e Only)
+- **44** dnd5e-add-feature (D&D 5e Only)
+- **45** dnd5e-add-features-from-compendium (D&D 5e Only)
+- **46** manage-actors (create / update / delete / place actors; update / delete embedded items — any system)
+- **47** wfrp4e-update-actor (WFRP4e Only)
+- **48** wfrp4e-add-items (WFRP4e Only)
 
 ## Settings
 

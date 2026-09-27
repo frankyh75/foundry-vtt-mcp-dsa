@@ -105,7 +105,14 @@ jobs:
         
     - name: Build MCP Server (Bundled)
       run: npm run build:bundle --workspace=packages/mcp-server
-        
+
+    # The Mac and release jobs already do this. Without it this job zipped whatever
+    # dist/ happened to be lying around (it is gitignored, so on a clean checkout
+    # that means stale or missing compiled code), producing a module zip that did
+    # not contain the build under test.
+    - name: Build Foundry Module
+      run: npm run build --workspace=packages/foundry-module
+
     - name: Setup NSIS
       run: choco install nsis -y
 
@@ -224,6 +231,17 @@ jobs:
       with:
         name: foundry-mcp-server-installer-${{ env.PACKAGE_VERSION }}
         path: installer/build/FoundryMCPServer-Setup-${{ env.PACKAGE_VERSION }}.exe
+        retention-days: 30
+
+    # Also publish the Foundry module zip as a run artifact, not just as a release
+    # asset, so a tester can install a build from a PR or a manual run without us
+    # cutting a release. Note the module.json inside still carries the committed
+    # version — these builds are for testing, not for the package registry.
+    - name: Upload Foundry module as artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: foundry-module-${{ env.PACKAGE_VERSION }}
+        path: foundry-vtt-mcp.zip
         retention-days: 30
 
   build-mac-pkg:
@@ -481,8 +499,17 @@ jobs:
           3. Restart Claude Desktop
           4. Start creating AI-powered campaigns!
 
+          ### New in this release
+          - Scene music and playlist tools: bind playlists and tracks to scenes, plus playlist CRUD and playback control
+          - ActiveEffect management: create, update and delete effects on actors or their items
+          - DSA5 system support, plus a new `replace-journal-page` tool
+          - `manage-actors` can now place existing world actors onto the current scene
+          - Fixes: `use-item` targeting on Foundry V13/V14, Windows installer upgrade safety (no longer risks an existing ComfyUI install), large responses timing out over WebRTC, and several D&D 5e feature-creation defects
+
+          See the changelog for the full list.
+
           ### Features
-          - 43 MCP tools for comprehensive Foundry VTT integration
+          - 48 MCP tools for comprehensive Foundry VTT integration
           - Multi-system support: D&D 5e, Pathfinder 2e, DSA5, Cosmere RPG, WFRP4e, and Mongoose Traveller 2e
           - Generic actor CRUD (create/update/delete actors and embedded items) across all systems
           - D&D 5e NPC creation suite: stat blocks, attacks, saves, auras, and spellcasting

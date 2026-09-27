@@ -1,4 +1,58 @@
-## v0.8.3 (2026-06-11)
+## v0.8.4 (2026-09-12)
+
+### New Features
+
+- **Scene music tools** (Closes #93)
+  - `get-current-scene` and `list-scenes` now include each scene's music binding (`playlist` / `playlistSound` with ids + names)
+  - `update-scene-music`: set or clear the binding by id or unique name; writes through `scene.update()` with the core `playlist` / `playlistSound` fields so it syncs to connected clients without a reload. Validates both ids exist before writing; a sound cannot be bound without its parent playlist.
+
+- **Playlist management + playback tools**
+  - `manage-playlists` (`create` | `update` | `delete` | `describe`): playlist CRUD on any system; `create` accepts sounds inline (`path` required, plus `name`, `volume`, `repeat`, `fade`); `update` patches playlist fields and/or individual sounds matched by exact id or unique path/name within the playlist; `delete` matches by exact id or name only, never partial; `describe` with no identifier lists all playlists compactly, with an identifier returns the full document including every sound
+  - `control-playlist`: `play` (playAll), `stop` (stopAll), `cycle-mode` (sequential -> shuffle -> soundboard), plus per-sound `play-sound` / `stop-sound` - all through the client Playlist API so the server and every connected client stay in sync
+  - Both are GM-only (same silent GM validation as every other bridge tool) and system-agnostic
+
+- **ActiveEffect management** (#102)
+  - `manage-effects` (`create` | `update` | `delete`): works on effects owned by an actor or by one of its items, with the parent scoped so an effect cannot be mutated through the wrong one
+  - `search-character-items` with `type: "effect"` now covers item-owned effects as well as actor-owned ones, each tagged with `scope`, `parentItemId` and `parentItemName`
+  - `get-character-entity` resolves items, actor-owned effects and item-owned effects, returning the complete document
+  - Items are serialised from `item.toObject()`, so dnd5e Activity data is preserved rather than dropped
+
+- **DSA5 system support** (#81)
+  - DSA5 adapter with `normalizePayload` / `describeActorSchema`, plus system detection
+  - New `replace-journal-page` tool
+
+- **`manage-actors` gains `place`** (#85) — place existing world actors onto the current scene, rather than only newly created ones
+
+- **Information notifications setting** (#99) — Foundry-side notifications can now be turned off; on by default
+
+### Fixes
+
+- **`use-item` failed outright on Foundry V13/V14** (#105) — it called `game.user.updateTokenTargets`, which is not a supported public API on those versions, so passing `targets` (including `"self"`) aborted the whole operation. Targeting now goes through `Token#setTarget()`, resolves token ids, token names and actor names, and no longer aborts item use when a target cannot be applied — the result reports what succeeded.
+
+- **Windows installer could destroy an existing ComfyUI install on upgrade** (#103) — upgrades now detect a prior installation via `InstallLocation`, a legacy `UninstallString`, or the historical default path; reuse that directory; skip the directory page; and leave an existing ComfyUI directory untouched. `DisplayVersion` is derived from the build rather than hardcoded, and `UninstallString` is written quoted.
+
+- **Large responses timed out over WebRTC** (#89, fixed in #101) — the data channel was created with `maxRetransmits`, making it only partially reliable, so a dropped chunk left the receiver waiting forever for something that would never arrive. The channel is now fully reliable, chunks are paced against the send buffer instead of being dumped into SCTP at once, and a failed reassembly now rejects the waiting query instead of surfacing as a generic timeout.
+
+- **Five defects in `dnd5e-add-feature`** (#91) — stale skill and ability defaults among them
+
+- **Journal page rename** (#95, fixed in #100)
+
+- **`list-dsa5-archetypes` returned nothing** (#77, fixed in #83) — the tool called a `getPackIndex` query that was never registered on the module, and each failure was swallowed, so it reported success with an empty list
+
+- **Scene background lost after `generate-map`** (#79)
+
+- **Map job deduplication ignored the scene name** (#80, fixed in #84) — two jobs differing only by scene name collapsed into one
+
+- **WebSocket loopback regression** (#74, fixed in #82) — `ws://` is used for loopback hosts even on HTTPS pages
+
+- **Module settings CSS leaked** (#97) — `.form-footer` rules are now scoped to the module's own settings forms
+
+### Internal
+
+- Version consistency is now checked in CI across all five manifests (#72), guarding against the drift behind #69
+- Release-notes tool count and system list corrected (#71)
+
+## v0.8.3 (2026-08-09)
 
 ### New Features
 

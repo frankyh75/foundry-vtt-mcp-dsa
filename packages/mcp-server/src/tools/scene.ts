@@ -90,8 +90,7 @@ export class SceneTools {
       },
       {
         name: 'delete-scene',
-        description:
-          'Delete a Foundry scene by ID. Use list-scenes first to get the scene ID.',
+        description: 'Delete a Foundry scene by ID. Use list-scenes first to get the scene ID.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -101,6 +100,29 @@ export class SceneTools {
             },
           },
           required: ['sceneId'],
+        },
+      },
+      {
+        name: 'update-scene-music',
+        description:
+          'Set or clear the music binding of a scene. Pass playlist and optionally playlist_sound (ids or unique names, null to clear). Writes through the scene document API and syncs live to connected clients.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            scene_identifier: {
+              type: 'string',
+              description: 'Scene id or exact name',
+            },
+            playlist: {
+              type: ['string', 'null'],
+              description: 'Playlist id or unique name, or null to clear',
+            },
+            playlist_sound: {
+              type: ['string', 'null'],
+              description: 'PlaylistSound id or unique name within the playlist, or null to clear',
+            },
+          },
+          required: ['scene_identifier'],
         },
       },
     ];
@@ -177,6 +199,30 @@ export class SceneTools {
     }
   }
 
+  async handleUpdateSceneMusic(args: any): Promise<any> {
+    const schema = z.object({
+      scene_identifier: z.string().min(1),
+      playlist: z.string().nullable().optional(),
+      playlist_sound: z.string().nullable().optional(),
+    });
+    const parsed = schema.parse(args);
+
+    this.logger.info('Updating scene music', { scene_identifier: parsed.scene_identifier });
+    try {
+      const result = await this.foundryClient.query(
+        'foundry-mcp-bridge.update-scene-music',
+        parsed
+      );
+      this.logger.info('Scene music updated', { scene_identifier: parsed.scene_identifier });
+      return { success: true, ...result };
+    } catch (error) {
+      this.logger.error('Failed to update scene music', error);
+      throw new Error(
+        `Failed to update scene music: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
   async handleDeleteScene(args: any): Promise<any> {
     const schema = z.object({
       sceneId: z.string().min(1),
@@ -187,10 +233,9 @@ export class SceneTools {
     this.logger.info('Deleting scene', { sceneId: parsed.sceneId });
 
     try {
-      const result = await this.foundryClient.query(
-        'foundry-mcp-bridge.deleteScene',
-        { sceneId: parsed.sceneId }
-      );
+      const result = await this.foundryClient.query('foundry-mcp-bridge.deleteScene', {
+        sceneId: parsed.sceneId,
+      });
 
       this.logger.debug('Scene deleted successfully', {
         sceneId: parsed.sceneId,

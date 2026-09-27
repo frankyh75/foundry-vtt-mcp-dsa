@@ -117,7 +117,7 @@ After installation:
 📚 FEATURES
 ═══════════════════════════════════════════════════════════════
 
-• 25 MCP tools for comprehensive Foundry VTT integration
+• 48 MCP tools for comprehensive Foundry VTT integration
 • Actor creation with natural language processing
 • Quest management with HTML generation
 • Campaign system with multi-part adventures

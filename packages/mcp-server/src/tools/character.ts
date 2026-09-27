@@ -62,13 +62,14 @@ export class CharacterTools {
       {
         name: 'get-character',
         description:
-          'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects.',
+          'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects. For an unlinked token (e.g. a summon or a copy of a shared NPC) pass its token ID or token UUID to get that token\'s own effective stats and effects rather than the base actor\'s.',
         inputSchema: {
           type: 'object',
           properties: {
             identifier: {
               type: 'string',
-              description: 'Character name or ID to look up',
+              description:
+                "Character name or actor ID, or a token ID / token UUID (Scene.<id>.Token.<id>) to read an unlinked token's own state",
             },
           },
           required: ['identifier'],
@@ -327,43 +328,11 @@ export class CharacterTools {
     this.logger.info('Getting character entity', { characterIdentifier, entityIdentifier });
 
     try {
-      // First get the character
-      const characterData = await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
-        characterName: characterIdentifier,
+      const result = await this.foundryClient.query('foundry-mcp-bridge.getCharacterEntity', {
+        characterIdentifier,
+        entityIdentifier,
       });
-
-      // Try to find the entity in different collections
-      let entity = null;
-      let entityType = null;
-
-      // 1. Try to find as an item (by ID or name)
-      entity = characterData.items?.find(
-        (i: any) =>
-          i.id === entityIdentifier || i.name.toLowerCase() === entityIdentifier.toLowerCase()
-      );
-      if (entity) {
-        entityType = 'item';
-      }
-
-      // 2. Try to find as an action (by name)
-      if (!entity && characterData.actions) {
-        entity = characterData.actions.find(
-          (a: any) => a.name.toLowerCase() === entityIdentifier.toLowerCase()
-        );
-        if (entity) {
-          entityType = 'action';
-        }
-      }
-
-      // 3. Try to find as an effect (by name)
-      if (!entity && characterData.effects) {
-        entity = characterData.effects.find(
-          (e: any) => e.name.toLowerCase() === entityIdentifier.toLowerCase()
-        );
-        if (entity) {
-          entityType = 'effect';
-        }
-      }
+      const { entityType, entity } = result;
 
       if (!entity) {
         throw new Error(
@@ -395,6 +364,7 @@ export class CharacterTools {
           hasImage: !!entity.img,
           // Include full system data for advanced use cases
           system: entity.system,
+          effects: entity.effects ?? [],
         };
       } else if (entityType === 'action') {
         return {
@@ -669,7 +639,16 @@ export class CharacterTools {
 
   async handleManageWorldItems(args: any): Promise<any> {
     const { action } = z
-      .object({ action: z.enum(['create', 'list', 'update', 'add-to-actor', 'remove-from-actor', 'describe']) })
+      .object({
+        action: z.enum([
+          'create',
+          'list',
+          'update',
+          'add-to-actor',
+          'remove-from-actor',
+          'describe',
+        ]),
+      })
       .parse(args);
 
     switch (action) {
@@ -786,6 +765,10 @@ export class CharacterTools {
   private async formatCharacterResponse(characterData: any): Promise<any> {
     const response: any = {
       id: characterData.id,
+      actorId: characterData.actorId ?? characterData.id,
+      isToken: characterData.isToken ?? false,
+      ...(characterData.tokenId ? { tokenId: characterData.tokenId } : {}),
+      ...(characterData.sceneId ? { sceneId: characterData.sceneId } : {}),
       name: characterData.name,
       type: characterData.type,
       basicInfo: await this.extractBasicInfo(characterData),
