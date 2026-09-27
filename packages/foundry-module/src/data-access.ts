@@ -4892,16 +4892,55 @@ export class FoundryDataAccess {
       delete actorData.items;
       delete actorData.effects;
 
-      const createdActor = await Actor.create(actorData as any);
-      if (!createdActor) {
-        throw new Error(`Failed to create actor "${actorData.name}"`);
-      }
+      const existingActor =
+        request.updateExisting && request.existingActorIdentifier
+          ? this.findActorByIdentifier(request.existingActorIdentifier)
+          : undefined;
+      const updatedExisting = Boolean(existingActor);
+      let resultActor: any;
 
-      if (Array.isArray(incomingItems) && incomingItems.length > 0) {
-        await createdActor.createEmbeddedDocuments('Item', incomingItems as any[]);
-      }
-      if (Array.isArray(incomingEffects) && incomingEffects.length > 0) {
-        await createdActor.createEmbeddedDocuments('ActiveEffect', incomingEffects as any[]);
+      if (existingActor) {
+        await existingActor.update(actorData);
+
+        const preservedTypes = new Set(request.preserveItemTypes ?? []);
+        const existingItemsByKey = new Map<string, any[]>();
+        for (const item of Array.from(existingActor.items || []) as any[]) {
+          if (preservedTypes.has(item.type)) continue;
+          const key = `${item.type}::${String(item.name).toLowerCase()}`;
+          const items = existingItemsByKey.get(key) ?? [];
+          items.push(item);
+          existingItemsByKey.set(key, items);
+        }
+
+        const itemUpdates: any[] = [];
+        const itemsToCreate: any[] = [];
+        for (const item of Array.isArray(incomingItems) ? incomingItems : []) {
+          if (preservedTypes.has(item.type)) continue;
+          const key = `${item.type}::${String(item.name).toLowerCase()}`;
+          const matchingItem = existingItemsByKey.get(key)?.shift();
+          if (matchingItem) itemUpdates.push({ ...item, _id: matchingItem.id });
+          else itemsToCreate.push(item);
+        }
+
+        if (itemUpdates.length > 0) {
+          await existingActor.updateEmbeddedDocuments('Item', itemUpdates);
+        }
+        if (itemsToCreate.length > 0) {
+          await existingActor.createEmbeddedDocuments('Item', itemsToCreate);
+        }
+        resultActor = existingActor;
+      } else {
+        resultActor = await Actor.create(actorData as any);
+        if (!resultActor) {
+          throw new Error(`Failed to create actor "${actorData.name}"`);
+        }
+
+        if (Array.isArray(incomingItems) && incomingItems.length > 0) {
+          await resultActor.createEmbeddedDocuments('Item', incomingItems as any[]);
+        }
+        if (Array.isArray(incomingEffects) && incomingEffects.length > 0) {
+          await resultActor.createEmbeddedDocuments('ActiveEffect', incomingEffects as any[]);
+        }
       }
 
       let tokensPlaced = 0;
@@ -4911,7 +4950,7 @@ export class FoundryDataAccess {
           const placement = request.placement || { type: 'center' };
           const position = this.calculateTokenPosition(placement.type, scene, 0);
           const tokenData = {
-            actorId: createdActor.id,
+            actorId: resultActor.id,
             x: position.x,
             y: position.y,
           };
@@ -4923,10 +4962,11 @@ export class FoundryDataAccess {
       return {
         success: true,
         actor: {
-          id: createdActor.id as string,
-          name: createdActor.name as string,
-          type: createdActor.type,
+          id: resultActor.id as string,
+          name: resultActor.name as string,
+          type: resultActor.type,
         },
+        updatedExisting,
         tokensPlaced,
       };
     } catch (error) {

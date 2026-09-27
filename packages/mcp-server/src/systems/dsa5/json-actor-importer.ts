@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
@@ -984,19 +985,42 @@ const sanitizeActorPayload = (payload: JsonRecord): JsonRecord => {
   return actorData;
 };
 
-const extractPayload = async (
+export const MAX_PAYLOAD_FILE_SIZE = 10 * 1024 * 1024;
+const ALLOWED_PAYLOAD_FILE_EXTENSIONS = new Set(['.json', '.tdc']);
+
+export const extractPayload = async (
   jsonPayload: unknown,
   filePath: string | undefined
 ): Promise<JsonRecord> => {
   let parsed: unknown = jsonPayload;
 
   if (!parsed && filePath) {
+    const extension = path.extname(filePath).toLowerCase();
+    if (!ALLOWED_PAYLOAD_FILE_EXTENSIONS.has(extension)) {
+      throw new Error('Payload file must use a .json or .tdc extension.');
+    }
+
+    const { size } = await fs.stat(filePath);
+    if (size > MAX_PAYLOAD_FILE_SIZE) {
+      throw new Error(
+        `Payload file exceeds the ${MAX_PAYLOAD_FILE_SIZE / 1024 / 1024} MB size limit.`
+      );
+    }
+
     const content = await fs.readFile(filePath, 'utf8');
-    parsed = JSON.parse(content);
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      throw new Error('Payload is not valid JSON.');
+    }
   }
 
   if (typeof parsed === 'string') {
-    parsed = JSON.parse(parsed);
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      throw new Error('Payload is not valid JSON.');
+    }
   }
 
   if (!isRecord(parsed)) {

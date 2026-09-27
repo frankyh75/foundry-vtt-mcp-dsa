@@ -1,12 +1,33 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   applyResolvedItemOverrides,
   detectDSA5ImportFormat,
+  extractPayload,
+  MAX_PAYLOAD_FILE_SIZE,
   mapCustomDsa5Payload,
   mapOptolithLikePayload,
   normalizeInputKeys,
   validateImportPayload,
 } from './json-actor-importer.js';
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true }))
+  );
+});
+
+async function createPayloadFile(extension: string, content: string | Uint8Array): Promise<string> {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'foundry-mcp-payload-'));
+  temporaryDirectories.push(directory);
+  const filePath = path.join(directory, `payload${extension}`);
+  await writeFile(filePath, content);
+  return filePath;
+}
 
 describe('DSA5 JSON actor importer mapper', () => {
   it('detects custom_dsa5 format', () => {
@@ -196,5 +217,41 @@ describe('DSA5 JSON actor importer mapper', () => {
     expect((items[1].system as any).quantity.value).toBe(3);
     expect(result.appliedCount).toBe(2);
     expect(result.unappliedSourceNames).toEqual([]);
+  });
+});
+
+describe('extractPayload file paths', () => {
+  it.each(['.txt', '.sh', '.pdf'])('rejects a %s payload file', async extension => {
+    const filePath = await createPayloadFile(extension, '{"name":"Ignored"}');
+
+    await expect(extractPayload(undefined, filePath)).rejects.toThrow(
+      'Payload file must use a .json or .tdc extension.'
+    );
+  });
+
+  it('rejects a payload file over the size limit', async () => {
+    const filePath = await createPayloadFile('.json', new Uint8Array(MAX_PAYLOAD_FILE_SIZE + 1));
+
+    await expect(extractPayload(undefined, filePath)).rejects.toThrow(
+      'Payload file exceeds the 10 MB size limit.'
+    );
+  });
+
+  it.each(['.json', '.tdc'])('accepts valid %s payload files', async extension => {
+    const filePath = await createPayloadFile(extension, '{"name":"Nayeli","type":"character"}');
+
+    await expect(extractPayload(undefined, filePath)).resolves.toEqual({
+      name: 'Nayeli',
+      type: 'character',
+    });
+  });
+
+  it('returns a plain error for malformed file and inline JSON', async () => {
+    const filePath = await createPayloadFile('.json', '{not valid JSON');
+
+    await expect(extractPayload(undefined, filePath)).rejects.toThrow('Payload is not valid JSON.');
+    await expect(extractPayload('{not valid JSON', undefined)).rejects.toThrow(
+      'Payload is not valid JSON.'
+    );
   });
 });
