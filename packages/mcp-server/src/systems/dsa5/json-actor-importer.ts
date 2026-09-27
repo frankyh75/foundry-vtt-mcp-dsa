@@ -1000,14 +1000,25 @@ export const extractPayload = async (
       throw new Error('Payload file must use a .json or .tdc extension.');
     }
 
-    const { size } = await fs.stat(filePath);
+    let size: number;
+    try {
+      ({ size } = await fs.stat(filePath));
+    } catch {
+      throw new Error('Payload file could not be read.');
+    }
     if (size > MAX_PAYLOAD_FILE_SIZE) {
       throw new Error(
         `Payload file exceeds the ${MAX_PAYLOAD_FILE_SIZE / 1024 / 1024} MB size limit.`
       );
     }
 
-    const content = await fs.readFile(filePath, 'utf8');
+    let content: string;
+    try {
+      content = await fs.readFile(filePath, 'utf8');
+    } catch {
+      throw new Error('Payload file could not be read.');
+    }
+
     try {
       parsed = JSON.parse(content);
     } catch {
