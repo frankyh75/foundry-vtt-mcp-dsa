@@ -13,10 +13,11 @@ function createActor(id: string, name: string, type: string) {
     items: [] as any[],
     effects: [] as any[],
     update: vi.fn(async (update: Record<string, unknown>) => Object.assign(actor, update)),
-    updateEmbeddedDocuments: vi.fn(async (_documentType: string, updates: any[]) => {
+    updateEmbeddedDocuments: vi.fn(async (documentType: string, updates: any[]) => {
+      const collection = documentType === 'Item' ? actor.items : actor.effects;
       for (const update of updates) {
-        const item = actor.items.find((candidate: any) => candidate.id === update._id);
-        Object.assign(item, update);
+        const document = collection.find((candidate: any) => candidate.id === update._id);
+        Object.assign(document, update);
       }
     }),
     createEmbeddedDocuments: vi.fn(async (documentType: string, documents: any[]) => {
@@ -129,5 +130,39 @@ describe('FoundryDataAccess.createActorFromData updateExisting', () => {
 
     expect(secondResult.updatedExisting).toBe(false);
     expect(actors).toHaveLength(2);
+  });
+
+  it('updates matching effects on a second import without duplicating them', async () => {
+    const { actors, dataAccess } = setupFoundry();
+    const firstImport = {
+      name: 'Nayeli',
+      type: 'character',
+      effects: [{ name: 'Blessed', type: 'bonus', changes: [{ key: 'system.value', value: '1' }] }],
+    };
+
+    await dataAccess.createActorFromData({
+      actorData: firstImport,
+      updateExisting: true,
+      existingActorIdentifier: 'Nayeli',
+    });
+    const secondResult = await dataAccess.createActorFromData({
+      actorData: {
+        ...firstImport,
+        effects: [{ name: 'Blessed', type: 'bonus', changes: [{ key: 'system.value', value: '2' }] }],
+      },
+      updateExisting: true,
+      existingActorIdentifier: 'Nayeli',
+    });
+
+    expect(secondResult.updatedExisting).toBe(true);
+    expect(actors).toHaveLength(1);
+    expect(actors[0].effects).toHaveLength(1);
+    expect(actors[0].effects[0]).toEqual(
+      expect.objectContaining({
+        name: 'Blessed',
+        type: 'bonus',
+        changes: [{ key: 'system.value', value: '2' }],
+      })
+    );
   });
 });

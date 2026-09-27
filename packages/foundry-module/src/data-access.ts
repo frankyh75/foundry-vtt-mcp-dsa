@@ -4904,7 +4904,7 @@ export class FoundryDataAccess {
 
         const preservedTypes = new Set(request.preserveItemTypes ?? []);
         const existingItemsByKey = new Map<string, any[]>();
-        for (const item of Array.from(existingActor.items || []) as any[]) {
+        for (const item of Array.from<any>(existingActor.items || [])) {
           if (preservedTypes.has(item.type)) continue;
           const key = `${item.type}::${String(item.name).toLowerCase()}`;
           const items = existingItemsByKey.get(key) ?? [];
@@ -4927,6 +4927,30 @@ export class FoundryDataAccess {
         }
         if (itemsToCreate.length > 0) {
           await existingActor.createEmbeddedDocuments('Item', itemsToCreate);
+        }
+
+        const existingEffectsByKey = new Map<string, any[]>();
+        for (const effect of Array.from<any>(existingActor.effects || [])) {
+          const key = `${effect.type}::${String(effect.name).toLowerCase()}`;
+          const effects = existingEffectsByKey.get(key) ?? [];
+          effects.push(effect);
+          existingEffectsByKey.set(key, effects);
+        }
+
+        const effectUpdates: any[] = [];
+        const effectsToCreate: any[] = [];
+        for (const effect of Array.isArray(incomingEffects) ? incomingEffects : []) {
+          const key = `${effect.type}::${String(effect.name).toLowerCase()}`;
+          const matchingEffect = existingEffectsByKey.get(key)?.shift();
+          if (matchingEffect) effectUpdates.push({ ...effect, _id: matchingEffect.id });
+          else effectsToCreate.push(effect);
+        }
+
+        if (effectUpdates.length > 0) {
+          await existingActor.updateEmbeddedDocuments('ActiveEffect', effectUpdates);
+        }
+        if (effectsToCreate.length > 0) {
+          await existingActor.createEmbeddedDocuments('ActiveEffect', effectsToCreate);
         }
         resultActor = existingActor;
       } else {
